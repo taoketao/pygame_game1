@@ -1,70 +1,301 @@
 # IPython log file
 import pygame, random, sys
+import sqlite3 as sql
+import ConfigParser
 
-map_num_tiles = (num_x_tiles, num_y_tiles) = (9,7)
-tile_size = (tile_x_size, tile_y_size) = (48,44)
-map_pix_size = (map_x, map_y) = tuple( \
-        [map_num_tiles[i] * tile_size[i] for i in (0,1)])
-world_center = ( map_x//2-tile_x_size//2, map_y//2-tile_y_size//2 )
 
-pygame.init()
-screen = pygame.display.set_mode(map_pix_size)
-tiles = {}
-tiles['a'] = pygame.image.load('./apricorn_img.png').convert_alpha()
-tiles['g'] = pygame.image.load('./grass_tile_img.png').convert_alpha()
-tiles['d'] = pygame.image.load('./dirt_tile_img.png').convert_alpha()
-tiles['gb']= pygame.image.load('./grass_tile_img_bordered.png').convert_alpha()
-tiles['db']= pygame.image.load('./grass_tile_img_bordered.png').convert_alpha() # Todo: get *actual* bordered dirt tile!
-tiles['player sprite'] = pygame.image.load('./player/1.png').convert_alpha()
-for tnm, t in tiles.items():
-    tmp = pygame.Surface(tile_size).convert_alpha()
-    pygame.transform.scale(t, tile_size, tmp)
-    t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
-    tiles[tnm]=tmp.convert_alpha()
+''' Options '''
+MAP_LEVEL_CONFIG = './config2.ini'
+TILE_SIZE = (32,32)
+
+
+class GameManager(object):
+    ''' Whole wrapper class for a organizing a game level. '''
+    def __init__(gm, which_map_file=None): 
+        if not which_map_file:  gm.which_map_file = MAP_LEVEL_CONFIG 
+        else:                   gm.which_map_file = which_map_file 
+
+    def initialize_internal_structures(gm):
+        gm._init_create_database()
+        gm._init_global_fields()
+        gm._init_pygame()
+        gm._init_load_imgs()
+        gm._init_sprite_macros()
+        gm._init_plyr_object()
+        gm._init_start_map()
+
+    """ ---------------------------------------------------------------------- """
+    """    Initialization Procedures, called once prior to a new game level.   """
+    """ ---------------------------------------------------------------------- """
+
+    ''' Create databases '''
+    def _init_create_database(gm):
+        gm.tile_size = (gm.tile_x_size, gm.tile_y_size) = TILE_SIZE
+        cxn = sql.connect(':memory:')
+        _db = cxn.cursor()
+        _db.execute(''' CREATE TABLE tilemap ( 
+            tx INT, ty INT,                 px INT, py INT, 
+            base_tid TEXT NOT NULL,         ent_tid TEXT,   
+            block_plyr BOOL,                altered BOOL          ); ''')
+        cp = ConfigParser.ConfigParser()
+        cp.read(gm.which_map_file)
+        curR, curC = 0,0
+        for char in cp.get('map','map'):
+            if char== '\n':
+                curC += 1; curR = 0; continue;
+            base_tid = char if char in ['d','g'] else ['g']
+            _db.execute(''' INSERT INTO tilemap 
+                (tx, ty, px, py, base_tid, ent_tid, block_plyr, altered)
+                VALUES (?,?,?,?,?,?,?,?); ''', \
+                        (curR, curC, gm.tile_x_size*curR, gm.tile_y_size*curC, 
+                        cp.get(char, 'base_tid'),   cp.get(char, 'ent_tid'), 
+                        cp.get(char, 'block'),      True))
+            curR += 1
+        gm.map_db = _db
+        gm.map_num_tiles = (curR, curC+1)
+
+    ''' Important global fields '''
+    def _init_global_fields(gm):
+        (gm.num_x_tiles, gm.num_y_tiles) = gm.map_num_tiles
+        gm.map_pix_size = (gm.map_x, gm.map_y) = tuple( \
+                [gm.map_num_tiles[i] * gm.tile_size[i] for i in (0,1)])
+        gm.world_center = ( gm.map_x // 2 - gm.tile_x_size // 2, \
+                            gm.map_y // 2 - gm.tile_y_size // 2   )
+        gm.n_plyr_anim = 3
+        gm.n_plyr_dirs = 4
+
+    ''' Spin up pygame '''
+    def _init_pygame(gm):
+        pygame.init()
+        gm.screen = pygame.display.set_mode(gm.map_pix_size)
+
+    ''' Load and store tile-sized sprite images '''
+    def _init_load_imgs(gm):
+        gm.imgs = {}
+        ''' >>> Tiles:  '''
+        gm.imgs['a'] = pygame.image.load('./apricorn_img.png').convert_alpha()
+        gm.imgs['g'] = pygame.image.load('./grass_tile_img.png').convert_alpha()
+        gm.imgs['d'] = pygame.image.load('./dirt_tile_img.png').convert_alpha()
+        ''' >>> Plyr:  '''
+        for i in range(gm.n_plyr_dirs * gm.n_plyr_anim):
+            save_spnm = 'player sprite '+str(i+1)
+            load_spnm = './player/'+str(i+1)+'.png'
+            gm.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
+        ''' >>> [processing]:  '''
+        for tnm, t in gm.imgs.items():
+            tmp = pygame.Surface(gm.tile_size).convert_alpha()
+            pygame.transform.scale(t, gm.tile_size, tmp)
+            t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
+            gm.imgs[tnm]=tmp.convert_alpha()
     
-def draw_background(surface=screen, bordered=False):
-    b = 'b' if bordered else ''
-    for i in range(num_x_tiles): 
-        for j in range(num_y_tiles):
-            if random.random()<0.5:
-                surface.blit(tiles['g'+b], (i*tile_x_size, j*tile_y_size))
-            else:
-                surface.blit(tiles['d'+b], (i*tile_x_size, j*tile_y_size))
-            if i==0 or j==0 or i==num_x_tiles-1 or j==num_y_tiles-1:
-                surface.blit(tiles['a'], (i*tile_x_size, j*tile_y_size))
-    pygame.display.update()
+    def _init_sprite_macros(gm): 
+        gm.sprites = pygame.sprite.LayeredDirty([])
+        gm.plyr_team = pygame.sprite.LayeredDirty([])
+        
+    def _init_plyr_object(gm): 
+        gm.plyr = pygame.sprite.DirtySprite()
+        gm.plyr.image = gm.imgs['player sprite 1']
+        gm.plyr.rect = gm.plyr.image.get_rect().move(gm.world_center).\
+                            move((0,-gm.tile_y_size//8))
+        gm.plyr.dirty=1
+        gm.plyr.add(gm.sprites, gm.plyr_team)
 
-draw_background()
-background = pygame.Surface(map_pix_size)
-draw_background(background)
-raw_input()
+    def _init_start_map(gm):
+        gm.draw_background()
+        gm.background = pygame.Surface(gm.map_pix_size)
+        gm.draw_background(gm.background)
+        pygame.display.update(gm.sprites.draw(gm.screen))
 
-plyr = pygame.sprite.DirtySprite()
-plyr.image = tiles['player sprite']
-plyr.rect = pygame.Rect( world_center, tile_size ).move((0,-tile_y_size//8))
-plyr.dirty=1
 
-all_sprites = pygame.sprite.LayeredDirty([plyr])
-an_update_rect = all_sprites.draw(screen)
 
-pygame.display.update(an_update_rect)
 
-raw_input()
-screen.blit(background,(0,0))
-pygame.display.update()
-raw_input()
-pygame.display.update(all_sprites.draw(screen))
-raw_input()
-sys.exit()
+    """ ---------------------------------------------------------------------- """
+    """  Rendering functions on the map-global scale. Unsure if keeping these. """
+    """ ---------------------------------------------------------------------- """
+    def draw_background(gm, targ_surface=None, update_me=True):
+        ''' Naively redraw entire background. '''
+        if not targ_surface: targ_surface = gm.screen
+        query = "SELECT px, py, base_tid, ent_tid FROM tilemap"
+        for px, py, base, ent in gm.map_db.execute(query).fetchall():
+            '''  Base layer: '''
+            targ_surface.blit(gm.imgs[base], (px,py))
+            '''  Entity layer: '''
+            if not ent=='-':
+                targ_surface.blit(gm.imgs[ent], (px,py))
+        if update_me: pygame.display.update()
 
-def commented_out():
-    all_sprites.clear(screen, screen)
-    pygame.display.update(all_sprites.draw(screen))
-    all_sprites.clear(screen, screen)
-    all_sprites.clear(screen, redraw_background())
-    all_sprites.clear(screen, screen)
-    pygame.display.update(all_sprites.draw(screen))
-    all_sprites
-    pygame.display.update(all_sprites.draw(screen))
-    screen.blit(plyr.image, (32,32))
-    ''' ok, avoid doing < all_sprites.clear(screen, *) > done above -- that fucks things up '''
+    def clear_screen(gm): gm.screen.blit(gm.background,(0,0))
+
+
+
+    """ ---------------------------------------------------------------------- """
+    """    Action functions: launch a game, etc.                               """
+    """ ---------------------------------------------------------------------- """
+    def run_game(gm, max_num_epochs_test):
+        _rg = RunGame(gm)
+        for _ in range(max_num_epochs_test):
+            _rg.run_frame()
+
+
+""" ---------------------------------------------------------------------- """
+""" Class RunGame handles the mechanics of running a level. Specifically,  """
+"""    it manages all the sprites and interactions between them as the     """
+"""    master over sequentially-sensitive events.                          """
+""" ---------------------------------------------------------------------- """
+class RunGame(object):
+    UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
+    EVENTS = [UDIR, LDIR, DDIR, RDIR]
+
+    def __init__(rg, gm, fps=30, stepsize_factor=0.15):
+        rg.gm = gm
+        rg.fps = float(fps)
+        rg.fpms = fps/1000.0
+        rg.stepsize_x = stepsize_factor * rg.gm.tile_x_size
+        rg.stepsize_y = stepsize_factor * rg.gm.tile_y_size
+        rg._init_counters()
+
+    def _init_counters(rg):
+        rg.clock = pygame.time.Clock()
+        rg.last_tick = 0
+        rg.step_cycler = 0
+        rg._reset_events()
+
+    def _reset_events(rg): rg.events = [False] * rg.gm.n_plyr_dirs
+
+    def _punch_clock(rg):
+        rg.clock.tick(rg.fps)
+        this_tick = pygame.time.get_ticks()
+        dt = (this_tick - rg.last_tick)
+        sm = dt * rg.fpms if rg.last_tick>0 else 1
+        rg.last_tick = this_tick
+        return sm, dt
+
+    ''' Events Schema: each numbered RunGame event maps to a bool
+        array of whether the event happened. '''
+    def _update_events(rg):
+        rg._reset_events()
+        pygame.event.pump()
+        down = pygame.key.get_pressed()
+        if down[pygame.K_UP]:    rg.events[rg.UDIR]=True
+        if down[pygame.K_DOWN]:  rg.events[rg.DDIR]=True
+        if down[pygame.K_LEFT]:  rg.events[rg.LDIR]=True
+        if down[pygame.K_RIGHT]: rg.events[rg.RDIR]=True
+        if down[pygame.K_w]:     rg.events[rg.UDIR]=True
+        if down[pygame.K_s]:     rg.events[rg.DDIR]=True
+        if down[pygame.K_a]:     rg.events[rg.LDIR]=True
+        if down[pygame.K_d]:     rg.events[rg.RDIR]=True
+
+        if down[pygame.K_q]: sys.exit()
+        '''for e in pygame.event.get():
+            if not hasattr(e, 'key'): continue # todo
+            if e.key == pygame.K_UP:    rg.events[rg.UDIR]=True
+            if e.key == pygame.K_DOWN:  rg.events[rg.DDIR]=True
+            if e.key == pygame.K_LEFT:  rg.events[rg.LDIR]=True
+            if e.key == pygame.K_RIGHT: rg.events[rg.RDIR]=True
+            if e.key == pygame.K_w:     rg.events[rg.UDIR]=True
+            if e.key == pygame.K_s:     rg.events[rg.DDIR]=True
+            if e.key == pygame.K_a:     rg.events[rg.LDIR]=True
+            if e.key == pygame.K_d:     rg.events[rg.RDIR]=True
+                '''
+
+    def _handle_plyr_movement(rg, smoothing):
+        prev_e = rg.events[:]
+        rg._update_events()
+
+        if sum(rg.events)>1: 
+            rg.events=prev_e
+        next_e = rg.events
+        #print prev_e, next_e,'\t',
+        if not any(prev_e) and any(next_e): # started walking
+            rg._update_plyr_pos(next_e, smoothing)
+            rg._update_plyr_img(next_e, 'moving')
+            return True
+
+        if any(prev_e) and prev_e==next_e: # continue walking
+            if sum(prev_e)>1: raise Exception("Internal: prev dir")
+            rg._update_plyr_pos(next_e, smoothing)
+            rg._update_plyr_img(next_e, 'moving')
+            return True
+        if any(prev_e) and not any(next_e): # stop walking
+            if sum(prev_e)>1: raise Exception("Internal: prev dir")
+            rg._update_plyr_img(prev_e, 'stopped')
+            return True # last update
+        if not any(prev_e) and not any(next_e): # continue stopped
+            rg._update_plyr_img(prev_e, 'stopped')
+            return False
+
+    def _update_plyr_pos(rg, dirs, smoothing):
+        dx = (dirs[rg.RDIR]-dirs[rg.LDIR]) * smoothing * rg.stepsize_x
+        dy = (dirs[rg.DDIR]-dirs[rg.UDIR]) * smoothing * rg.stepsize_y
+        rg.gm.plyr.rect = rg.gm.plyr.rect.move((dx,dy))
+        #  gm.plyr.rect.move_ip((dx,dy))
+        rg.gm.plyr.dirty=1
+
+    def _update_plyr_img(rg, dirs, mode):
+        if not any(dirs): dirs[rg.DDIR] = True
+        rg.step_cycler = {'moving': rg.step_cycler+1, 'stopped':0}[mode]
+        rg.gm.plyr.image = rg.gm.imgs['player sprite ' + str(\
+                dirs.index(True) * rg.gm.n_plyr_anim + 1 + \
+                {'moving':(rg.step_cycler % rg.gm.n_plyr_anim), \
+                 'stopped':0}[mode])]
+
+    def run_frame(rg):
+        smoothing, paused_t = rg._punch_clock()
+        movement = rg._handle_plyr_movement(smoothing)
+        #rg.gm.sprites.clear(rg.gm.screen, background)
+        if movement: rg.gm.clear_screen()
+        pygame.display.update(rg.gm.sprites.draw(rg.gm.screen))
+        #self.wander_player_testfn(smoothing=smoothing_multiplier)
+#            self.move_player_testfn(smoothing=smoothing_multiplier)
+
+
+
+
+        '''
+        def move_player_testfn(self, smoothing=1.0, stepsize=0.1, events=None):
+            direction = random.randint(0,4) # uldr
+            if direction>=4: 
+                self.step_cycler = 0
+                return
+            plyr.image = imgs['player sprite '+str(direction*n_anim+1+self.step_cycler%n_anim)]
+            mx, my = 0,0
+            if direction==0: my -= smoothing*stepsize*tile_y_size
+            if direction==1: mx -= smoothing*stepsize*tile_x_size
+            if direction==2: my += smoothing*stepsize*tile_y_size
+            if direction==3: mx += smoothing*stepsize*tile_x_size
+            plyr_pos = (plyr.rect.centerx, plyr.rect.bottom)
+            plyr.rect = plyr.rect.move((mx,my))
+            plyr.dirty=1
+            all_sprites.clear(screen, background)
+            pygame.display.update(all_sprites.draw(screen))
+            self.step_cycler += 1
+
+        def wander_player_testfn(self, smoothing=1.0, stepsize=0.1):
+            n_anim = 3
+            direction = random.randint(0,4) # uldr
+            if direction>=4: 
+                self.step_cycler = 0
+                return
+            plyr.image = imgs['player sprite '+str(direction*n_anim+1+self.step_cycler%n_anim)]
+            mx, my = 0,0
+            if direction==0: my -= smoothing*stepsize*tile_y_size
+            if direction==1: mx -= smoothing*stepsize*tile_x_size
+            if direction==2: my += smoothing*stepsize*tile_y_size
+            if direction==3: mx += smoothing*stepsize*tile_x_size
+            plyr_pos = (plyr.rect.centerx, plyr.rect.bottom)
+            plyr.rect = plyr.rect.move((mx,my))
+            plyr.dirty=1
+            all_sprites.clear(screen, background)
+            pygame.display.update(all_sprites.draw(screen))
+            self.step_cycler += 1
+            '''
+
+
+
+
+
+
+
+GM = GameManager()
+GM.initialize_internal_structures()
+GM.run_game(10000)
