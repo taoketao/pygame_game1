@@ -6,8 +6,10 @@ import ConfigParser
 
 ''' Options '''
 MAP_LEVEL_CONFIG = './config2.ini'
-TILE_SIZE = (32,32)
+TILE_SIZE = (64,64)
 
+UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
+EVENTS = [UDIR, LDIR, DDIR, RDIR]
 
 class GameManager(object):
     ''' Whole wrapper class for a organizing a game level. '''
@@ -37,6 +39,7 @@ class GameManager(object):
             tx INT, ty INT,                 px INT, py INT, 
             base_tid TEXT NOT NULL,         ent_tid TEXT,   
             block_plyr BOOL,                altered BOOL          ); ''')
+        # what does altered mean...?
         cp = ConfigParser.ConfigParser()
         cp.read(gm.which_map_file)
         curR, curC = 0,0
@@ -62,7 +65,7 @@ class GameManager(object):
         gm.world_center = ( gm.map_x // 2 - gm.tile_x_size // 2, \
                             gm.map_y // 2 - gm.tile_y_size // 2   )
         gm.n_plyr_anim = 3
-        gm.n_plyr_dirs = 4
+        gm.n_plyr_dirs = len(EVENTS)
 
     ''' Spin up pygame '''
     def _init_pygame(gm):
@@ -99,7 +102,10 @@ class GameManager(object):
                             move((0,-gm.tile_y_size//8))
         gm.plyr.dirty=1
         gm.plyr.add(gm.sprites, gm.plyr_team)
-
+#    def plyr_collider(gm, amt=0.8): return gm.plyr.rect.inflate(\
+#            (gm.tile_x_size * -amt, gm.tile_y_size * -amt) )
+    def deflate(gm, targ, pct):
+        return targ.inflate((gm.tile_x_size * -pct, gm.tile_y_size * -pct))
     def _init_start_map(gm):
         gm.draw_background()
         gm.background = pygame.Surface(gm.map_pix_size)
@@ -128,14 +134,33 @@ class GameManager(object):
 
 
 
-    """ ---------------------------------------------------------------------- """
-    """    Action functions: launch a game, etc.                               """
-    """ ---------------------------------------------------------------------- """
+    """ run_game: launch a game and loop it  """
     def run_game(gm, max_num_epochs_test):
         _rg = RunGame(gm)
         for _ in range(max_num_epochs_test):
             _rg.run_frame()
 
+    """ validate_action: given an action by an agent, affect it if needed. """
+    def validate_action(gm, agent, action, parameter):
+#        print gm.map_db.execute("SELECT DISTINCT block_plyr FROM tilemap").fetchall()
+#        sys.exit()
+        if agent=='plyr' and action=='move':
+            new_param = parameter[:]
+            query = "SELECT px, py, ent_tid FROM tilemap WHERE block_plyr==?"
+            under_tiles = []
+            for px, py, ent in gm.map_db.execute(query, ('true',)).fetchall():
+                r = gm.deflate(pygame.Rect( (px,py), TILE_SIZE), 0.5)
+                r.move(
+                if r.colliderect(gm.deflate(gm.plyr.rect, 0.5)):
+                    under_tiles.append(r)
+            print under_tiles
+            for r in under_tiles:
+                if r.x < gm.plyr.rect.x:    new_param[LDIR] = False
+                if r.x > gm.plyr.rect.x:    new_param[RDIR] = False
+                if r.y < gm.plyr.rect.y:    new_param[UDIR] = False
+                if r.y > gm.plyr.rect.y:    new_param[DDIR] = False
+            return new_param
+        else: raise Exception("Not implemented yet")
 
 """ ---------------------------------------------------------------------- """
 """ Class RunGame handles the mechanics of running a level. Specifically,  """
@@ -143,8 +168,6 @@ class GameManager(object):
 """    master over sequentially-sensitive events.                          """
 """ ---------------------------------------------------------------------- """
 class RunGame(object):
-    UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
-    EVENTS = [UDIR, LDIR, DDIR, RDIR]
 
     def __init__(rg, gm, fps=30, stepsize_factor=0.15):
         rg.gm = gm
@@ -176,27 +199,16 @@ class RunGame(object):
         rg._reset_events()
         pygame.event.pump()
         down = pygame.key.get_pressed()
-        if down[pygame.K_UP]:    rg.events[rg.UDIR]=True
-        if down[pygame.K_DOWN]:  rg.events[rg.DDIR]=True
-        if down[pygame.K_LEFT]:  rg.events[rg.LDIR]=True
-        if down[pygame.K_RIGHT]: rg.events[rg.RDIR]=True
-        if down[pygame.K_w]:     rg.events[rg.UDIR]=True
-        if down[pygame.K_s]:     rg.events[rg.DDIR]=True
-        if down[pygame.K_a]:     rg.events[rg.LDIR]=True
-        if down[pygame.K_d]:     rg.events[rg.RDIR]=True
-
-        if down[pygame.K_q]: sys.exit()
-        '''for e in pygame.event.get():
-            if not hasattr(e, 'key'): continue # todo
-            if e.key == pygame.K_UP:    rg.events[rg.UDIR]=True
-            if e.key == pygame.K_DOWN:  rg.events[rg.DDIR]=True
-            if e.key == pygame.K_LEFT:  rg.events[rg.LDIR]=True
-            if e.key == pygame.K_RIGHT: rg.events[rg.RDIR]=True
-            if e.key == pygame.K_w:     rg.events[rg.UDIR]=True
-            if e.key == pygame.K_s:     rg.events[rg.DDIR]=True
-            if e.key == pygame.K_a:     rg.events[rg.LDIR]=True
-            if e.key == pygame.K_d:     rg.events[rg.RDIR]=True
-                '''
+        if down[pygame.K_UP]:    rg.events[UDIR]=True
+        if down[pygame.K_DOWN]:  rg.events[DDIR]=True
+        if down[pygame.K_LEFT]:  rg.events[LDIR]=True
+        if down[pygame.K_RIGHT]: rg.events[RDIR]=True
+        if down[pygame.K_w]:     rg.events[UDIR]=True
+        if down[pygame.K_s]:     rg.events[DDIR]=True
+        if down[pygame.K_a]:     rg.events[LDIR]=True
+        if down[pygame.K_d]:     rg.events[RDIR]=True
+        if down[pygame.K_q]:     sys.exit()
+        pygame.event.clear()
 
     def _handle_plyr_movement(rg, smoothing):
         prev_e = rg.events[:]
@@ -204,35 +216,38 @@ class RunGame(object):
 
         if sum(rg.events)>1: 
             rg.events=prev_e
-        next_e = rg.events
-        #print prev_e, next_e,'\t',
+        next_e = rg.gm.validate_action('plyr', 'move', rg.events)
+        
         if not any(prev_e) and any(next_e): # started walking
-            rg._update_plyr_pos(next_e, smoothing)
+            rg.gm.plyr.rect = rg._update_plyr_pos(next_e, smoothing)
             rg._update_plyr_img(next_e, 'moving')
             return True
-
         if any(prev_e) and prev_e==next_e: # continue walking
             if sum(prev_e)>1: raise Exception("Internal: prev dir")
-            rg._update_plyr_pos(next_e, smoothing)
             rg._update_plyr_img(next_e, 'moving')
+            rg._update_plyr_pos(next_e, smoothing)
             return True
         if any(prev_e) and not any(next_e): # stop walking
             if sum(prev_e)>1: raise Exception("Internal: prev dir")
             rg._update_plyr_img(prev_e, 'stopped')
+            rg.gm.plyr.dirty=1
             return True # last update
         if not any(prev_e) and not any(next_e): # continue stopped
             rg._update_plyr_img(prev_e, 'stopped')
             return False
 
+    ''' _update_plyr_pos: return a pos tuple that indicates how much to 
+        move an agent, according to the player's step sizes. '''
     def _update_plyr_pos(rg, dirs, smoothing):
-        dx = (dirs[rg.RDIR]-dirs[rg.LDIR]) * smoothing * rg.stepsize_x
-        dy = (dirs[rg.DDIR]-dirs[rg.UDIR]) * smoothing * rg.stepsize_y
+        dx = (dirs[RDIR]-dirs[LDIR]) * smoothing * rg.stepsize_x
+        dy = (dirs[DDIR]-dirs[UDIR]) * smoothing * rg.stepsize_y
         rg.gm.plyr.rect = rg.gm.plyr.rect.move((dx,dy))
         #  gm.plyr.rect.move_ip((dx,dy))
         rg.gm.plyr.dirty=1
+        return True
 
     def _update_plyr_img(rg, dirs, mode):
-        if not any(dirs): dirs[rg.DDIR] = True
+        if not any(dirs): dirs[DDIR] = True
         rg.step_cycler = {'moving': rg.step_cycler+1, 'stopped':0}[mode]
         rg.gm.plyr.image = rg.gm.imgs['player sprite ' + str(\
                 dirs.index(True) * rg.gm.n_plyr_anim + 1 + \
