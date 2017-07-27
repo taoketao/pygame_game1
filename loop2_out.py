@@ -3,11 +3,12 @@ import pygame, random, sys
 import sqlite3 as sql
 import ConfigParser
 import abc
+import numpy as np
 
 
 ''' Options '''
-MAP_LEVEL_CONFIG = './config2.ini'
-TILE_SIZE = (64,64);
+MAP_LEVEL_CONFIG = './config3.ini'
+TILE_SIZE = (64,50);
 X = 0;  Y = 1
 
 UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
@@ -16,8 +17,10 @@ EVENTS = [UDIR, LDIR, DDIR, RDIR]
 
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
-BLOCK_COLL_WIDTH, BLOCK_COLL_SHIFT = 0.3, -0.3
-DEFAULT_STEPSIZE = 0.15
+OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.3, -0.3
+OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35, -0.35
+if OBJBLOCK_COLL_WIDTH+OBJBLOCK_COLL_SHIFT<0: raise Exception()
+DEFAULT_STEPSIZE = 0.20
 DEFAULT_FPS = 20
 
 
@@ -205,7 +208,10 @@ class GameManager(object):
         _db.execute(''' CREATE TABLE tilemap ( 
             tx INT, ty INT,                 px INT, py INT, 
             base_tid TEXT NOT NULL,         ent_tid TEXT,   
-            block_plyr BOOL,                block_pkmn BOOL      ); ''')
+            block_plyr BOOL,                block_pkmn BOOL,
+            
+            coll_present BOOL,
+            coll_px INT,    coll_py INT,    coll_pw INT,    coll_ph INT ); ''')
         cp = ConfigParser.ConfigParser()
         cp.read(gm.which_map_file)
         curR, curC = 0,0
@@ -272,7 +278,6 @@ class GameManager(object):
         
     def _init_plyr_object(gm): 
         gm.Plyr = Player(gm)
-        #print gm.Plyr.pos_tid
 
     def deflate(gm, targ, pct, shift_down=0.0):
         r = targ.inflate((gm.tile_x_size * -pct, gm.tile_y_size * -pct))
@@ -404,7 +409,7 @@ class GameManager(object):
         gm.clock.tick(gm.fps)
         this_tick = pygame.time.get_ticks()
         dt = (this_tick - gm.last_tick)
-        print 'fps:', gm.clock.get_fps()
+#        print 'fps:', gm.clock.get_fps()
         gm.smoothing = dt * gm.fpms if gm.last_tick>0 else 1
         gm.last_tick = this_tick
 
@@ -424,6 +429,21 @@ class GameManager(object):
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_q]:     sys.exit()
         pygame.event.clear()
+
+    def _tx_to_px(gm, v): return TILE_SIZE[X]*v
+    def _ty_to_py(gm, v): return TILE_SIZE[Y]*v
+    def _t_to_p(gm, v1, v2=None): 
+        if not v2==None:
+            return (v1*TILE_SIZE[X], v2*TILE_SIZE[Y])
+        return (v1[X]*TILE_SIZE[X], v1[Y]*TILE_SIZE[Y])
+    def _px_to_tx(gm, v): return int(v//TILE_SIZE[X])
+    def _py_to_ty(gm, v): return int(v//TILE_SIZE[Y])
+    def _p_to_t(gm, v1, v2=None): 
+        if not v2==None:
+            return (int(v1//TILE_SIZE[X]), int(v2//TILE_SIZE[Y]))
+        return (int(v1[X]//TILE_SIZE[X]), int(v1[Y]//TILE_SIZE[Y]))
+                
+            
 
     def _debugutility_print_dir(gm, d, prefix='', end=False):
         print prefix,
@@ -482,10 +502,10 @@ class GameManager(object):
             return False
 
 
-    """ validate_move: given an move attempt by an agent, update move. """
+    """ validate_move: given an move attempt by an agent, update move. """ 
     def validate_move(gm, agent, parameter):
+        if not any(parameter): return parameter # an easy opt
         if agent.string_sub_class=='plyr':
-            if not any(parameter): return parameter
             dirs = parameter[:]
             query = "SELECT px, py, ent_tid FROM tilemap WHERE block_plyr==?"
             under_tiles = []
@@ -494,15 +514,17 @@ class GameManager(object):
 
             blocks = []
 #            agent.move_ip(gm._new_pos_plyrstep(dirs)) # Would step result in coll?
-            #boundaries = gm._get_block_impasses(agent) TODO
+            #_ = gm._get_block_impasses(agent)
             for px, py, ent in gm.map_db.execute(query, ('true',)).fetchall():
                 block_r = gm.deflate(pygame.Rect((px,py), TILE_SIZE), \
-                        BLOCK_COLL_WIDTH, BLOCK_COLL_SHIFT)
+                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT)
                 if block_r.colliderect(agent_coll):
                     under_tiles.append((px,py))
                 blocks += [block_r] 
 
-            for block_r in blocks :
+#            for block_r in blocks :
+#                gm._Debug_Draw_Rect_border(block_r, render=False)
+            for block_r in gm._get_block_impasses(agent):
                 gm._Debug_Draw_Rect_border(block_r, render=False)
             gm._Debug_Draw_Rect_border(agent_coll)
 
@@ -518,43 +540,85 @@ class GameManager(object):
         if len(gm.map_dirty_where)>0 or \
                     not gm.map_blocks.has_key(agent.string_sub_class):
             gm._recompute_blocks(agent)
-        return gm.map_blocks[agent]
+        return gm.map_blocks[agent.string_sub_class]
 
     def _recompute_blocks(gm, agent): 
-        pass
+        blocks = []
         # 1 acquire map & identify blocking blocks, 2 sequentially compute  blocking rects,
         # 3 condolidate blocking rects (4: optimize: only update where map was dirty)
         # 5 store them im a way that is accessible to the agent
-        query = "SELECT block_"+agent.string_sub_class+' '+\
-                "FROM tilemap WHERE tx=? AND ty=?;"
-        if gm.map_db.execute(query, mov_tid).fetchone()[0] == 'true':
-            return 'space is blocked for this '+agent.string_sub_class
-    
+        # Assume uniform blocks!
+
+        arr = np.zeros(gm.map_num_tiles)
+        query = "SELECT tx,ty,px,py FROM tilemap WHERE block_"+\
+                    agent.string_sub_class+"=?;"
+        res = gm.map_db.execute(query, ('true',)).fetchall()
+        for tx,ty,px,py in res: 
+            arr[tx,ty] = 1
+        for tx,ty,px,py in res: 
+            blocks.append( gm.deflate(pygame.Rect((px,py), TILE_SIZE), \
+                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT) )
+            #print 'bl:', blocks , '@', tx,ty
+#            for conn in [gm._t_to_p(0,1),gm._t_to_p(1,0)]:
+            for conn in [(0,1),(1,0)]:
+                targ = (gm._px_to_tx(px)+conn[X], gm._py_to_ty(py)+conn[Y])
+                if gm.num_x_tiles<=targ[X] or gm.num_y_tiles<=targ[Y] or \
+                        0>targ[X] or 0>targ[Y]: 
+                            print ''; continue
+                if arr[targ]==1:
+                    blocks += gm.make_conn(conn, (px,py))
+#                    print '\tding', blocks[-1]
+#                    print 'bl:', blocks, '@', tx,ty
+#                else: print ''
+
+        gm.map_blocks[agent.string_sub_class] = blocks
+#            for diag_conn in [ (1,1),(1,-1),(-1,-1),(-1,1) ]:
+#                if arr[diag_conn]==1:
+#                    blocks += gm.make_d_conn(conn, result)
+                    
+#_t_to_p
+    def make_conn(gm, direction, p_src):
+        if direction[X]<0: return [] # internal error!
+        if direction[Y]<0: return [] # internal inconsistency!
+        w = OBJBLOCK_COLL_WIDTH*gm.tile_x_size
+        h = OBJBLOCK_COLL_WIDTH*gm.tile_y_size
+        h_shift = OBJBLOCK_COLL_SHIFT * gm.tile_y_size
+        _w = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_x_size
+        _h = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size
+        _h_shift = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size+h_shift
+        b=p_src
+#        print '>>',p_src, w,_w,h,_h, gm.map_pix_size, gm.deflate(pygame.Rect(b, TILE_SIZE), \
+#                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT) , gm.tile_size
+#        print '>>,p_src, w,_w,h,_h, gm.map_pix_size, deflated, tilesize'
+        td= (p_src[X]+w/2, p_src[Y]+_h, _w, h)
+        tr= (p_src[X]+w/2+_w, p_src[Y]+h+h_shift, w, _h)
+#        print '\t td,tr:',td, tr
+        return [pygame.Rect( { (0,1): td, (1,0): tr }[direction])]
+#                (0,1): (b[X], b[Y]+h, w,_h), \
+#                (1,0): (b[X]+w, b[Y], _w,h) }[direction])]
+#        return [pygame.Rect( {
+#                (0,1): (b[X], b[Y]+h, w,_h), \
+#                (1,0): (b[X]+w, b[Y], _w,h), \
+#                (0,-1): ( b[X], b[Y]-_h, w, _h) , \
+#                (-1,0): ( b[X]-_w, b[Y], _w, h) }[direction])]
+#
 
     def _Debug_Draw_Rect_border(gm, rect, thickness=2, render=True):
         t=thickness
         rs = []
         def _draw(R, rs):
             rs += [pygame.draw.rect(gm.screen, pygame.Color('red'), R)]
-
         _draw(pygame.Rect(rect.topleft, (t,rect.h)), rs)
         _draw(pygame.Rect(rect.topright, (t,rect.h)), rs)
         _draw(pygame.Rect(rect.topleft, (rect.w,t)), rs)
         _draw(pygame.Rect(rect.bottomleft, (rect.w,t)), rs)
-
-#        for x in range(rect.w//t+1): 
-#            _draw(rect.left + x*t, rect.top, rs)
-#            _draw(rect.left + x*t, rect.bottom, rs)
-#        for y in range(rect.h//t+1): 
-#            _draw(rect.left, rect.top + t*y, rs)
-#            _draw(rect.right, rect.top +t*y, rs)
         if render:
             pygame.display.update(rs)
-'''        query = "SELECT block_"+agent.string_sub_class+' '+\
-                "FROM tilemap WHERE tx=? AND ty=?;"
-        if agent.gm.map_db.execute(query, mov_tid).fetchone()[0] == 'true':
-            return 'space is blocked for this '+agent.string_sub_class
-'''
+
+
+
+
+
 
 GM = GameManager()
 GM.initialize_internal_structures()
