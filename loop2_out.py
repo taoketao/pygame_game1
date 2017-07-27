@@ -32,15 +32,10 @@ class Agent(object):
         agent._rect_init=False # ie, not starting at (0,0)
         agent.ppos_rect = pygame.Rect((-1,-1),size)
         agent.tpos_rect = pygame.Rect(-1,-1,1,1)
-#        agent.rect = agent.spr.rect = agent.spr.image.get_rect()
         agent.spr = pygame.sprite.DirtySprite()
         agent.spr.rect = agent.ppos_rect # tie these two
 
         agent.coll = None
-
-#        agent.pos_px, agent.pos_py, agent.pos_tx, agent.pos_ty = 0,0,0,0
-#        agent.pos_pix = (agent.pos_px, agent.pos_py)
-#        agent.pos_tid = (agent.pos_tx, agent.pos_ty)
         agent.img_id = None
 
         agent.string_sub_class = 'None Stub you must override!!'
@@ -57,26 +52,12 @@ class Agent(object):
     def move_ppos(agent, move_pix):
         if not agent._rect_init: return 'not initialized'
         targ_x, targ_y = agent.ppos_rect.x+move_pix[X], agent.ppos_rect.y+move_pix[Y]
-#        print 'to',targ_x,targ_y
         if targ_x<0 or targ_x>agent.gm.map_x or targ_y<0 or targ_y>agent.gm.map_y:
             return 'out of bounds'
         mov_tid = agent._ppos_to_tpos((targ_x, targ_y))
-#        agent.rect = agent.spr.rect = agent.spr.image.get_rect()
-#        agent.pos_px = targ_x;       agent.pos_py += targ_y 
-#        agent.pos_tx = mov_tid[X]
-#        agent.pos_ty = mov_tid[Y]
-#        agent.pos_pix = (agent.pos_px, agent.pos_py)
-#        agent.pos_tid = (agent.pos_tx, agent.pos_ty)
-#        print '===', agent.spr.rect, agent.spr.image.get_rect(), agent.pos_pix, move_pix
-        #agent.rect.move_ip(move_pix)
-#     agent.spr.rect = pygame.Rect( agent.img_size...agent.spr.image.get_rect().move(move_pix)
         agent.ppos_rect.move_ip(move_pix)
         agent.tpos_rect.move_ip(agent._ppos_to_tpos(move_pix))
         agent.spr.rect.move_ip(move_pix) #<- should be unnecessary... '''
-        #agent.spr.rect = agent.rect
-#        agent.rect = agent.spr.rect
-
-#        print '===',agent.spr.rect, agent.spr.image.get_rect(), agent.pos_pix
         agent.spr.dirty=1
         agent._update_coll()
         return 'success'
@@ -96,6 +77,24 @@ class Agent(object):
     def get_tpos_rect(agent): return agent.ppos_rect
     def get_ppos_Rect(agent): return agent.tpos_rect
 
+    """ validate_move: given an move attempt by this agent, 'fix' move. """ 
+    def validate_move(agent, parameter):
+        if not any(parameter): return parameter # an easy optimization
+        #if agent.string_sub_class=='plyr': # Deprecated: the blocks are
+        dirs = parameter[:]
+        attmpt_step = agent.coll.move(agent.moveparams_to_steps(dirs))
+        for block_r in agent.gm.get_agent_blocks(agent):
+            agent.gm._Debug_Draw_Rect_border(block_r, render=False)
+            if not block_r.colliderect(attmpt_step): continue
+            if block_r.x < agent.ppos_rect.x:    dirs[LDIR] = False
+            if block_r.x > agent.ppos_rect.x:    dirs[RDIR] = False
+            if block_r.y < agent.ppos_rect.y:    dirs[UDIR] = False
+            if block_r.y > agent.ppos_rect.y:    dirs[DDIR] = False
+        agent.gm._Debug_Draw_Rect_border(attmpt_step)
+        if not any(dirs) and any(parameter):
+            agent.gm.prev_e=parameter
+        return dirs
+
 class Player(Agent):
     def __init__(ego, gm):
         Agent.__init__(ego, gm, 'plyr')
@@ -104,13 +103,6 @@ class Player(Agent):
         ego.spr.image = gm.imgs['player sprite 1']
         ego.spr.rect = ego.spr.image.get_rect()
         ego.gm.sprites.append(ego.spr)
-
-#        print (ego.gm.world_pcenter)
-#        print 'a',ego.set_ppos(ego.gm.world_pcenter)#.\
-#                    #move((0,-int(PLYR_IMG_SHIFT_INIT*gm.tile_y_size//1)))
-#        print 'b',ego.move_ppos((0,-int(PLYR_IMG_SHIFT_INIT*gm.tile_y_size//1)))
-#        ego.rect = ego.spr.rect = ego.spr.image.get_rect()
-#        print ego.pos_pix, ego.pos_tid, ego.rect, ego.spr.rect, ego.spr.image.get_rect()
         ego.spr.dirty=1
         ego.spr.add( gm.plyr_team )
         ego.plyr_step_cycler = 0     # animation counter for player sprite
@@ -149,6 +141,54 @@ class Player(Agent):
         dx = (dirs[RDIR]-dirs[LDIR]) * ego.gm.smoothing * ego.gm.stepsize_x
         dy = (dirs[DDIR]-dirs[UDIR]) * ego.gm.smoothing * ego.gm.stepsize_y
         return (dx,dy)
+
+    def _pick_rndm_action(ego, dirs): # subCASE: pick one of the options
+        optns = [i for i in range(len(dirs)) if next_e[i]==1]
+        next_e = [False]*len(dirs)
+        next_e[random.choice(optns)] = True #...randomly
+        return next_e
+
+    def plyr_move(ego):
+        prev_e = ego.gm.prev_e
+        next_e = ego.validate_move(ego.gm.events) # restrict if invalid
+
+        if not any(prev_e) and any(next_e): # CASE started walking
+            if sum(next_e)>1:
+                next_e = ego._pick_rndm_action(next_e)
+            ego.move_ppos(ego.dirs_to_steps(next_e))
+            ego.set_plyr_img(next_e, 'moving')
+            ego.gm.prev_e = next_e
+            return True
+        if any(prev_e) and any(next_e) and not prev_e==next_e: # CASE walking & turning
+            if sum(next_e)>1: # subCASE try: get the new option
+                new = [a and not b for a,b in zip(next_e, prev_e)]
+                if sum(new)>1: # subCASE except: pick one of the new options
+                    optns = [i for i in range(ego.n_plyr_dirs) if new[i]==1]
+                    new = [False]*ego.n_plyr_dirs
+                    new[random.choice(optns)] = True
+                ego.move_ppos(ego.dirs_to_steps(new))
+                ego.set_plyr_img(new, 'moving')
+                return True
+            ego.move_ppos(ego.dirs_to_steps(next_e))
+            ego.set_plyr_img(next_e, 'moving')
+            ego.gm.prev_e = next_e
+            return True
+        if any(prev_e) and prev_e==next_e: # CASE continue walking
+            if sum(prev_e)>1: raise Exception("Internal: prev dir")
+            ego.move_ppos(ego.dirs_to_steps(next_e))
+            ego.set_plyr_img(next_e, 'moving')
+            return True
+        if any(prev_e) and not any(next_e): # CASE stop walking
+            if sum(prev_e)>1: 
+                next_e = ego._pick_rndm_action(prev_e)
+                raise Exception("Internal: prev dir")
+            ego.set_plyr_img(prev_e, 'stopped')
+            ego.spr.dirty=1
+            return True # last update
+        if not any(prev_e) and not any(next_e): # CASE continue stopped
+            ego.set_plyr_img(prev_e, 'stopped')
+            return False
+        raise Exception("Internal error: plyr move")
 
 
 
@@ -346,7 +386,7 @@ class GameManager(object):
             if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
                                       for u in to_update]):
                 to_update.append(agent.spr)
-        if gm._handle_plyr_movement() or \
+        if gm.Plyr.plyr_move() or \
                         any([gm.Plyr.Spr().rect.colliderect(u.rect)\
                         for u in to_update]):
             to_update.append(gm.Plyr.Spr())
@@ -454,89 +494,7 @@ class GameManager(object):
         print '  ',
         if end: print ''
 
-    ''' _handle_plyr_movement: using known prev_e events and current 
-        gm.events, calculate '''
-    def _handle_plyr_movement(gm):
-        prev_e = gm.prev_e
-        next_e = gm.validate_move(gm.Plyr, gm.events) # restrict if invalid
-#        gm._debugutility_print_dir(prev_e, 'prev')
-#        gm._debugutility_print_dir(next_e, '  ->  next')
-#        gm._debugutility_print_dir(gm.events, '  from  event')
-        if not any(prev_e) and any(next_e): # started walking
-            if sum(next_e)>1: # pick one of the options
-                optns = [i for i in range(gm.n_plyr_dirs) if next_e[i]==1]
-                next_e = [False]*gm.n_plyr_dirs
-                next_e[random.choice(optns)] = True
-
-            gm.Plyr.move_ppos(gm.Plyr.dirs_to_steps(next_e))
-            gm.Plyr.set_plyr_img(next_e, 'moving')
-            gm.prev_e = next_e
-            return True
-        if any(prev_e) and any(next_e) and not prev_e==next_e: # walking & turning
-            if sum(next_e)>1: # try: get the new option
-                new = [a and not b for a,b in zip(next_e, prev_e)]
-#                gm._debugutility_print_dir(new, '  new')
-                if sum(new)>1: # except: pick one of the new options
-                    optns = [i for i in range(gm.n_plyr_dirs) if new[i]==1]
-                    new = [False]*gm.n_plyr_dirs
-                    new[random.choice(optns)] = True
-                gm.Plyr.move_ppos(gm.Plyr.dirs_to_steps(new))
-                gm.Plyr.set_plyr_img(new, 'moving')
-                return True
-            gm.Plyr.move_ppos(gm.Plyr.dirs_to_steps(next_e))
-            gm.Plyr.set_plyr_img(next_e, 'moving')
-            gm.prev_e = next_e
-            return True
-        if any(prev_e) and prev_e==next_e: # continue walking
-            if sum(prev_e)>1: raise Exception("Internal: prev dir")
-            gm.Plyr.move_ppos(gm.Plyr.dirs_to_steps(next_e))
-            gm.Plyr.set_plyr_img(next_e, 'moving')
-            return True
-        if any(prev_e) and not any(next_e): # stop walking
-            if sum(prev_e)>1: raise Exception("Internal: prev dir")
-            gm.Plyr.set_plyr_img(prev_e, 'stopped')
-            gm.Plyr.Spr().dirty=1
-            return True # last update
-        if not any(prev_e) and not any(next_e): # continue stopped
-            gm.Plyr.set_plyr_img(prev_e, 'stopped')
-            return False
-
-
-    """ validate_move: given an move attempt by an agent, update move. """ 
-    def validate_move(gm, agent, parameter):
-        if not any(parameter): return parameter # an easy opt
-        if agent.string_sub_class=='plyr':
-            dirs = parameter[:]
-            query = "SELECT px, py, ent_tid FROM tilemap WHERE block_plyr==?"
-            under_tiles = []
-            agent_coll = agent.coll.move(agent.moveparams_to_steps(dirs))
-#
-
-            blocks = []
-#            agent.move_ip(gm._new_pos_plyrstep(dirs)) # Would step result in coll?
-            #_ = gm._get_block_impasses(agent)
-            for px, py, ent in gm.map_db.execute(query, ('true',)).fetchall():
-                block_r = gm.deflate(pygame.Rect((px,py), TILE_SIZE), \
-                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT)
-                if block_r.colliderect(agent_coll):
-                    under_tiles.append((px,py))
-                blocks += [block_r] 
-
-#            for block_r in blocks :
-#                gm._Debug_Draw_Rect_border(block_r, render=False)
-            for block_r in gm._get_block_impasses(agent):
-                gm._Debug_Draw_Rect_border(block_r, render=False)
-            gm._Debug_Draw_Rect_border(agent_coll)
-
-            for px,py in under_tiles:
-                if px < gm.Plyr.ppos_rect.x:    dirs[LDIR] = False
-                if px > gm.Plyr.ppos_rect.x:    dirs[RDIR] = False
-                if py < gm.Plyr.ppos_rect.y:    dirs[UDIR] = False
-                if py > gm.Plyr.ppos_rect.y:    dirs[DDIR] = False
-            return dirs
-        else: raise Exception("Not implemented yet: "+agent.string_sub_class)
-
-    def _get_block_impasses(gm, agent):
+    def get_agent_blocks(gm, agent):
         if len(gm.map_dirty_where)>0 or \
                     not gm.map_blocks.has_key(agent.string_sub_class):
             gm._recompute_blocks(agent)
@@ -548,7 +506,6 @@ class GameManager(object):
         # 3 condolidate blocking rects (4: optimize: only update where map was dirty)
         # 5 store them im a way that is accessible to the agent
         # Assume uniform blocks!
-
         arr = np.zeros(gm.map_num_tiles)
         query = "SELECT tx,ty,px,py FROM tilemap WHERE block_"+\
                     agent.string_sub_class+"=?;"
@@ -558,26 +515,17 @@ class GameManager(object):
         for tx,ty,px,py in res: 
             blocks.append( gm.deflate(pygame.Rect((px,py), TILE_SIZE), \
                         OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT) )
-            #print 'bl:', blocks , '@', tx,ty
-#            for conn in [gm._t_to_p(0,1),gm._t_to_p(1,0)]:
+            gm._Debug_Draw_Rect_border(blocks[-1], render=False, c='red')
             for conn in [(0,1),(1,0)]:
                 targ = (gm._px_to_tx(px)+conn[X], gm._py_to_ty(py)+conn[Y])
                 if gm.num_x_tiles<=targ[X] or gm.num_y_tiles<=targ[Y] or \
-                        0>targ[X] or 0>targ[Y]: 
-                            print ''; continue
+                        0>targ[X] or 0>targ[Y]:  continue
                 if arr[targ]==1:
-                    blocks += gm.make_conn(conn, (px,py))
-#                    print '\tding', blocks[-1]
-#                    print 'bl:', blocks, '@', tx,ty
-#                else: print ''
-
+                    blocks += gm._make_conn(conn, (px,py))
+                    gm._Debug_Draw_Rect_border(blocks[-1], render=False, c='blue')
         gm.map_blocks[agent.string_sub_class] = blocks
-#            for diag_conn in [ (1,1),(1,-1),(-1,-1),(-1,1) ]:
-#                if arr[diag_conn]==1:
-#                    blocks += gm.make_d_conn(conn, result)
-                    
-#_t_to_p
-    def make_conn(gm, direction, p_src):
+        
+    def _make_conn(gm, direction, p_src):
         if direction[X]<0: return [] # internal error!
         if direction[Y]<0: return [] # internal inconsistency!
         w = OBJBLOCK_COLL_WIDTH*gm.tile_x_size
@@ -586,28 +534,15 @@ class GameManager(object):
         _w = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_x_size
         _h = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size
         _h_shift = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size+h_shift
-        b=p_src
-#        print '>>',p_src, w,_w,h,_h, gm.map_pix_size, gm.deflate(pygame.Rect(b, TILE_SIZE), \
-#                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT) , gm.tile_size
-#        print '>>,p_src, w,_w,h,_h, gm.map_pix_size, deflated, tilesize'
         td= (p_src[X]+w/2, p_src[Y]+_h, _w, h)
         tr= (p_src[X]+w/2+_w, p_src[Y]+h+h_shift, w, _h)
-#        print '\t td,tr:',td, tr
         return [pygame.Rect( { (0,1): td, (1,0): tr }[direction])]
-#                (0,1): (b[X], b[Y]+h, w,_h), \
-#                (1,0): (b[X]+w, b[Y], _w,h) }[direction])]
-#        return [pygame.Rect( {
-#                (0,1): (b[X], b[Y]+h, w,_h), \
-#                (1,0): (b[X]+w, b[Y], _w,h), \
-#                (0,-1): ( b[X], b[Y]-_h, w, _h) , \
-#                (-1,0): ( b[X]-_w, b[Y], _w, h) }[direction])]
-#
 
-    def _Debug_Draw_Rect_border(gm, rect, thickness=2, render=True):
+    def _Debug_Draw_Rect_border(gm, rect, thickness=2, render=True, c='red'):
         t=thickness
         rs = []
         def _draw(R, rs):
-            rs += [pygame.draw.rect(gm.screen, pygame.Color('red'), R)]
+            rs += [pygame.draw.rect(gm.screen, pygame.Color(c), R)]
         _draw(pygame.Rect(rect.topleft, (t,rect.h)), rs)
         _draw(pygame.Rect(rect.topright, (t,rect.h)), rs)
         _draw(pygame.Rect(rect.topleft, (rect.w,t)), rs)
