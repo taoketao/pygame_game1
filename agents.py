@@ -9,6 +9,7 @@ X = 0;  Y = 1
 UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
 UVEC=[1,0,0,0]; LVEC=[0,1,0,0]; DVEC=[0,0,1,0]; RVEC=[0,0,0,1]
 DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
+DIRNAMES = ['u','l','d','r']
 NULL_POSITION = (-1,-1)
 
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
@@ -21,6 +22,8 @@ DEFAULT_STEPSIZE = 0.20
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
 
+MOUSE_CURSOR_DISPL = 3
+MOUSE_GRAD = (180,160,60)
 
 
 def _dist(p1,p2,Q): 
@@ -424,17 +427,43 @@ class MouseAgent(GhostEntity):
                
 
     def update_position(mouse, targ_ppos, cursor='default'):
-        targ_pos = mouse.get_tile_under(targ_ppos)
         prev_pos = mouse.get_tile_under()
-        if targ_pos==prev_pos:
-            return
+        targ_pos = mouse.get_tile_under(targ_ppos)
+#        if targ_pos==prev_pos:
+#            return
         mouse._set_tpos(targ_pos)
-        mouse._notify_gm_move(prev_pos)
+        mouse._notify_gm_move()
         mouse.set_cursor(cursor)
 
     def set_cursor(mouse, mode):
         # puts the desired cursor mode sprite at the current pos
         if mode=='default':
-            mouse.spr.image.fill((50,50,200,80))
+#            mouse.spr.image.fill((140,100,240,180))
+            mouse.draw_target( (140,40,240) )
+#            mouse.spr.image = pygame.image.load('./resources/cursor1.png')
+            mouse.spr.image.convert_alpha()
             mouse.spr.dirty=1
         else: print "Mouse mode not recognized:", mode
+
+    def draw_target(mouse, (r,g,b) ):
+        mouse.spr.image.fill((0,0,0,0))
+        tx,ty = mouse.gm.tile_size
+        M = MOUSE_CURSOR_DISPL
+#        for i in [1,2,3]:
+        for i in [1,3,4,5]:
+            for d in DIRECTIONS:
+                rect_size = { UDIR: (tx-2*(i+1)*M, M),   DDIR: (tx-2*(i+1)*M, M),
+                              LDIR: (M, ty-2*(i+1)*M),   RDIR: (M, ty-2*(i+1)*M) }[d]
+                location = {
+                    UDIR: ((i+1)*M, i*M),        DDIR: ((i+1)*M, ty-(i+1)*M), 
+                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
+#                print i, DIRNAMES[d], 'size/loc:',rect_size, location
+                s = pygame.Surface( rect_size ).convert_alpha()
+                try:
+                    s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
+                except:
+                    s.fill( (r,g,b, MOUSE_GRAD[-1]) )
+                mouse.spr.image.blit(s, location)
+        s = pygame.Surface( (4,4) ).convert_alpha()
+        s.fill( (r,g,b, 255) )
+        mouse.spr.image.blit(s, (tx/2-2,tx/2-2) )

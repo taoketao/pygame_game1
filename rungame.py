@@ -219,6 +219,7 @@ class GameManager(object):
 
     def _ordered_render(gm):
         gm.agent_entities.sort(key=lambda x: x.spr.rect.bottom)
+        gm.Mouse.update_position(pygame.mouse.get_pos())
         gm._basic_render()
 
     """ ---------------------------------------------------------------------- """
@@ -241,6 +242,7 @@ class GameManager(object):
         gm._standardize_new_frame()
 
         to_update = [gm.Mouse.spr]
+        to_update = []
         for agent in gm.ai_entities:
             did_agent_move = agent.act()
             if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
@@ -253,18 +255,10 @@ class GameManager(object):
 
         for ent in to_update: ent.dirty=1
 
-#        gm.agent_entities = []
-#        gm.plyr_team = pygame.sprite.LayeredDirty([])
-#        gm.enemy_team_1 = pygame.sprite.LayeredDirty([])
-#        gm.ai_entities = []
-#        gm.environmental_sprites = pygame.sprite.Group([])
-#        gm.move_effect_sprites = pygame.sprite.LayeredDirty([])
-#        gm.sprites = []
 
 
         gm.clear_screen()
         gm._ordered_render()
-#        raw_input()
 
 
     def create_new_ai(gm, team, entity, optns):
@@ -316,16 +310,9 @@ class GameManager(object):
                         (pkmn_id,)).fetchone()[0]
             gm.create_new_ai(team,'pkmn', optns)
 
+        # Init mouse interface...
         gm.Mouse = MouseAgent(gm)
-#        gm.mouse_sprite = pygame.sprite.DirtySprite()
-#        gm.mouse_sprite.image = pygame.Surface(TILE_SIZE).convert_alpha()
-#        gm.mouse_sprite.image.fill((20,70,20,50))
-#        gm.mouse_sprite.rect = gm.mouse_sprite.image.get_rect()
-#        gm.screen.blit(gm.mouse_sprite.image, gm.mouse_sprite.rect.topleft)
-#        pygame.display.update(gm.mouse_sprite.rect)
-#        gm.mouse_sprite.dirty=1
-
-
+    
     ''' _reset_events: clear the active stored events '''
     def _reset_events(gm): gm.events = [False] * gm.n_plyr_dirs
 
@@ -361,16 +348,6 @@ class GameManager(object):
         if down[pygame.K_a]:     gm.events[LDIR]=True
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_q]:     sys.exit()
-        gm.Mouse.update_position(pygame.mouse.get_pos())
-#
-#        gm.mouse_sprite.top_left = 
-#
-#        _pos = gm._p_to_t(gm._p_to_t(gm.mouse_pos))
-#        print gm.mouse_sprite.rect, gm.mouse_pos, _pos
-#        gm.mouse_sprite.dirty=1
-#        print gm.mouse_sprite.rect
-#        #gm.screen.blit(gm.mouse_sprite.image, _pos)
-#        pygame.display.update()
         pygame.event.clear()
 
     def _tx_to_px(gm, v): return TILE_SIZE[X]*v
