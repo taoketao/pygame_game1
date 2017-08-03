@@ -1,40 +1,21 @@
-import pygame, random, sys
-import abc
+import pygame, random, sys, abc
 import numpy as np
 
+from utilities import *
 
-''' Map Options '''
-X = 0;  Y = 1
-
-UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
-UVEC=[1,0,0,0]; LVEC=[0,1,0,0]; DVEC=[0,0,1,0]; RVEC=[0,0,0,1]
-DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
-DIRNAMES = ['u','l','d','r']
-NULL_POSITION = (-1,-1)
-
+''' Magic Numbers '''
+# latencies for Player:
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
 DEFAULT_STEPSIZE = 0.20
 
-# Latencies for actions:
-#PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 0.4, 0.5
-#PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.8, 1.1
+# Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
 
+# (color) options for Mouse:
 MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60)
-
-
-def _dist(p1,p2,Q): 
-    if Q in [1,'manh']: 
-        return abs(p1[X]-p2[X])+abs(p1[Y]-p2[Y])
-    if Q in [2,'eucl']: 
-        return np.sqrt(np.square(p1[X]-p2[X])+np.square(p1[Y]-p2[Y]))
-def _sub_aFb(a,b): return b[X]-a[X], b[Y]-a[Y]
-
-
-
 
 class Entity(object):
     # Master class for any object that interacts non-trivially with the broader
@@ -50,10 +31,13 @@ class GhostEntity(Entity):
     # 'half-subclass' that is an entity augmented with Sprite essentials like
     # movement and localized imagery, but doesn't experience any interaction 
     # with other visual object, receptively or affectively, eg via collisions.
-    def __init__(gent, gm):
+    def __init__(gent, gm, diff_ppos_rect_size=None):
         Entity.__init__(gent, gm)
         gent.img_size = gm.tile_size
-        gent.ppos_rect = pygame.Rect((0,0),gm.tile_size)
+        if diff_ppos_rect_size==None:
+            gent.ppos_rect = pygame.Rect((0,0),gm.tile_size)
+        else:
+            gent.ppos_rect = pygame.Rect((0,0),diff_ppos_rect_size)
         gent.spr = pygame.sprite.DirtySprite()
         gent.spr.rect = gent.ppos_rect # tie these two
         gent.stepsize_x, gent.stepsize_y = 0,0
@@ -116,6 +100,10 @@ class GhostEntity(Entity):
     def get_tile_under(gent, targ=None):
         if targ==None: return gent.__get_tile_under()
         return gent._ppos_to_tpos(targ)
+    def get_tile_center(gent, targ=None):
+        corner = gent._tpos_to_ppos(gent.get_tile_under(targ))
+        return addvec(corner, multvec(gent.gm.tile_size,2,'//'))
+    def get_ppos_center(gent): return gent.spr.rect.center
     def __get_tile_under(gent): 
         t = gent._ppos_to_tpos(pygame.Rect(gent.ppos_rect.midbottom, \
                 gent.gm.tile_size).move(gent.init_shift))
@@ -225,6 +213,7 @@ class Player(Agent):
         ego.set_ppos(ego.gm.world_pcenter)
         ego.init_shift = (0,-int(PLYR_IMG_SHIFT_INIT*ego.gm.tile_y_size//1))
         ego.move_ppos(ego.init_shift)
+        ego.set_plyr_actionable('init')
 
     def _update_coll(ego):
         ego.coll = ego.gm.deflate(ego.ppos_rect, PLYR_COLL_WIDTH, PLYR_COLL_SHIFT)
@@ -258,7 +247,7 @@ class Player(Agent):
     def plyr_move(ego):
         prev_e = ego.gm.prev_e
         #next_e = ego.validate_move(ego.gm.events, debug=True) # restrict if invalid
-        next_e = ego.validate_move(ego.gm.events) # restrict if invalid
+        next_e = ego.validate_move(ego.gm.events[:4]) # restrict if invalid
 
         if not any(prev_e) and any(next_e): # CASE started walking
             if sum(next_e)>1:
@@ -299,7 +288,13 @@ class Player(Agent):
         raise Exception("Internal error: plyr move")
 
 
-
+    def set_plyr_actionable(ego, b):
+        try:
+          if b and ego._is_plyr_actionable: 
+            raise Exception("Player is already actionable!")
+        except: pass
+        ego._is_plyr_actionable=b
+    def is_plyr_actionable(ego):  return ego._is_plyr_actionable
 
 
 class AIAgent(Agent):
@@ -343,7 +338,7 @@ class AIAgent(Agent):
         take based on any factors. '''
     def _choose_action(ai):
         if ai.team == ai.gm.Plyr.team and \
-            _dist(ai.gm.Plyr.get_tile_under(), ai.get_tile_under(),2)>2.5:
+            dist(ai.gm.Plyr.get_tile_under(), ai.get_tile_under(),2)>2.5:
             return 'move_towards_player'
         else:
             return 'wander'
@@ -422,32 +417,46 @@ class MouseAgent(GhostEntity):
         mouse.string_sub_class = 'mouse'
         mouse.gm.agent_entities.append(mouse)
         mouse.team = '--mouse--'
-        mouse._set_ppos(mouse.gm.world_pcenter)
+#        mouse._set_ppos(mouse.gm.world_pcenter)
         mouse.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
+        mouse.update_position(mouse.gm.world_pcenter)
                
+
+    # Override get_tile_under due to off-by-one errors (no default shifting!)
+    def get_tile_under(mouse, ptarg=None):
+        if ptarg==None: ptarg = mouse.spr.rect.center
+        return mouse._ppos_to_tpos(ptarg)
 
     def update_position(mouse, targ_ppos, cursor='default'):
         prev_pos = mouse.get_tile_under()
-        targ_pos = mouse.get_tile_under(targ_ppos)
-#        if targ_pos==prev_pos:
-#            return
-        mouse._set_tpos(targ_pos)
+        targ_pos = mouse.get_tile_under((targ_ppos[X]+1,targ_ppos[Y]+1))
+        #targ_pos = mouse.get_tile_under((targ_ppos[X]+1,targ_ppos[Y]+1))
         mouse._notify_gm_move()
+        mouse._set_tpos(targ_pos)
         mouse.set_cursor(cursor)
+        if not prev_pos==targ_pos:
+            mouse.gm.update_hud()
 
     def set_cursor(mouse, mode):
         # puts the desired cursor mode sprite at the current pos
-        if mode=='default':
-#            mouse.spr.image.fill((140,100,240,180))
-            mouse.draw_target( (140,40,240) )
-#            mouse.spr.image = pygame.image.load('./resources/cursor1.png')
-            mouse.spr.image.convert_alpha()
-            mouse.spr.dirty=1
-        else: print "Mouse mode not recognized:", mode
+        try:
+            targ_color = {
+                    'default':      (140,40,240), 
+                    'hud action':   (200,200,255), \
+                    'bad action':   (255,60,0), \
+                    'good action':  (60,155,0) }[mode]
+        except: print "Mouse mode not recognized:", mode
+
+#       mouse.spr.image.fill((140,100,240,180))
+        mouse.draw_target( targ_color )
+#       mouse.spr.image = pygame.image.load('./resources/cursor1.png')
+        mouse.spr.image.convert_alpha()
+        mouse.spr.dirty=1
 
     def draw_target(mouse, (r,g,b) ):
         mouse.spr.image.fill((0,0,0,0))
         tx,ty = mouse.gm.tile_size
+        tx = tx-2; ty=ty-2
         M = MOUSE_CURSOR_DISPL
 #        for i in [1,2,3]:
         for i in [1,3,4,5]:
@@ -466,4 +475,4 @@ class MouseAgent(GhostEntity):
                 mouse.spr.image.blit(s, location)
         s = pygame.Surface( (4,4) ).convert_alpha()
         s.fill( (r,g,b, 255) )
-        mouse.spr.image.blit(s, (tx/2-2,tx/2-2) )
+        mouse.spr.image.blit(s, (tx/2-2,ty/2-2) )

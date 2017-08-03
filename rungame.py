@@ -1,29 +1,27 @@
 import pygame, sys
+from os.path import join
 import sqlite3 as sql
 import ConfigParser
 import numpy as np
 
-#from agents import Agent, AIAgent, Player
+from utilities import *
 from agents import *
+from moves import *
                     
 ''' Map Options '''
-MAP_LEVEL_CONFIG = './config2.ini'
-TILE_SIZE = (50,50);
+MAP_LEVEL_CONFIG = './config5.ini'
+IMGS_LOC = './resources/images/'
+TILE_SIZE = (50,40);
+HUD_SIZE = TILE_SIZE[Y]
 X = 0;  Y = 1
 
-UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
-UVEC=[1,0,0,0]; LVEC=[0,1,0,0]; DVEC=[0,0,1,0]; RVEC=[0,0,0,1]
-DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
-NULL_POSITION = (-1,-1)
+SP_ACTION = 4;
+ACTIONS = [SP_ACTION]
 
 OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35,-0.34
 if OBJBLOCK_COLL_WIDTH + OBJBLOCK_COLL_SHIFT<=0: raise Exception()
 
 DEFAULT_FPS = 24
-
-
-
-
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -98,42 +96,63 @@ class GameManager(object):
     def _init_global_fields(gm):
         gm.uniq_id_counter = 100
         gm.n_plyr_anim = 3
-        gm.n_plyr_dirs = len(EVENTS)
+        gm.n_plyr_dirs = len(DIRECTIONS)
+        gm.n_plyr_actions = len(ACTIONS)
         (gm.num_x_tiles, gm.num_y_tiles) = gm.map_num_tiles
-        gm.map_pix_size = (gm.map_x, gm.map_y) = tuple( \
-                [gm.map_num_tiles[i] * gm.tile_size[i] for i in (X,Y)])
-        gm.world_pcenter = ( gm.map_x // 2 - gm.tile_x_size // 2, \
-                            gm.map_y // 2 - gm.tile_y_size // 2   )
+        gm.map_pix_size = (gm.map_x, gm.map_y) = \
+                            multpos(gm.map_num_tiles, gm.tile_size)
+        gm.hud_size = (gm.map_x, HUD_SIZE)
+        gm.screen_size = (gm.map_x, gm.map_y+HUD_SIZE)
+        gm.world_pcenter = subvec(multvec(gm.tile_size,2,'//'),\
+                                  multvec(gm.map_pix_size,2,'//'))
+
+#        gm.world_pcenter = ( gm.map_x // 2 - gm.tile_x_size // 2, \
+#                            gm.map_y // 2 - gm.tile_y_size // 2   )
 
     ''' Spin up pygame '''
     def _init_pygame(gm):
         pygame.init()
-        gm.screen = pygame.display.set_mode(gm.map_pix_size)
+        gm.screen = pygame.display.set_mode(gm.screen_size)
+        gm.screen.convert()
+        gm.screen.fill( (220,220,20), rect = \
+                    pygame.Rect((0,gm.map_y), gm.hud_size))
 
     ''' Load and store tile-sized sprite images '''
     def _init_load_imgs(gm):
         gm.imgs = {}
         ''' >>> Tiles:  '''
-        gm.imgs['a'] = pygame.image.load('./apricorn_img.png').convert_alpha()
-        gm.imgs['g'] = pygame.image.load('./grass_tile_img.png').convert_alpha()
-        gm.imgs['d'] = pygame.image.load('./dirt_tile_img.png').convert_alpha()
+        gm.imgs['a'] = pygame.image.load(join(IMGS_LOC, 'environment',\
+                            'apricorn_img.png')).convert_alpha()
+        gm.imgs['g'] = pygame.image.load(join(IMGS_LOC, 'environment',\
+                            'grass_tile_img.png')).convert_alpha()
+        gm.imgs['d'] = pygame.image.load(join(IMGS_LOC, 'environment',\
+                            'dirt_tile_img.png')).convert_alpha()
         ''' >>> Plyr:  '''
         for i in range(gm.n_plyr_dirs * gm.n_plyr_anim):
             save_spnm = 'player sprite '+str(i+1)
-            load_spnm = './player/'+str(i+1)+'.png'
+            load_spnm = join(IMGS_LOC, 'player', str(i+1)+'.png')
             gm.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
+
         ''' >>> PKMN:  '''
         for i in range(1):
             for d in ['u','d','r','l']:
                 save_spnm = 'pkmn sprite '+str(i+1)+d
-                load_spnm = './pkmn/'+str(i+1)+d+'.png'
+                load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 gm.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
-        ''' >>> [processing]:  '''
+
+        ''' >>> [processing tile-sized]:  '''
         for tnm, t in gm.imgs.items():
             tmp = pygame.Surface(gm.tile_size).convert_alpha()
             pygame.transform.scale(t, gm.tile_size, tmp)
             t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
             gm.imgs[tnm]=tmp.convert_alpha()
+
+        ''' >>> Misc:  '''
+        pball = pygame.image.load(join(IMGS_LOC, 'moves',\
+                            'pokeball.png')).convert_alpha()
+        gm.imgs['pokeball'] = pygame.transform.scale(pball, (int(gm.tile_x_size\
+                    *2*POKEBALL_SCALE), int(gm.tile_y_size*2*POKEBALL_SCALE)))
+
     
     def _init_sprite_macros(gm): 
         gm.agent_entities = []
@@ -141,7 +160,8 @@ class GameManager(object):
         gm.enemy_team_1 = pygame.sprite.LayeredDirty([])
         gm.ai_entities = []
         gm.environmental_sprites = pygame.sprite.Group([])
-        gm.move_effect_sprites = pygame.sprite.LayeredDirty([])
+#        gm.move_effect_sprites = pygame.sprite.LayeredDirty([])
+        gm.move_effects = []
 #        gm.sprites = []
         
     def _init_plyr_object(gm): 
@@ -174,6 +194,10 @@ class GameManager(object):
 
     def clear_screen(gm): 
         gm.screen.blit(gm.background,(0,0))
+    def update_hud(gm): # stub...
+        gm.screen.fill( (220,220,20), rect = \
+                    pygame.Rect((0,gm.map_y), gm.hud_size))
+
 
     def _basic_render(gm):
         # Currently only renders agent sprites...
@@ -194,10 +218,10 @@ class GameManager(object):
 #                    upd_spr.add(spr)
                 except:
                     upd_spr.append(None)
-        for spr in gm.move_effect_sprites:
-            if spr.dirty==1: 
+        for effect in gm.move_effects:
+            if True:#effect.spr.dirty==1: 
                 try:
-                    upd_spr.append(spr) # todo
+                    upd_spr.append((effect.spr, effect.spr.rect))
 #                    upd_spr.add(spr)
                 except:
                     upd_spr.append(None)
@@ -209,8 +233,6 @@ class GameManager(object):
         # if self.cur_mouse_pos on apricot tile: redraw apricot
 #        gm.mouse_pos
 #        pygame.display.update( upd_spr.draw(gm.screen) )
-        
-
 
 #        pygame.display.update( gm.environmental_sprites.draw(gm.screen))
 #        pygame.display.update(d.draw(gm.screen))
@@ -219,7 +241,6 @@ class GameManager(object):
 
     def _ordered_render(gm):
         gm.agent_entities.sort(key=lambda x: x.spr.rect.bottom)
-        gm.Mouse.update_position(pygame.mouse.get_pos())
         gm._basic_render()
 
     """ ---------------------------------------------------------------------- """
@@ -243,23 +264,66 @@ class GameManager(object):
 
         to_update = [gm.Mouse.spr]
         to_update = []
+        # Update agents:
         for agent in gm.ai_entities:
             did_agent_move = agent.act()
             if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
                                       for u in to_update]):
                 to_update.append(agent.spr)
+
+        # Update player:
+        for effect in gm.move_effects:
+            effect.update_move()
+
+        # Update player:
         if gm.Plyr.plyr_move() or \
                         any([gm.Plyr.spr.rect.colliderect(u.rect)\
                         for u in to_update]):
             to_update.append(gm.Plyr.spr)
+        if gm.events[SP_ACTION] and gm.buttonUp[SP_ACTION]:
+            gm.agent_main_action()
+        else:
+            gm.Mouse.update_position(pygame.mouse.get_pos(), 'default')
+            
+
 
         for ent in to_update: ent.dirty=1
-
-
-
         gm.clear_screen()
         gm._ordered_render()
 
+    def agent_main_action(gm):
+        # The player has triggered the agent's main action
+        # which for now as a stub is just to throw next pokeball.
+        if not gm.Plyr.is_plyr_actionable(): return
+        plyr_tpos = gm.Plyr.get_tile_under()
+        mouse_tpos = gm.Mouse.get_tile_under()
+        query_res = gm.db.execute('''
+            SELECT block_pkmn FROM tilemap WHERE 
+            tx=? AND ty=?;''', mouse_tpos).fetchall()
+        if len(query_res)==0:
+            gm.Mouse.update_position(pygame.mouse.get_pos(), 'hud action')
+        elif dist(plyr_tpos, mouse_tpos,1)<=3 and \
+                not u'true'==query_res[0][0]:
+            pos = pygame.mouse.get_pos()
+            gm.Mouse.update_position(pos, 'good action')
+            
+            print pos, (int(gm.tile_x_size*POKEBALL_SCALE),0) 
+            gm.Plyr.set_plyr_actionable(False)
+            print gm.Plyr.get_ppos_rect(), gm.Plyr.get_tile_under(), gm.Plyr.get_tile_center()
+            pball = Pokeball(gm, 1, gm.Plyr.spr.rect.center, pos)
+#            pball = Pokeball(gm, 1, gm.Plyr.get_ppos_rect().center, \
+#                                addvec(pos, (-int(gm.tile_x_size*POKEBALL_SCALE),0)) )
+            gm.move_effects.append(pball)
+            gm.buttonUp[SP_ACTION] = False # Require button_up for next action
+        else:
+            gm.Mouse.update_position(pygame.mouse.get_pos(), 'bad action')
+        X = gm.db.execute('''
+            SELECT tx, ty, block_plyr, block_pkmn FROM tilemap;''').fetchall()
+        x = np.zeros(gm.map_num_tiles)
+        for tile in X:
+            if tile[2]=='true': x[tile[0],tile[1]]=1
+            if tile[2]=='false': x[tile[0],tile[1]]=-1
+        y = np.zeros(gm.map_num_tiles)
 
     def create_new_ai(gm, team, entity, optns):
         if entity=='pkmn':
@@ -293,13 +357,15 @@ class GameManager(object):
         gm._reset_events()
         gm.prev_e = gm.events[:]
         gm.Plyr.set_plyr_img(DVEC, 'init-shift', gm.world_pcenter)
+        gm.buttonUp = { SP_ACTION: True }
 
         gm.map_dirty_where = [] # Where has the map been altered?
         gm.map_blocks = {} # validate type -> list of rects that block
 
         # Initialize some enemies, debug:
         pkmn_id = '1' # stub
-        for team, pos in [ ('enemy1', (1,2)), ('plyr',(6,6)) ]:
+        #for team, pos in [ ('enemy1', (1,2)), ('plyr',(6,6)) ]:
+        for team, pos in [ ('enemy1', (1,2)) ]:
             optns = {'which_pkmn':pkmn_id, 'pos':pos}
             optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
                         gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
@@ -314,7 +380,8 @@ class GameManager(object):
         gm.Mouse = MouseAgent(gm)
     
     ''' _reset_events: clear the active stored events '''
-    def _reset_events(gm): gm.events = [False] * gm.n_plyr_dirs
+    def _reset_events(gm):
+        gm.events = [False] * (gm.n_plyr_dirs + gm.n_plyr_actions)
 
     def _standardize_new_frame(gm):
         gm._punch_clock()
@@ -347,7 +414,10 @@ class GameManager(object):
         if down[pygame.K_s]:     gm.events[DDIR]=True
         if down[pygame.K_a]:     gm.events[LDIR]=True
         if down[pygame.K_d]:     gm.events[RDIR]=True
+        if down[pygame.K_SPACE]: gm.events[SP_ACTION]=True
         if down[pygame.K_q]:     sys.exit()
+        if (not gm.buttonUp[SP_ACTION]) and (not down[pygame.K_SPACE]):
+            gm.buttonUp[SP_ACTION] = True 
         pygame.event.clear()
 
     def _tx_to_px(gm, v): return TILE_SIZE[X]*v
