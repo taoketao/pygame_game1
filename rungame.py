@@ -3,15 +3,16 @@ from os.path import join
 import sqlite3 as sql
 import ConfigParser
 import numpy as np
+from PIL import Image, ImageOps
 
 from utilities import *
 from agents import *
 from moves import *
                     
 ''' Map Options '''
-MAP_LEVEL_CONFIG = './config5.ini'
+MAP_LEVEL_CONFIG = './config6.ini'
 IMGS_LOC = './resources/images/'
-TILE_SIZE = (50,40);
+TILE_SIZE = (64,50);
 HUD_SIZE = TILE_SIZE[Y]
 X = 0;  Y = 1
 
@@ -139,19 +140,134 @@ class GameManager(object):
                 save_spnm = 'pkmn sprite '+str(i+1)+d
                 load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 gm.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
+#                gm.imgs[save_spnm] = pygame.image.load(load_spnm).convert()
+
+#                gm.imgs[save_spnm+' translucent'] = gm._get_translucent_img(\
+#                        gm.imgs[save_spnm], 0.90)
+                gm.imgs[save_spnm+' half whitened'] = gm.imgs[save_spnm].copy()
+                gm.imgs[save_spnm+' half whitened'].blit(gm._get_whitened_img(\
+                        gm.imgs[save_spnm].copy(), 0.80), (0,0))
+                gm.imgs[save_spnm+' full whitened'] = gm.imgs[save_spnm].copy()
+                gm.imgs[save_spnm+' full whitened'].blit(gm._get_whitened_img(\
+                        gm.imgs[save_spnm].copy(), 1.0), (0,0))
 
         ''' >>> [processing tile-sized]:  '''
         for tnm, t in gm.imgs.items():
             tmp = pygame.Surface(gm.tile_size).convert_alpha()
+            #tmp = pygame.Surface(gm.tile_size).convert()
             pygame.transform.scale(t, gm.tile_size, tmp)
             t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
             gm.imgs[tnm]=tmp.convert_alpha()
+#            gm.imgs[tnm]=tmp.convert()
 
         ''' >>> Misc:  '''
+#        for pokeball_image in ['pokeball','pokeball-wh']:
+#            pball = pygame.image.load(join(IMGS_LOC, 'moves',\
+#                                pokeball_image+'.png')).convert_alpha()
+#            gm.imgs[pokeball_image] = pygame.transform.scale(pball, \
+#                            (int(gm.tile_x_size*2*POKEBALL_SCALE), \
+#                             int(gm.tile_y_size*2*POKEBALL_SCALE)))
+        
+        # Pokeball sizes: see moves.py.
         pball = pygame.image.load(join(IMGS_LOC, 'moves',\
                             'pokeball.png')).convert_alpha()
-        gm.imgs['pokeball'] = pygame.transform.scale(pball, (int(gm.tile_x_size\
-                    *2*POKEBALL_SCALE), int(gm.tile_y_size*2*POKEBALL_SCALE)))
+        pball_size = multvec(gm.tile_size, 2*POKEBALL_SCALE, 'int')
+        pbimg = pygame.transform.scale(pball, pball_size)
+        gm.imgs['pokeball'] = pbimg
+        for i in range(int(PB_OPENFRAMES)): # see moves.py
+#            continue
+            pb_i = gm._get_whitened_img(pbimg, i/PB_OPENFRAMES, pball_size)
+            gm.imgs['pokeball-fade-'+str(i)] = pb_i#
+#        pball_base = Image.frombytes("RGBA", pball_size, \
+#                pygame.image.tostring(gm.imgs['pokeball'], "RGBA", False))
+#        _targ = np.array(pball_base)
+#        _targ[_targ>0] = 255
+#        pball_targ = Image.fromarray(_targ)
+#        for i in range(int(PB_OPENFRAMES)): # see moves.py
+#            blended = Image.blend(pball_base, pball_targ, i/PB_OPENFRAMES)
+#            gm.imgs['pokeball-fade-'+str(i)] = pygame.image.fromstring(\
+#                        blended.tobytes(), pball_size, pball_base.mode)
+
+    def _get_translucent_img(gm, base_img, frac=0.5): 
+#        CK = (0,0,0)
+#        new_img = base_pygame_img.copy().convert()
+#        new_img = pygame.Surface(base_img.get_rect().size)
+#        new_img.fill(CK)
+#        new_img.set_colorkey(CK)
+#        new_img.blit(base_img, (0,0))
+#        new_img.set_alpha(255*frac)
+        size = base_img.get_rect().size
+        base = Image.frombytes('RGBA', size, \
+                    pygame.image.tostring(base_img, 'RGBA', False))
+        arr_base = np.array(base)
+        for x in range(arr_base.shape[X]):
+            for y in range(arr_base.shape[Y]):
+#                arr_base[x,y,:] = np.array([arr_base[x,y,0], arr_base[x,y,1],\
+#                        arr_base[x,y,2], arr_base[x,y,3]])
+                arr_base[x,y,0] *= frac
+#        Image.fromarray(arr_base, mode='RGBA').show()
+#        raw_input()
+        result= pygame.image.frombuffer(Image.fromarray\
+                        (arr_base, mode='RGBA').tobytes('raw','RGBA'), size, 'RGBA')
+#        return pygame.image.fromstring(np.uint8(Image.fromarray\
+#                        (arr_base, mode='RGBA')).tobytes(), size, 'RGBA')
+        new_img = pygame.Surface(size).convert_alpha()
+#        new_img.blit(base_img, (0,0))
+        new_img.blit(result,(0,0))
+        return new_img
+
+        return result
+#        return new_img
+
+    def _get_whitened_img(gm, base_pygame_img, frac, size=None): 
+        # This function really doesn't work as intended, but it's halfway decent
+        # nonetheless.
+        mode = 'RGBA'
+        if not size:
+            size = base_pygame_img.get_rect().size
+        base = Image.frombytes(mode, size, \
+                    pygame.image.tostring(base_pygame_img, mode, False))
+        arr_base = np.array(base)
+#        print list(arr_base)
+#        clrs = arr_targ[:,:,1:]
+#        print clrs.shape
+#        clrs[clrs>0] = (frac*255)
+#        arr_targ[:,:,1:] = clrs
+        arr_targ = np.copy(arr_base)
+        for i in range(arr_targ.shape[0]):
+            for j in range(arr_targ.shape[1]):
+                if np.sum(arr_targ[i,j,:])>0:
+                    arr_targ[i,j,:] = 255
+                    #arr_base[i,j,0] = 255
+#        tr, clr = arr_targ[:,:,0], arr_targ[:,:,1:]
+#        arr_targ[:,:,0][arr_targ[:,:,1]>0] = 255
+#        arr_targ[:,:,0][arr_targ[:,:,2]>0] = 255
+#        arr_targ[:,:,0][arr_targ[:,:,3]>0] = 255
+#        print 'targshape:',arr_targ.shape
+#        arr_output = frac*arr_base + (1-frac)*arr_targ
+#        arr_output *= 32
+#        arr_output = arr_output//32
+##        print '\n',frac
+#        print arr_base[8:12,8:12,1]
+#        print arr_targ[8:12,8:12,1]
+#        print arr_output[8:12,8:12,1]
+#        print ''
+#        print arr_output.shape, arr_targ.shape
+#        arr_targ = 255*np.ones(arr_base.shape)
+        img_targ = Image.fromarray( arr_targ, mode=mode)
+        #blended = Image.blend(base, img_targ, frac)
+#        print type(base), type(img_targ)
+        blend_mask = Image.fromarray( 255*np.ones(arr_targ.shape), mode=mode)
+        #blended = Image.composite(base, img_targ, mask=img_targ)
+        blended = Image.blend(base, img_targ, frac)
+#        blended = Image.composite(base, base, mask=img_targ)
+#        blended = Image.composite(base.tostring(), img_targ.tostring(), mode)
+#        blended = Image.alpha_composite(base, img_targ)
+#        blended = Image.fromarray(np.minimum(arr_targ, base))
+#        return pygame.image.fromstring(img_targ.tobytes(), size, mode)
+#        Image.eval(base, pix = 0.5*pix+[128,128,128
+#        return ImageOps.autocontrast(base, frac)
+        return pygame.image.fromstring(blended.tobytes(), size, mode)
 
     
     def _init_sprite_macros(gm): 
@@ -226,6 +342,7 @@ class GameManager(object):
                 except:
                     upd_spr.append(None)
 
+
         for spr, dest_pos in upd_spr:
             gm.screen.blit(spr.image, dest_pos)
         pygame.display.update( [s.image.get_rect() for s,_ in upd_spr] )
@@ -266,6 +383,7 @@ class GameManager(object):
         to_update = []
         # Update agents:
         for agent in gm.ai_entities:
+            agent.update_state()
             did_agent_move = agent.act()
             if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
                                       for u in to_update]):
@@ -310,10 +428,11 @@ class GameManager(object):
             print pos, (int(gm.tile_x_size*POKEBALL_SCALE),0) 
             gm.Plyr.set_plyr_actionable(False)
             print gm.Plyr.get_ppos_rect(), gm.Plyr.get_tile_under(), gm.Plyr.get_tile_center()
-            pball = Pokeball(gm, 1, gm.Plyr.spr.rect.center, pos)
+            pball = Pokeball(gm, 1, gm.Plyr.spr.rect.center, addvec(multvec(mouse_tpos, gm.tile_size), divvec(gm.tile_size, 2)))
 #            pball = Pokeball(gm, 1, gm.Plyr.get_ppos_rect().center, \
 #                                addvec(pos, (-int(gm.tile_x_size*POKEBALL_SCALE),0)) )
             gm.move_effects.append(pball)
+#            gm.move_effects.add(pball)
             gm.buttonUp[SP_ACTION] = False # Require button_up for next action
         else:
             gm.Mouse.update_position(pygame.mouse.get_pos(), 'bad action')
@@ -338,6 +457,7 @@ class GameManager(object):
             # initialize as:
 #            if not s1=='success' and s2=='success':
 #                raise Exception("Initialization error: out of bounds")
+            pkmn_ai.send_message('initialized as free')
             return pkmn_ai
         raise Exception("Internal error: AI type not recognized.")
 
@@ -440,6 +560,11 @@ class GameManager(object):
         if not prev_tu==NULL_POSITION:
             gm.db.execute('''DELETE FROM tile_occupants WHERE uniq_id=?
                     AND tx=? AND ty=?;''', (uniq_id, prev_tu[X], prev_tu[Y]))
+
+    def _notify_catching_tile(gm, tid, what_pokeball):
+        for agent in gm.ai_entities:
+            if agent.get_tile_under()==tid: 
+                agent.send_message('getting caught', what_pokeball)
 
     def _debugutility_print_dir(gm, d, prefix='', end=False):
         print prefix,

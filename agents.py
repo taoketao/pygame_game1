@@ -322,15 +322,24 @@ class AIAgent(Agent):
         ai.set_pkmn_img('d')
         ai.set_tpos(init_pos)
         ai.move_ppos(ai.init_shift)
+        ai.is_being_caught = False
+        ai.needs_updating = False
+        ai.free_to_act = False
+        ai.flags = [ai.is_being_caught, ai.needs_updating, ai.free_to_act]
 
-    def set_pkmn_img(ai, _dir):
-        # assume pkmn...
+    def set_pkmn_img(ai, _dir, whitened=None):
         if ai.pkmn_id<0: raise Exception('internal: id not set')
         if type(_dir)==list: _dir = _dir.index(1)
         if type(_dir)==int:
             _dir = {UDIR:'u', LDIR:'l', DDIR:'d', RDIR:'r'}[_dir]
-        if ai.img_id==_dir: return
-        ai.spr.image = ai.gm.imgs['pkmn sprite '+str(ai.pkmn_id)+_dir]
+        if ai.img_id==_dir and whitened==None: return
+        basename = 'pkmn sprite '+str(ai.pkmn_id)+_dir
+        if whitened == None:
+            ai.spr.image = ai.gm.imgs[basename]
+        if whitened == 'half whitened':
+            ai.spr.image = ai.gm.imgs[basename+' half whitened']
+        if whitened == 'full whitened':
+            ai.spr.image = ai.gm.imgs[basename+' full whitened']
         ai.img_id = _dir
         ai.spr.dirty=1
 
@@ -343,16 +352,66 @@ class AIAgent(Agent):
         else:
             return 'wander'
 
+    ''' Agent workflow: After an act, and the frame finishes, other entities may
+        need to do something to/with this agent. So, a messaging service is 
+        implemented to facilitate that. Then, before this agent is free to alter
+        the world in any way with act, it must go though all its messsages. This 
+        system is maintained by flags. '''
+
+    ''' Interface: Public method for changing this pkmn's state and behavior. '''
+    def send_message(ai, msg, from_who=None):
+        ai.needs_updating = True
+        print '<>',msg
+        if msg=='getting caught':
+            ai.is_being_caught = True
+            ai.free_to_act=False
+            ai.caught_by_what = from_who
+        if msg=='initialized as free':
+            ai.free_to_act=True
+
+    ''' Interface: Call update_state before acting, else failure. '''
+    def update_state(ai):
+        if ai.is_being_caught:
+            ai.catch_counter = 1.0
+            ai.set_pkmn_img(ai.last_taken_action, 'half whitened')
+            # Set up getting-caught system.
+    
+    
+    def _act_accordingly(ai):
+        if ai.is_being_caught:
+            amt = ai.caught_by_what.how_open()
+            print amt
+            if amt >= 1:
+                ai.is_being_caught = False
+                ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
+                pass # Delete self?
+            else:
+                ai.set_pkmn_img(ai.last_taken_action, amt)
+                ai.spr.dirty=1
+
+        else:
+            ai.free_to_act=True
 
 
-    ''' act: Interface. Call this to cause the entity to perform actions. '''
-    def act(ai): 
-        # Update state based on 
+    ''' Interface: Call this when the entity is presumably ready to perform. '''
+    def act(ai, debug=False): 
+        if debug: print ai.flags
+
+        # First, check if updating is needed.
+        if not ai.needs_updating: ai.update_state()
+        ai.needs_updating = False
+
+        # Next, if the AI has its agency, first pause for sake of frames/etc.
         if ai.snooze>=0: 
             ai.snooze -= 1
-            return
+            return False
         ai.snooze=0.0 # normalize 
-        # Take baseline mov
+
+        # Next, if this AI's agency is restricted, do as such:
+        ai._act_accordingly()
+        if not ai.free_to_act: return False
+
+        # Finally, nothing is in the way of letting this agent act freely:
         decision = ai._choose_action()
         if decision=='wander': return ai._take_action_Wander()
         if decision=='move_towards_player': 
@@ -372,6 +431,7 @@ class AIAgent(Agent):
             if (not moved_yet) and sum(ai.validate_move(vec))>0:
                 ai.move_tpos(ai.moveparams_to_steps(vec))
                 ai.set_pkmn_img(vec)
+                ai.last_taken_action = vec
                 moved_yet = True
 
         random_snooze = np.random.uniform(PKMN_MOVE_LOW, PKMN_MOVE_HIGH)
@@ -390,8 +450,10 @@ class AIAgent(Agent):
             vec = [0]*len(valid_actions)
             vec[i]=1
             ai.move_tpos(ai.moveparams_to_steps(vec))
+            #ai.set_pkmn_img(vec, 'whitened')
             ai.set_pkmn_img(vec)
             did_i_move=True
+            ai.last_taken_action=vec
             break
         random_snooze = np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
         ai.snooze = ai.snooze + ai.move_speed*random_snooze

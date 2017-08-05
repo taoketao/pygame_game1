@@ -30,6 +30,10 @@ def addvec(a,b,c=None): return addpos(a,b,c)
 def subpos(a,b): return addpos(a,b,'aFb')
 def subvec(a,b): return subpos(a,b)
 
+def multc(v,c,optn=None): # reserved for c : scalar constant.
+    if optn==None: return tuple([vi*c for vi in v])
+    if optn==int: return tuple([int(vi*c) for vi in v])
+
 def multpos(v,m,optn=None):
     try: 
         v[0];m[0]; 
@@ -37,11 +41,13 @@ def multpos(v,m,optn=None):
             return (v[X]//m[X], v[Y]//m[Y])
         return multpos(v,m,'e')
     except: pass
-    if optn==int: return (int(v[X]*m), int(v[Y]*m))
+    if optn==int or optn=='int': return (int(v[X]*m), int(v[Y]*m))
     elif optn in ('elemwise','e','vector'): return (v[X]*m[X], v[Y]*m[Y])
     elif optn in ('div', '/'): return (v[X]/m, v[Y]/m)
     elif optn =='//': return (v[X]//m, v[Y]//m)
-    return (v[X]*m, v[Y]*m)
+    elif optn==None:
+        return (v[X]*m, v[Y]*m)
+    else: raise Exception()
 def multvec(v,m,optn=None):return multpos(v,m,optn)
 def divvec(v,m):return multpos(v,m,'//')
 
