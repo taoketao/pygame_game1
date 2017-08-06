@@ -1,13 +1,26 @@
-import pygame, random, sys, abc
+'''
+agents.py:
+Implementations of various kinds of agents:
+- Player represents a human controllable player
+- AIAgent represents a pokemon AI whose actions are independently, 
+    internally motivated.
+- MouseAgent defines aspects that enable interactive mouse control
+'''
+
+
+import pygame, random
 import numpy as np
 
 from utilities import *
+from abstractEntities import Agent, GhostEntity
+from belt import Belt
 
 ''' Magic Numbers '''
 # latencies for Player:
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
 DEFAULT_STEPSIZE = 0.20
+PLYR_CATCH_DIST = 0.5
 
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
@@ -16,176 +29,6 @@ PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
 # (color) options for Mouse:
 MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60)
-
-class Entity(object):
-    # Master class for any object that interacts non-trivially with the broader
-    # system. Key components: game manager reference and interaction, sql-ready
-    # IDs. Attributes of Sprites are specifically excluded.
-    def __init__(ent, gm):
-        gm.uniq_id_counter = gm.uniq_id_counter + 1
-        ent.uniq_id = gm.uniq_id_counter
-        ent.gm = gm
-        ent.string_sub_class = 'None Stub you must override!! : Entity'
-
-class GhostEntity(Entity):
-    # 'half-subclass' that is an entity augmented with Sprite essentials like
-    # movement and localized imagery, but doesn't experience any interaction 
-    # with other visual object, receptively or affectively, eg via collisions.
-    def __init__(gent, gm, diff_ppos_rect_size=None):
-        Entity.__init__(gent, gm)
-        gent.img_size = gm.tile_size
-        if diff_ppos_rect_size==None:
-            gent.ppos_rect = pygame.Rect((0,0),gm.tile_size)
-        else:
-            gent.ppos_rect = pygame.Rect((0,0),diff_ppos_rect_size)
-        gent.spr = pygame.sprite.DirtySprite()
-        gent.spr.rect = gent.ppos_rect # tie these two
-        gent.stepsize_x, gent.stepsize_y = 0,0
-        gent.init_shift = (0,0)
-        gent.img_id = None
-        gent.string_sub_class = 'None Stub you must override!! : GhostEntity'
-
-    ''' GameManager: database update '''
-    # Tells the Game Manager to update my logged position in the database.
-    def _notify_gm_move(agent, prev_tu=NULL_POSITION):
-        next_tu = agent.get_tile_under()
-        if prev_tu==next_tu: return
-        # Otherwise, update the database to reflect the change:
-        agent.gm._notify_move(prev_tu, next_tu, agent.uniq_id, \
-                              agent.team, agent.string_sub_class)
-
-    ''' Core GhostEntity movement methods '''
-    # Movement method:  Set position according to tile(x,y) id 
-    def _set_tpos(gent, abs_tpos):
-        return gent._set_ppos(gent._tpos_to_ppos(abs_tpos))
-    # Movement method:  Move position relatvely according to tile(x,y) id 
-    def _move_tpos(gent, move_tid): 
-        return gent._move_ppos(gent._tpos_to_ppos(move_tid))
-    # Movement method:  Set position according to top-left pixel 
-    def _set_ppos(gent, abs_ppos):
-        return gent._move_ppos((abs_ppos[X]-gent.ppos_rect.x, \
-                                abs_ppos[Y]-gent.ppos_rect.y  ))
-    # Movement method:  Move position according to top-left pixel
-    #                   This is the <base> method. Updates gm. 
-    #                   Return value: check OOB. 
-    def _move_ppos(gent, move_pix):
-        prev_tile = gent.get_tile_under()
-        targ_x, targ_y = gent.ppos_rect.x+move_pix[X], \
-                         gent.ppos_rect.y+move_pix[Y]
-        if targ_x<0 or targ_x>gent.gm.map_x or \
-                            targ_y<0 or targ_y>gent.gm.map_y:
-            return 'out of bounds'
-        mov_tid = gent._ppos_to_tpos((targ_x, targ_y))
-        gent.ppos_rect.move_ip(move_pix)
-        gent.spr.dirty=1
-        gent._notify_gm_move(prev_tile)
-        return 'success'
-
-    
-    ''' Arithmetic conversion utilities '''
-    # Conversion method: take pixel coords to (proper) tile coords
-    def _ppos_to_tpos(gent, ppos):
-        return (int(ppos[X]//gent.gm.tile_x_size), \
-                int(ppos[Y]//gent.gm.tile_y_size))
-    # Conversion method: take tile coords to pixel coords
-    def _tpos_to_ppos(gent, tpos):
-        return (int(tpos[X]*gent.gm.tile_x_size), \
-                int(tpos[Y]*gent.gm.tile_y_size))
-
-    ''' GET field access '''
-    # Get methods: get my coords as Tile Rect
-    def get_tpos_rect(gent): return gent._ppos_to_tpos(gent.ppos_rect)
-    def get_ppos_rect(gent): return gent.ppos_rect
-    # Get utility: get the tile under (me, target pixel position)
-    def get_tile_under(gent, targ=None):
-        if targ==None: return gent.__get_tile_under()
-        return gent._ppos_to_tpos(targ)
-    def get_tile_center(gent, targ=None):
-        corner = gent._tpos_to_ppos(gent.get_tile_under(targ))
-        return addvec(corner, multvec(gent.gm.tile_size,2,'//'))
-    def get_ppos_center(gent): return gent.spr.rect.center
-    def __get_tile_under(gent): 
-        t = gent._ppos_to_tpos(pygame.Rect(gent.ppos_rect.midbottom, \
-                gent.gm.tile_size).move(gent.init_shift))
-        return (t[X],t[Y])
-
-class Agent(GhostEntity):
-    # AGENT: A subclass of GhostEntity that characterizes identifiable and 
-    # interactive game objects.  Key components are a robust positioning and 
-    # movement system & localized image with pygame Sprite functionality -- 
-    # inherited from the GhostEntity -- and teams and collision control.
-    def __init__(agent, gm, team):
-        GhostEntity.__init__(agent, gm)
-        agent.team = team
-        agent.coll = None
-        agent.coll_check_range = (None, -1)
-            # How many blocks to check around my pos?  2tuple: (mode, value)
-            #   'manh', (ceiling) manhattan distance, x+y>0, in tile-ids.
-            #   'eucl', (ceiling) euclidean distance, sqrt(xx+yy)>0, in tile-ids.
-            #   'list', a list of tile_id pairs to check relative to agent collider.
-            # Implement this utility if efficiency becomes an issue - Decrease the 
-            #   number of queries by moving the agents by O(map_num_tiles) by only
-            #   checking nearby tiles for collision.
-        agent.img_id = None
-        agent.string_sub_class = 'None Stub you must override!! : Agent'
-
-    ''' Agent movement methods: thin wrappers over GhostEntity movement '''
-    def set_tpos(agent, abs_tpos):
-        res = agent._set_tpos(abs_tpos)
-        if res=='success': agent._update_coll()
-        return res
-    def move_tpos(agent, move_tid): 
-        res = agent._move_tpos(move_tid)
-        if res=='success': agent._update_coll()
-        return res
-    def set_ppos(agent, abs_ppos):
-        res = agent._set_ppos(abs_ppos)
-        if res=='success': agent._update_coll()
-        return res
-    def move_ppos(agent, move_pix):
-        res = agent._move_ppos(move_pix)
-        if res=='success':
-            agent._update_coll()
-        return res
-
-    @abc.abstractmethod 
-    def _update_coll(ego): raise Exception("ABC")
-    @abc.abstractmethod 
-    def moveparams_to_steps(ego,dirs): raise Exception("ABC")
-
-    ''' Move validation for collision, by querying blockers in gm.db '''
-    # utility: validate many possible move-indicators. (#function programming?)
-    def _validate_multi_move(agent, parameter, debug=False, c='red'):
-        results = []
-        for vi,v in enumerate(parameter):
-            p_tmp = [0]*len(parameter)
-            p_tmp[vi]=v
-            single_res = agent.validate_move(p_tmp, debug, c)
-            results .append( single_res[vi] )
-        return results
-            
-     #  Validate_move: given an move attempt by this agent, 'fix' move. 
-     #- Parameter should be a binary vector of possible moves.
-     #- What <parameter> represents depends on the subclass's definition
-     #  of method moveparams_to_steps. 
-    def validate_move(agent, parameter, debug=False, c='red'):
-        if not any(parameter): return parameter # an easy optimization
-        params = list(parameter[:])
-        if sum(params)>1:
-            return agent._validate_multi_move(params,debug,c)
-        attmpt_step = agent.coll.move(agent.moveparams_to_steps(params))
-        for block_r in agent.gm.get_agent_blocks(agent):
-            if debug: agent.gm._Debug_Draw_Rect_border(block_r, render=False)
-            if not block_r.colliderect(attmpt_step): continue
-            if block_r.x < agent.ppos_rect.x:    params[LDIR] = False
-            if block_r.x > agent.ppos_rect.x:    params[RDIR] = False
-            if block_r.y < agent.ppos_rect.y:    params[UDIR] = False
-            if block_r.y > agent.ppos_rect.y:    params[DDIR] = False
-        if debug: agent.gm._Debug_Draw_Rect_border(attmpt_step,c=c)
-        if not any(params) and any(parameter) and \
-                    agent.string_sub_class=='plyr': # What does this do?
-            agent.gm.prev_e=parameter
-        return params
 
 
 class Player(Agent):
@@ -196,24 +39,38 @@ class Player(Agent):
         '''
     def __init__(ego, gm):
         Agent.__init__(ego, gm, 'plyr')
+        # Set up internal components:
         ego.string_sub_class = 'plyr'
         ego.coll_check_range = ('eucl',1.5) # check 8 tiles surrounding
         ego.spr = pygame.sprite.DirtySprite()
         ego.gm.agent_entities.append(ego)
-        ego.spr.add( gm.plyr_team )
+        #ego.spr.add( gm.plyr_team )
         ego.plyr_step_cycler = 0     # animation counter for player sprite
         ego.n_plyr_anim = gm.n_plyr_anim
         ego.n_plyr_dirs = gm.n_plyr_dirs
         ego.dirs_to_steps = ego.moveparams_to_steps
         ego.stepsize_x = DEFAULT_STEPSIZE * ego.gm.tile_x_size
         ego.stepsize_y = DEFAULT_STEPSIZE * ego.gm.tile_y_size
-        ego._notify_gm_move(NULL_POSITION)
+        #ego.notify_gm_move(NULL_POSITION)
+
+        # Set up game state components:
+        ego._belt = Belt(gm, ego)
 
         ego.set_plyr_img(DVEC, 'init-shift')
         ego.set_ppos(ego.gm.world_pcenter)
         ego.init_shift = (0,-int(PLYR_IMG_SHIFT_INIT*ego.gm.tile_y_size//1))
         ego.move_ppos(ego.init_shift)
         ego.set_plyr_actionable('init')
+        ego.gm.notify_new(ego)
+        
+        ego.catch_box = multvec(gm.tile_size, PLYR_CATCH_DIST)
+        ego.catch_rect = pygame.Rect((0,0), ego.catch_box)
+
+    def did_catch(ego, query_throw, query_catch):
+        ego.catch_rect.center = query_throw
+#        ego.catch_rect = pygame.Rect(addvec(ego.get_ppos(), \
+#                                     divvec(ego.catch_box, 2)), ego.catch_box)
+        return ego.catch_rect.collidepoint(query_catch)
 
     def _update_coll(ego):
         ego.coll = ego.gm.deflate(ego.ppos_rect, PLYR_COLL_WIDTH, PLYR_COLL_SHIFT)
@@ -248,7 +105,7 @@ class Player(Agent):
         prev_e = ego.gm.prev_e
         #next_e = ego.validate_move(ego.gm.events, debug=True) # restrict if invalid
         next_e = ego.validate_move(ego.gm.events[:4]) # restrict if invalid
-
+        
         if not any(prev_e) and any(next_e): # CASE started walking
             if sum(next_e)>1:
                 next_e = ego._pick_rndm_action(next_e)
@@ -296,6 +153,29 @@ class Player(Agent):
         ego._is_plyr_actionable=b
     def is_plyr_actionable(ego):  return ego._is_plyr_actionable
 
+    ''' Interface: Public method for changing this Plyr's state and behavior. '''
+    def send_message(ego, msg, from_who=None):
+        if msg=="Someone has caught me":
+            ego._belt.add_pkmn(from_who)
+
+    def get_pkmn_at_tpos(ego, t):
+        return
+        #print ego.gm.get_tile_occupants(t)
+        for ent in ego.gm.ai_entities:
+            print '\t',ent.get_tpos(), t
+        x= [ent for ent in ego.gm.ai_entities if ent.get_tpos()==t]
+        try:
+            print x[-1].get_tpos()
+        except: pass
+    
+    def do_primary_action(ego, mousepos):
+        if not ego._is_plyr_actionable: return 
+        ego._is_plyr_actionable = False
+#        mouse_tile = ego.get_tile_under(mousepos)
+        mouse_tile = ego.get_tpos(mousepos)
+        agents = ego.get_pkmn_at_tpos(mouse_tile)
+        print 'here:',agents
+
 
 class AIAgent(Agent):
     ''' AI class: a type of Agent that represents any(?) AI NPC with 
@@ -313,6 +193,8 @@ class AIAgent(Agent):
         ai.mv_range   = options['move_range'].split('_')
         ai.move_speed = options['move_speed']
         ai.init_shift = options['init_shift']
+        ai.max_health = int(options['base_health'] * (1 if team=='plyr' else 0.8))
+        ai.cur_health = ai.max_health
 
         ai.string_sub_class = 'pkmn'
         ai.pkmn_id = -1
@@ -322,10 +204,15 @@ class AIAgent(Agent):
         ai.set_pkmn_img('d')
         ai.set_tpos(init_pos)
         ai.move_ppos(ai.init_shift)
+        ai.gm.notify_new(ai)
+        ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_ppos_rect().midbottom))
+
         ai.is_being_caught = False
+        ai.was_caught = False
         ai.needs_updating = False
         ai.free_to_act = False
         ai.flags = [ai.is_being_caught, ai.needs_updating, ai.free_to_act]
+
 
     def set_pkmn_img(ai, _dir, whitened=None):
         if ai.pkmn_id<0: raise Exception('internal: id not set')
@@ -371,24 +258,22 @@ class AIAgent(Agent):
 
     ''' Interface: Call update_state before acting, else failure. '''
     def update_state(ai):
-        if ai.is_being_caught:
-            ai.catch_counter = 1.0
+        if ai.was_caught: # This pkmn is no longer interactive
+            pass
+        elif ai.is_being_caught:
             ai.set_pkmn_img(ai.last_taken_action, 'half whitened')
             # Set up getting-caught system.
     
-    
     def _act_accordingly(ai):
-        if ai.is_being_caught:
-            amt = ai.caught_by_what.how_open()
-            print amt
-            if amt >= 1:
+        if ai.is_being_caught: # Animate getting caught
+            if ai.caught_by_what.how_open() >= 1:
                 ai.is_being_caught = False
+                ai.was_caught = True
                 ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
-                pass # Delete self?
-            else:
-                ai.set_pkmn_img(ai.last_taken_action, amt)
-                ai.spr.dirty=1
-
+                ai.snooze = ai.move_speed
+        elif ai.was_caught: # pause while getting stored 
+            ai.gm.Plyr.send_message("Someone has caught me", ai)
+            ai.kill_this_pkmn()
         else:
             ai.free_to_act=True
 
@@ -430,6 +315,7 @@ class AIAgent(Agent):
             vec = [0]*len(DIRECTIONS); vec[vid]=1
             if (not moved_yet) and sum(ai.validate_move(vec))>0:
                 ai.move_tpos(ai.moveparams_to_steps(vec))
+                raise Exception('section todo')
                 ai.set_pkmn_img(vec)
                 ai.last_taken_action = vec
                 moved_yet = True
@@ -449,11 +335,14 @@ class AIAgent(Agent):
             if valid_actions[i]==0: continue
             vec = [0]*len(valid_actions)
             vec[i]=1
-            ai.move_tpos(ai.moveparams_to_steps(vec))
+            ai.move_tpos(ai.moveparams_to_steps(vec), no_log=True)
+            ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_ppos_rect().midbottom))
             #ai.set_pkmn_img(vec, 'whitened')
             ai.set_pkmn_img(vec)
             did_i_move=True
             ai.last_taken_action=vec
+#            print "Pkmn's tile under:", ai.get_tpos()
+                        
             break
         random_snooze = np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
         ai.snooze = ai.snooze + ai.move_speed*random_snooze
@@ -466,7 +355,16 @@ class AIAgent(Agent):
         dy = (dirs[DDIR]-dirs[UDIR]) * ai.gm.smoothing * ai.stepsize_y
         return (dx,dy)
 
+    def kill_this_pkmn(ai):
+        ai.gm.ai_entities.remove(ai)
+        ai.gm.agent_entities.remove(ai)
+        if ai.team=='enemy1':
+            ai.gm.enemy_team_1.remove(ai)
+        #ai.gm.notify_move(ai.get_tpos(), NULL_POSITION, ai.uniq_id)
+        ai.gm.notify_kill(ai)
 
+        # TODO: If I am on a team, remove me from that team's master agent...
+        del ai
 
 class MouseAgent(GhostEntity):
     ''' Mouse: a GhostEntity full with position and image but that should
@@ -479,21 +377,18 @@ class MouseAgent(GhostEntity):
         mouse.string_sub_class = 'mouse'
         mouse.gm.agent_entities.append(mouse)
         mouse.team = '--mouse--'
-#        mouse._set_ppos(mouse.gm.world_pcenter)
         mouse.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
         mouse.update_position(mouse.gm.world_pcenter)
+        mouse.gm.notify_new(mouse)
+
                
-
-    # Override get_tile_under due to off-by-one errors (no default shifting!)
-    def get_tile_under(mouse, ptarg=None):
-        if ptarg==None: ptarg = mouse.spr.rect.center
-        return mouse._ppos_to_tpos(ptarg)
-
     def update_position(mouse, targ_ppos, cursor='default'):
-        prev_pos = mouse.get_tile_under()
-        targ_pos = mouse.get_tile_under((targ_ppos[X]+1,targ_ppos[Y]+1))
         #targ_pos = mouse.get_tile_under((targ_ppos[X]+1,targ_ppos[Y]+1))
-        mouse._notify_gm_move()
+        #mouse._notify_gm_move(prev_pos)
+#        mouse.gm.notify_move(mouse.get_ppos(), targ_ppos, mouse.uniq_id, mouse.team, \
+#                mouse.string_sub_class)
+        prev_pos = mouse.get_tpos()
+        targ_pos = mouse.get_tpos((targ_ppos[X]+1,targ_ppos[Y]+1))
         mouse._set_tpos(targ_pos)
         mouse.set_cursor(cursor)
         if not prev_pos==targ_pos:
@@ -529,6 +424,7 @@ class MouseAgent(GhostEntity):
                     UDIR: ((i+1)*M, i*M),        DDIR: ((i+1)*M, ty-(i+1)*M), 
                     LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
 #                print i, DIRNAMES[d], 'size/loc:',rect_size, location
+                if rect_size[X]<=0 or rect_size[Y]<=0: continue
                 s = pygame.Surface( rect_size ).convert_alpha()
                 try:
                     s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
