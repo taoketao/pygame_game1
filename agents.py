@@ -21,12 +21,12 @@ PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
 DEFAULT_STEPSIZE = 0.20
 PLYR_CATCH_DIST = 0.5
+PLYR_COLL_BUF = 1+PLYR_COLL_WIDTH
 
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
 
-DIRVECS_4 = [(0,1),(1,0),(-1,0),(0,-1)] # in no order!
 DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
 
 # (color) options for Mouse:
@@ -106,56 +106,105 @@ class Player(Agent):
 
     def plyr_move(ego):
         prev_e = ego.gm.prev_e[:4]
-        #next_e = ego.validate_move(ego.gm.events, debug=True) # restrict if invalid
-        next_e = ego.validate_move(ego.gm.events[:4]) # restrict if invalid
-        #print prev_e, next_e, Events_To_Vec(next_e)
-        tpos = ego._ppos_to_tpos(ego.get_center())
-        poss_actions = [addvec(tpos, d) for d in Events_To_Vec(next_e)]
-        if len(poss_actions)==0: return False
-        valid_actions = ego.gm.get_multitiles(poss_actions, 'block_plyr')
-        if len(valid_actions)==0: return False
-        print poss_actions, valid_actions
-        next_e 
-#        if len(valid_pos)==0: return False
+        all_poss_targs = [ego._ppos_to_tpos(addvec(ego.get_center(), \
+              multvec(ego.dirs_to_steps(d),PLYR_COLL_BUF))) for d in DIR_LONG_VECS]
+        next_e_try = ego.gm.events[:4]
+        curr_occs = ego.gm.get_tile_occupants()
+        for option in EVENTS:
+            if all_poss_targs[option]==ego.get_position(): continue
+            dvec = sub_aFb(all_poss_targs[option], ego.get_position())
+            if not next_e_try[option]: 
+                continue
+            ents, map_t = ego.gm.query_tile(all_poss_targs[option], 'tx,ty,block_plyr')
+            for e in ents:
+                if e[0]==u'pkmn' and not e[2]==u'plyr':
+                    next_e_try[option]=False
+            if not len(map_t)==1:
+                raise Exception('not impl: multiple tiles!')
+            if map_t[0][2]==u'true':  # blocks
+                next_e_try[option]=False
 
-        
+        next_poss = Events_To_Vec(ego.gm.events[:4])
+
+
+        next_e = next_e_try
+#        print np.logical_xor(ego.gm.events[:4],next_e), ego.get_position()
+#        print prev_e, next_e 
+#
+#
+#
+#        print ego.get_position(), ego.gm.events[:4]
+#        for dvec in next_poss:
+#            poss_targs += [{'d':dvec, 'pos':addvec(ego.get_position(), dvec)}]
+#        print next_poss, poss_actions
+#        valid_actions = ego.gm.get_multitiles(poss_targs['pos'], 'block_plyr')
+#        next_e = Vec_To_Event(valid_actions)
+#        print prev_e, next_e
+
+        #next_e = ego.validate_move(ego.gm.events, debug=True) # restrict if invalid
+#        next_e = ego.validate_move(ego.gm.events[:4]) # restrict if invalid
+#        #print prev_e, next_e, Events_To_Vec(next_e)
+#        tpos = ego._ppos_to_tpos(ego.get_center())
+#        poss_actions = [addvec(tpos, d) for d in Events_To_Vec(next_e)]
+#        if len(poss_actions)==0: return False
+#        valid_actions = ego.gm.get_multitiles(poss_actions, 'block_plyr')
+#        if len(valid_actions)==0: return False
+##        print poss_actions, valid_actions
+#        print ego.gm.get_tile_occupants()
+#        next_e 
+##        if len(valid_pos)==0: return False
+
+        move_to_pos = (0,0)
+        new_img = None
+        retval = 'SENTINEL'
         if not any(prev_e) and any(next_e): # CASE started walking
             if sum(next_e)>1:
                 next_e = ego._pick_rndm_action(next_e)
-            ego.move_ppos(ego.dirs_to_steps(next_e))
-            ego.set_plyr_img(next_e, 'moving')
+            move_to_pos = ego.dirs_to_steps(next_e)
+            new_img = (next_e, 'moving')
             ego.gm.prev_e = next_e
-            return True
-        if any(prev_e) and any(next_e) and not prev_e==next_e: # CASE walking & turning
+            retval = True
+        elif any(prev_e) and any(next_e) and not prev_e==next_e: # CASE walking & turning
             if sum(next_e)>1: # subCASE try: get the new option
                 new = [a and not b for a,b in zip(next_e, prev_e)]
                 if sum(new)>1: # subCASE except: pick one of the new options
                     optns = [i for i in range(ego.n_plyr_dirs) if new[i]==1]
                     new = [False]*ego.n_plyr_dirs
                     new[random.choice(optns)] = True
-                ego.move_ppos(ego.dirs_to_steps(new))
-                ego.set_plyr_img(new, 'moving')
-                return True
-            ego.move_ppos(ego.dirs_to_steps(next_e))
-            ego.set_plyr_img(next_e, 'moving')
-            ego.gm.prev_e = next_e
-            return True
-        if any(prev_e) and prev_e==next_e: # CASE continue walking
+#                ego.move_ppos(ego.dirs_to_steps(new))
+                move_to_pos = ego.dirs_to_steps(new)
+#                ego.set_plyr_img(new, 'moving')
+                new_img = (new, 'moving')
+                retval = True
+            else:
+                move_to_pos = ego.dirs_to_steps(next_e)
+                new_img = (next_e, 'moving')
+                ego.gm.prev_e = next_e
+                retval = True
+        elif any(prev_e) and prev_e==next_e: # CASE continue walking
             if sum(prev_e)>1: raise Exception("Internal: prev dir")
-            ego.move_ppos(ego.dirs_to_steps(next_e))
-            ego.set_plyr_img(next_e, 'moving')
-            return True
-        if any(prev_e) and not any(next_e): # CASE stop walking
+            move_to_pos = ego.dirs_to_steps(next_e)
+            new_img = (next_e, 'moving')
+            retval = True
+        elif any(prev_e) and not any(next_e): # CASE stop walking
             if sum(prev_e)>1: 
                 next_e = ego._pick_rndm_action(prev_e)
                 raise Exception("Internal: prev dir")
-            ego.set_plyr_img(prev_e, 'stopped')
+            new_img = (prev_e, 'stopped')
             ego.spr.dirty=1
-            return True # last update
-        if not any(prev_e) and not any(next_e): # CASE continue stopped
-            ego.set_plyr_img(prev_e, 'stopped')
-            return False
-        raise Exception("Internal error: plyr move")
+            retval = True # last update
+        elif (not any(prev_e)) and (not any(next_e)): # CASE continue stopped
+            new_img = (prev_e, 'stopped')
+            retval = False
+        else: raise Exception("Internal error: plyr move")
+
+        if retval==False: return False
+        if retval=='SENTINEL': raise Exception()
+
+        ego.move_ppos(move_to_pos)
+        if not new_img==None: ego.set_plyr_img(new_img[0], new_img[1])
+        ego.gm.notify_move(ego, ego.get_bottom())
+        return retval
 
 
     def set_plyr_actionable(ego, b):
@@ -219,8 +268,9 @@ class AIAgent(Agent):
         ai.set_pkmn_img('d')
         ai.set_tpos(init_pos)
         ai.move_ppos(ai.init_shift)
+
         ai.gm.notify_new(ai)
-        ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_ppos_rect().midbottom))
+        ai.gm.notify_move(ai, ai.get_position())
 
         ai.catch_counter = 0
         ai.is_being_caught = False
@@ -228,7 +278,8 @@ class AIAgent(Agent):
         ai.needs_updating = False
         ai.free_to_act = False
         ai.avoided_catch = False
-        ai.flags = [ai.is_being_caught, ai.needs_updating, ai.free_to_act]
+        ai.flags = [ai.catch_counter, ai.is_being_caught, ai.was_caught,  ai.needs_updating,\
+                ai.free_to_act, ai.avoided_catch]
 
 
     def set_pkmn_img(ai, _dir, whitened=None):
@@ -268,13 +319,19 @@ class AIAgent(Agent):
     ''' Interface: Public method for changing this pkmn's state and behavior. '''
     def send_message(ai, msg, from_who=None):
         ai.needs_updating = True
-#        print '<>',msg
+        print '<>',msg
         if msg=='getting caught':
-            if ai.catch_counter==0:
+            if ai.avoided_catch:
+                ai.is_being_caught = False
+                ai.free_to_act=True
+                ai.caught_by_what = None
+            elif ai.catch_counter==0:
                 ai.is_being_caught = True
                 ai.free_to_act=False
                 ai.caught_by_what = from_who
                 ai.avoided_catch = False
+        else: 
+            ai.is_being_caught = False
         if msg=='initialized as free':
             ai.free_to_act=True
 
@@ -285,11 +342,13 @@ class AIAgent(Agent):
         elif ai.avoided_catch:
             ai.set_pkmn_img(ai.last_taken_action, whitened='Not whitened')
             ai.is_being_caught = False
-            pass
+            ai.avoided_catch = False  
         elif ai.is_being_caught:
-            print ai.catch_counter, ai.catch_threshold
-            if ai.caught_by_what.how_open() > 1:
+            #print ai.catch_counter, ai.catch_threshold
+            if ai.caught_by_what.how_open() > 1 or (ai.free_to_act and \
+                            not ai.needs_updating):
                 ai.avoided_catch = True  
+                ai.is_being_caught = False  
                 ai.catch_counter = 0
             else:
                 ai.catch_counter += 1
@@ -299,6 +358,7 @@ class AIAgent(Agent):
     def _act_accordingly(ai):
         if ai.is_being_caught and not ai.avoided_catch \
                     and ai.catch_counter >= ai.catch_threshold:
+            print '\t\tfoo'
             ai.is_being_caught = False
             ai.was_caught = True
             ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
@@ -311,8 +371,14 @@ class AIAgent(Agent):
 
 
     ''' Interface: Call this when the entity is presumably ready to perform. '''
-    def act(ai, debug=False): 
-        if debug: print ai.flags
+    def act(ai, debug=True): 
+        if debug: 
+            ai.flags = [ai.catch_counter, ai.is_being_caught, ai.was_caught,\
+                        ai.needs_updating, ai.free_to_act, ai.avoided_catch]
+            if np.random.rand()<0.1:
+                print 'catch_counter // is_being_caught // was_caught // ',
+                print 'needs_updating // free_to_act // avoided_catch'
+            print ai.flags
 
         # First, check if updating is needed.
         if not ai.needs_updating: ai.update_state()
@@ -359,34 +425,16 @@ class AIAgent(Agent):
         # For now, if not ideal, don't move at all.
 
     def _take_action_Wander_2(ai):
-        tpos = ai._ppos_to_tpos(ai.get_center())
-        poss_actions = [addvec(tpos, d) for d in DIRVECS_4]
-#        occ, tiles = ai.gm.get_multitiles(poss_actions, 'pkmn block')
+        poss_actions = [addvec(ai.get_position(), d) for d in DIR_TILE_VECS]
         valid_pos = ai.gm.get_multitiles(poss_actions, 'block_pkmn')
         if len(valid_pos)==0: return False
-
         choice = random.choice(valid_pos)
-        ai.set_ppos( multvec(choice, ai.gm.tile_size))
-        ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, tpos)])
+        #ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, tpos)])
+        ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, ai.get_position())])
+        ai.set_ppos( addvec(multvec(choice, ai.gm.tile_size), ai.init_shift))
+        ai.gm.notify_move(ai, ai.get_position())
         ai.snooze += ai.move_speed*np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
-        ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_center()))
         return True
-#        valid_actions = poss_actions[:]
-#        print '--',valid_actions
-#        print occ,tiles
-#        for T in poss_actions:
-#            tx,ty=T
-#            for o in occ:
-#                if occ[X]==tx and occ[Y]==ty:
-#                    if occ[3]==u'plyr':
-#                        valid_actions.remove(T)
-#                        #except: pass
-#            for t in tiles:
-#                if t[X]==tx and t[Y]==ty and t[2]==u'true':
-#                    valid_actions.remove(T)
-#                    #except: pass
-#        print '->',valid_actions
-
         
 
     def _take_action_Wander(ai):

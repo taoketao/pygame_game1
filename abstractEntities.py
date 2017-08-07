@@ -104,12 +104,15 @@ class GhostEntity(Entity):
     def get_tpos(gent, targp=None): 
         return gent._ppos_to_tpos(targp if targp else gent.get_ppos())
     # Get utility: get the tile under (me, target pixel position, plus coords)
-    def get_tile_under(gent, targppos=None):
-        if targppos==None: return gent.__get_tpos_under()
-        return gent._ppos_to_tpos(targppos)
+    def get_position(gent):
+        return gent._ppos_to_tpos(gent.get_center())
+
     def get_center(gent, targ=None):
         return divvec(addvec(gent.ppos_rect.center, gent.ppos_rect.midbottom),2)
-        #return gent.ppos_rect.center
+    def get_bottom(gent, tile=True):
+        if tile: return gent._ppos_to_tpos(gent.ppos_rect.midbottom)
+        return gent.ppos_rect.midbottom
+
     def get_ppos_center(gent): return gent.spr.rect.center
     def __get_tpos_under(gent): 
         t = gent._ppos_to_tpos(pygame.Rect(gent.ppos_rect.midbottom, \
@@ -194,6 +197,9 @@ class Agent(GhostEntity):
                     agent.string_sub_class=='plyr': # What does this do?
             agent.gm.prev_e=parameter
         return params
+
+
+
 
 DEFAULT_MOVE_SCALE = 0.15 # ...tiles wide/high
 class Move(GhostEntity):

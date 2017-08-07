@@ -400,11 +400,12 @@ class GameManager(object):
 
         # Initialize some enemies, debug:
         pkmn_id = '1' # stub
-        #for team, pos in [ ('enemy1', (1,2)), ('plyr',(6,6)) ]:
-        for team, pos in [ ('wild', (1,2)),  ('wild', (8,7)),
-                    ('wild', (5,2)), ('wild', (5,9)), ('wild', (12,2)),
-                    ('wild', (1,8)), ('wild', (11,2)), ('wild', (11,12))
-                ]:
+#        for team, pos in [ ('enemy1', (1,2)), ('plyr',(6,6)) ]:
+#        for team, pos in [ ('wild', (1,2)),  ('wild', (8,7)),
+#                    ('wild', (5,2)), ('wild', (5,9)), ('wild', (12,2)),
+#                    ('wild', (1,8)), ('wild', (11,2)), ('wild', (11,12))]:
+        #for team, pos in [ ('wild', (1,2)),  ('wild', (3,3))]:
+        for team, pos in [ ('wild', (1,2))]:
             optns = {'which_pkmn':pkmn_id, 'pos':pos}
             optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
                         gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
@@ -502,6 +503,13 @@ class GameManager(object):
             gm.db.execute('''DELETE FROM tile_occupants WHERE uniq_id=?
                     AND tx=? AND ty=?;''', (uniq_id, prev_tid[X], prev_tid[Y]))
 
+    ''' Query a specific tile for occupants and tile info. Supply WHAT columns.'''
+    def query_tile(gm, tid, what='*'): 
+        if type(what)==list: what = ','.join(what)
+        ret = gm.db.execute( "SELECT "+what+\
+                " FROM tilemap WHERE tx=? AND ty=?;", tid).fetchall()
+        return gm.get_tile_occupants(tid), ret
+
     def get_tile_occupants(gm, tid=None):
         if tid==None:
             return gm.db.execute(\
@@ -533,7 +541,6 @@ class GameManager(object):
             if agent.uniq_id in catches:
                 if gm._p_to_t(agent.get_center())==tid: 
                     agent.send_message('getting caught', what_pokeball)
-                    print "Caught!"
                 else:
                     print "Argh, almost caught:", agent.get_center(), tid
 #                agent.send_message('getting caught', what_pokeball)
