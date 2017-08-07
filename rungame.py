@@ -10,9 +10,10 @@ from agents import *
 from moves import *
                     
 ''' Map Options '''
-MAP_LEVEL_CONFIG = './config6.ini'
+MAP_LEVEL_CONFIG = './config7.ini'
 IMGS_LOC = './resources/images/'
 TILE_SIZE = (64,56);
+TILE_SIZE = (32,28);
 HUD_SIZE = TILE_SIZE[Y]
 X = 0;  Y = 1
 
@@ -61,7 +62,8 @@ class GameManager(object):
                                 stepsize_x FLOAT,       stepsize_y FLOAT,
                                 move_speed FLOAT,       move_range TEXT,
                                 base_health INT,        base_move_1 TEXT, 
-                                base_move_2 TEXT,       base_move_3 TEXT
+                                base_move_2 TEXT,       base_move_3 TEXT,
+                                catch_threshold INT
                                 );''')
         _db.execute(''' CREATE TABLE tile_occupants (  
                         uniq_id INT NOT NULL ,
@@ -190,9 +192,7 @@ class GameManager(object):
 #        gm.wild_team = pygame.sprite.LayeredDirty([])
         gm.ai_entities = []
         gm.environmental_sprites = pygame.sprite.Group([])
-#        gm.move_effect_sprites = pygame.sprite.LayeredDirty([])
         gm.move_effects = []
-#        gm.sprites = []
         
     def _init_plyr_object(gm): 
         gm.Plyr = Player(gm)
@@ -251,7 +251,7 @@ class GameManager(object):
         for effect in gm.move_effects:
             if True:#effect.spr.dirty==1: 
                 try:
-                    upd_spr.append((effect.spr, effect.spr.rect))
+                    upd_spr.insert(0,(effect.spr, effect.spr.rect))
 #                    upd_spr.add(spr)
                 except:
                     upd_spr.append(None)
@@ -303,7 +303,8 @@ class GameManager(object):
                                       for u in to_update]):
                 to_update.append(agent.spr)
 
-        # Update player:
+        # Update effects:
+        gm.PlyrHighlighter.update_position_and_image()
         for effect in gm.move_effects:
             effect.update_move()
 
@@ -328,8 +329,8 @@ class GameManager(object):
         if not gm.Plyr.is_plyr_actionable(): return
 #        plyr_tpos = gm.Plyr.get_tile_under()
 #        mouse_tpos = gm.Mouse.get_tile_under()
-        plyr_tpos = gm.Plyr.get_tpos()
-        mouse_tpos = gm.Mouse.get_tpos()
+        plyr_tpos = gm._p_to_t(gm.Plyr.get_center())
+        mouse_tpos = gm._p_to_t(gm.Mouse.get_center())
         query_res = gm.db.execute('''
             SELECT block_pkmn FROM tilemap WHERE 
             tx=? AND ty=?;''', mouse_tpos).fetchall()
@@ -400,12 +401,15 @@ class GameManager(object):
         # Initialize some enemies, debug:
         pkmn_id = '1' # stub
         #for team, pos in [ ('enemy1', (1,2)), ('plyr',(6,6)) ]:
-        for team, pos in [ ('wild', (1,2)) ]:
+        for team, pos in [ ('wild', (1,2)),  ('wild', (8,7)),
+                    ('wild', (5,2)), ('wild', (5,9)), ('wild', (12,2)),
+                    ('wild', (1,8)), ('wild', (11,2)), ('wild', (11,12))
+                ]:
             optns = {'which_pkmn':pkmn_id, 'pos':pos}
             optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
                         gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
             attrs = ['stepsize_x', 'stepsize_y', 'move_range', 'move_speed',\
-                    'base_health'] 
+                    'base_health', 'catch_threshold'] 
             for a in attrs:
                 optns[a] = gm.db.execute( ' SELECT '+a+\
                         ' FROM pkmn_prefabs WHERE pkmn_id=?;', \
@@ -414,6 +418,7 @@ class GameManager(object):
 
         # Init mouse interface...
         gm.Mouse = MouseAgent(gm)
+        gm.PlyrHighlighter = Highligher(gm)
     
     ''' _reset_events: clear the active stored events '''
     def _reset_events(gm):
@@ -506,18 +511,37 @@ class GameManager(object):
                 """SELECT agent_type,uniq_id,team FROM tile_occupants 
                     WHERE tx=? AND ty=?;""", tid).fetchall()
 
+    def get_multitiles(gm, tiles, what):
+#        print tiles
+        if what in ('block_plyr', 'block_pkmn'):
+            l1 = []
+            l1 =  gm.db.execute( \
+                """SELECT tx,ty FROM tile_occupants;""").fetchall()
+            l2 =  gm.db.execute( "SELECT tx,ty FROM tilemap WHERE "+\
+                    what+"=?;", (u'false',)).fetchall()
+            return [t for t in tiles if (t not in l1 and t in l2)] # valids
+
+#            return l1, l2
+
+
+
 
     def notify_catching(gm, tid, what_pokeball, catches):
         for agent in gm.ai_entities:
-            print agent.uniq_id, catches, agent.uniq_id in catches
-            print gm.Plyr.did_catch(agent.get_center(), 
+#            print agent.uniq_id, catches, agent.uniq_id in catches
+#            print gm.Plyr.did_catch(agent.get_center(), 
             if agent.uniq_id in catches:
-                if agent.get_ppos()==tid: 
+                if gm._p_to_t(agent.get_center())==tid: 
                     agent.send_message('getting caught', what_pokeball)
                     print "Caught!"
                 else:
                     print "Argh, almost caught:", agent.get_center(), tid
 #                agent.send_message('getting caught', what_pokeball)
+
+
+
+
+
 
     def _debugutility_print_dir(gm, d, prefix='', end=False):
         print prefix,

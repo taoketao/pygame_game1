@@ -108,7 +108,8 @@ class GhostEntity(Entity):
         if targppos==None: return gent.__get_tpos_under()
         return gent._ppos_to_tpos(targppos)
     def get_center(gent, targ=None):
-        return gent.ppos_rect.center
+        return divvec(addvec(gent.ppos_rect.center, gent.ppos_rect.midbottom),2)
+        #return gent.ppos_rect.center
     def get_ppos_center(gent): return gent.spr.rect.center
     def __get_tpos_under(gent): 
         t = gent._ppos_to_tpos(pygame.Rect(gent.ppos_rect.midbottom, \

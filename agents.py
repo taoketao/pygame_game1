@@ -26,6 +26,9 @@ PLYR_CATCH_DIST = 0.5
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
 
+DIRVECS_4 = [(0,1),(1,0),(-1,0),(0,-1)] # in no order!
+DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
+
 # (color) options for Mouse:
 MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60)
@@ -102,9 +105,19 @@ class Player(Agent):
         return next_e
 
     def plyr_move(ego):
-        prev_e = ego.gm.prev_e
+        prev_e = ego.gm.prev_e[:4]
         #next_e = ego.validate_move(ego.gm.events, debug=True) # restrict if invalid
         next_e = ego.validate_move(ego.gm.events[:4]) # restrict if invalid
+        #print prev_e, next_e, Events_To_Vec(next_e)
+        tpos = ego._ppos_to_tpos(ego.get_center())
+        poss_actions = [addvec(tpos, d) for d in Events_To_Vec(next_e)]
+        if len(poss_actions)==0: return False
+        valid_actions = ego.gm.get_multitiles(poss_actions, 'block_plyr')
+        if len(valid_actions)==0: return False
+        print poss_actions, valid_actions
+        next_e 
+#        if len(valid_pos)==0: return False
+
         
         if not any(prev_e) and any(next_e): # CASE started walking
             if sum(next_e)>1:
@@ -171,10 +184,11 @@ class Player(Agent):
     def do_primary_action(ego, mousepos):
         if not ego._is_plyr_actionable: return 
         ego._is_plyr_actionable = False
-#        mouse_tile = ego.get_tile_under(mousepos)
-        mouse_tile = ego.get_tpos(mousepos)
-        agents = ego.get_pkmn_at_tpos(mouse_tile)
-        print 'here:',agents
+##        mouse_tile = ego.get_tile_under(mousepos)
+#        mouse_tile = ego.get_tpos(mousepos)
+#        agents = ego.get_pkmn_at_tpos(mouse_tile)
+#        print 'here:',agents
+
 
 
 class AIAgent(Agent):
@@ -193,6 +207,7 @@ class AIAgent(Agent):
         ai.mv_range   = options['move_range'].split('_')
         ai.move_speed = options['move_speed']
         ai.init_shift = options['init_shift']
+        ai.catch_threshold = options['catch_threshold']
         ai.max_health = int(options['base_health'] * (1 if team=='plyr' else 0.8))
         ai.cur_health = ai.max_health
 
@@ -207,10 +222,12 @@ class AIAgent(Agent):
         ai.gm.notify_new(ai)
         ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_ppos_rect().midbottom))
 
+        ai.catch_counter = 0
         ai.is_being_caught = False
         ai.was_caught = False
         ai.needs_updating = False
         ai.free_to_act = False
+        ai.avoided_catch = False
         ai.flags = [ai.is_being_caught, ai.needs_updating, ai.free_to_act]
 
 
@@ -229,10 +246,13 @@ class AIAgent(Agent):
             ai.spr.image = ai.gm.imgs[basename+' full whitened']
         ai.img_id = _dir
         ai.spr.dirty=1
+        ai.last_taken_action = _dir
+
 
     ''' _choose_action: a core element of the AI system. Chooses which action to
         take based on any factors. '''
     def _choose_action(ai):
+        return 'wander2'
         if ai.team == ai.gm.Plyr.team and \
             dist(ai.gm.Plyr.get_tile_under(), ai.get_tile_under(),2)>2.5:
             return 'move_towards_player'
@@ -248,11 +268,13 @@ class AIAgent(Agent):
     ''' Interface: Public method for changing this pkmn's state and behavior. '''
     def send_message(ai, msg, from_who=None):
         ai.needs_updating = True
-        print '<>',msg
+#        print '<>',msg
         if msg=='getting caught':
-            ai.is_being_caught = True
-            ai.free_to_act=False
-            ai.caught_by_what = from_who
+            if ai.catch_counter==0:
+                ai.is_being_caught = True
+                ai.free_to_act=False
+                ai.caught_by_what = from_who
+                ai.avoided_catch = False
         if msg=='initialized as free':
             ai.free_to_act=True
 
@@ -260,17 +282,27 @@ class AIAgent(Agent):
     def update_state(ai):
         if ai.was_caught: # This pkmn is no longer interactive
             pass
+        elif ai.avoided_catch:
+            ai.set_pkmn_img(ai.last_taken_action, whitened='Not whitened')
+            ai.is_being_caught = False
+            pass
         elif ai.is_being_caught:
-            ai.set_pkmn_img(ai.last_taken_action, 'half whitened')
+            print ai.catch_counter, ai.catch_threshold
+            if ai.caught_by_what.how_open() > 1:
+                ai.avoided_catch = True  
+                ai.catch_counter = 0
+            else:
+                ai.catch_counter += 1
+                ai.set_pkmn_img(ai.last_taken_action, 'half whitened')
             # Set up getting-caught system.
     
     def _act_accordingly(ai):
-        if ai.is_being_caught: # Animate getting caught
-            if ai.caught_by_what.how_open() >= 1:
-                ai.is_being_caught = False
-                ai.was_caught = True
-                ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
-                ai.snooze = ai.move_speed
+        if ai.is_being_caught and not ai.avoided_catch \
+                    and ai.catch_counter >= ai.catch_threshold:
+            ai.is_being_caught = False
+            ai.was_caught = True
+            ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
+            ai.snooze = ai.move_speed
         elif ai.was_caught: # pause while getting stored 
             ai.gm.Plyr.send_message("Someone has caught me", ai)
             ai.kill_this_pkmn()
@@ -299,6 +331,7 @@ class AIAgent(Agent):
         # Finally, nothing is in the way of letting this agent act freely:
         decision = ai._choose_action()
         if decision=='wander': return ai._take_action_Wander()
+        if decision=='wander2': return ai._take_action_Wander_2()
         if decision=='move_towards_player': 
             return ai._take_action_Movetowards(ai.gm.Plyr)
 
@@ -324,6 +357,37 @@ class AIAgent(Agent):
         ai.snooze = ai.snooze + ai.move_speed*random_snooze
         return moved_yet
         # For now, if not ideal, don't move at all.
+
+    def _take_action_Wander_2(ai):
+        tpos = ai._ppos_to_tpos(ai.get_center())
+        poss_actions = [addvec(tpos, d) for d in DIRVECS_4]
+#        occ, tiles = ai.gm.get_multitiles(poss_actions, 'pkmn block')
+        valid_pos = ai.gm.get_multitiles(poss_actions, 'block_pkmn')
+        if len(valid_pos)==0: return False
+
+        choice = random.choice(valid_pos)
+        ai.set_ppos( multvec(choice, ai.gm.tile_size))
+        ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, tpos)])
+        ai.snooze += ai.move_speed*np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
+        ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_center()))
+        return True
+#        valid_actions = poss_actions[:]
+#        print '--',valid_actions
+#        print occ,tiles
+#        for T in poss_actions:
+#            tx,ty=T
+#            for o in occ:
+#                if occ[X]==tx and occ[Y]==ty:
+#                    if occ[3]==u'plyr':
+#                        valid_actions.remove(T)
+#                        #except: pass
+#            for t in tiles:
+#                if t[X]==tx and t[Y]==ty and t[2]==u'true':
+#                    valid_actions.remove(T)
+#                    #except: pass
+#        print '->',valid_actions
+
+        
 
     def _take_action_Wander(ai):
         poss_actions = [1,1,1,1]
@@ -374,7 +438,7 @@ class MouseAgent(GhostEntity):
         databases and queues.    '''
     def __init__(mouse, gm):
         GhostEntity.__init__(mouse, gm)
-        mouse.string_sub_class = 'mouse'
+        mouse.string_sub_class = 'target'
         mouse.gm.agent_entities.append(mouse)
         mouse.team = '--mouse--'
         mouse.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
@@ -434,3 +498,56 @@ class MouseAgent(GhostEntity):
         s = pygame.Surface( (4,4) ).convert_alpha()
         s.fill( (r,g,b, 255) )
         mouse.spr.image.blit(s, (tx/2-2,ty/2-2) )
+
+
+
+
+
+class Highligher(GhostEntity):
+    def __init__(h, gm):
+        GhostEntity.__init__(h, gm)
+        h.string_sub_class = 'target'
+#        h.gm.environmental_sprites.add(h)
+        h.gm.move_effects.append(h)
+#        h.gm.environmental_sprites.add(h.spr)
+        h.team = '--plyr--'
+        h.plyr = gm.Plyr
+        h.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
+        h.update_position_and_image()
+        h.gm.notify_new(h)
+
+    def update_position_and_image(h): 
+        prev_pos = h.get_tpos()
+        r = h.plyr.ppos_rect
+        h._set_tpos(h._ppos_to_tpos(divvec(addvec(r.center, r.midbottom),2)))
+        if not prev_pos==h.get_tpos():
+            h.draw_highlight()
+            h.spr.dirty=1
+    def update_move(h): h.update_position_and_image()
+
+    def draw_highlight(h):
+        r,g,b,a = (180,0,0,160)
+        h.spr.image.fill((0,0,0,0))
+        tx,ty = h.gm.tile_size
+        tx = tx-2; ty=ty-2
+        M = MOUSE_CURSOR_DISPL
+#        for i in [1,2,3]:
+        for i in [1,3,4,5]:
+            for d in DIRECTIONS:
+                rect_size = { UDIR: (tx-2*(i+1)*M, M),   DDIR: (tx-2*(i+1)*M, M),
+                              LDIR: (M, ty-2*(i+1)*M),   RDIR: (M, ty-2*(i+1)*M) }[d]
+                location = {
+                    UDIR: ((i+1)*M, i*M),        DDIR: ((i+1)*M, ty-(i+1)*M), 
+                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
+#                print i, DIRNAMES[d], 'size/loc:',rect_size, location
+                if rect_size[X]<=0 or rect_size[Y]<=0: continue
+                s = pygame.Surface( rect_size ).convert_alpha()
+                try:
+                    s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
+                except:
+                    s.fill( (r,g,b, MOUSE_GRAD[-1]) )
+                h.spr.image.blit(s, location)
+#        s = pygame.Surface( (4,4) ).convert_alpha()
+#        s.fill( (180,0,0,100) )
+#        h.spr.image.blit(s, (tx/2-2,ty/2-2) )
+

@@ -3,8 +3,20 @@ X=0; Y=1;
 UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
 UVEC=[1,0,0,0]; LVEC=[0,1,0,0]; DVEC=[0,0,1,0]; RVEC=[0,0,0,1]
 DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
+DIR_TILE_VECS = [(0,1), (1,0), (0,-1), (-1,0)]
 DIRNAMES = ['u','l','d','r']
 NULL_POSITION = (-1,-1)
+def Events_To_Vec(e):
+    l=[]; 
+    for a,b in zip(DIRECTIONS, DIR_TILE_VECS):
+        if e[a]: l += [b]
+    return l
+def Vec_To_Event(v):
+    es=[False]*len(EVENTS)
+    for d in v:
+        for a,b in zip(DIRECTIONS, DIR_TILE_VECS):
+            if d==b: es[a]=True
+    return es
 
 
 def dist(p1,p2,Q): 
