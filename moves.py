@@ -35,7 +35,7 @@ class Pokeball(Move):
         mv_tpb.unit_move = multpos( addpos(thrower_ppos, mv_tpb.targ, 'aFb'), \
                             POKEBALL_SPEED_PCT_PER_FRAME)
         mv_tpb.travel_dist = dist(mv_tpb.initloc, mv_tpb.targ, 'eucl') 
-        print thrower_ppos, '->',targ_ppos, mv_tpb.travel_dist
+#        print thrower_ppos, '->',targ_ppos, mv_tpb.travel_dist
 
         mv_tpb.stage = PB_STAGE0
 
@@ -79,7 +79,8 @@ class Pokeball(Move):
             a_type, uniq_id, team = o
             if a_type=='pkmn' and team=='wild':
                 catches.append(uniq_id)
-        mv_tpb.gm.notify_catching(mv_tpb.get_center(), mv_tpb, catches)
+        mv_tpb.gm.notify_catching(mv_tpb._ppos_to_tpos(mv_tpb.get_center()), \
+                mv_tpb, catches)
 
 
 
