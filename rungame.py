@@ -285,7 +285,10 @@ class GameManager(object):
     """ PUBLIC FUNCTION run_game: launch a game and loop it  """
     def run_game(gm, max_num_epochs_test=10000):
         gm._init_game()
+        FRAME_COUNTER = 0
         for _ in range(max_num_epochs_test):
+            print 'FRAME_COUNTER', FRAME_COUNTER; 
+            FRAME_COUNTER+=1
             gm._run_frame()
 
     """ CORE FUNCTION run_frame: launch a single loop iteration.

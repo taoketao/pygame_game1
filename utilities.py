@@ -32,6 +32,7 @@ def addpos(a,b,optn=None):
         _,__=a[0], b[0]
         if optn in ('sub','subt','-','aFb'): return (b[X]-a[X], b[Y]-a[Y])
         if optn in ('bFa',): return (a[X]-b[X], a[Y]-b[Y])
+        if optn in ('int',int): return (int(a[X]+b[X]), int(a[Y]+b[Y]))
         return (a[X]+b[X], a[Y]+b[Y])
     except: 
         try: 
@@ -84,3 +85,5 @@ def has_surpassed(sign, targ, query):
     print [sign[xy]*query[xy] >= sign[xy]*targ[xy] for xy in [X,Y]], [0 < sign[xy]*(query[xy]-targ[xy]) for xy in [X,Y]], sign, targ, query,divvec(targ,(50,40)), divvec(query,(50,40))
     return all([0 < sign[xy]*(query[xy]-targ[xy]) for xy in [X,Y]])
     #return any()
+
+

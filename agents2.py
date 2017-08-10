@@ -71,7 +71,7 @@ class Player(Agent):
         ego.catch_box = multvec(gm.tile_size, PLYR_CATCH_DIST)
         ego.catch_rect = pygame.Rect((0,0), ego.catch_box)
 
-    def TMP_reset(ego): ego._logic.update_self()
+    def TMP_reset(ego): ego._logic.update()
     def TMP_think(ego): ego._logic.decide()
     def TMP_enact(ego): ego._logic.enact()
 
