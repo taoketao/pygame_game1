@@ -175,27 +175,6 @@ class MotionNull(MotionAction):
         action.null=True
 
 
-class SetCycleImage(Action):
-    def __init__(action, gm):
-        Action.__init__(action, gm) # TODO
-        action.curpos = curpos
-    # Methods: get_viability(): T/F/U/..., find_viability() T/F, implement()
-    def get_viability(action): return EVAL_T
-    @abc.abstractmethod
-    def implement(action): raise Exception("Must implement me!")
-
-    def find_viability(action):
-        cur_tpos = action.logic.get_tpos()
-        querypos = addvec(action.posvec, cur_tpos)
-        if action.logic.agent.string_sub_class=='plyr':
-            if action.logic.access_sensor('tile obstr').sense(querypos, 'plyr'):
-                action.viability = EVAL_F
-            else:
-                action.viability = EVAL_T
-
-
-
-
 
 
 
@@ -337,15 +316,16 @@ class PickNewest(ActionPicker):
     def __init__(ap, gm, logic, components):
         ActionPicker.__init__(ap, gm, logic)
         ap.write_state_access = True
-        ap.logic.update_ap('choice', EVAL_INIT, ap.uniq_id)
+        ap.logic.update_global('global movedir choice', 2)
         ap.components = {k:v for k,v in components.items() if not k=='-'}
+        ap.key = 'player motion newest pda'
         ap.components = components
 
     def find_viability(ap):
         ind_priorities = ap.logic.view('curr move vec')[:] 
         prev_inds = ap.logic.view('prev move vec')
         results = []
-        Rng = [d.index for d in ap.logic.view('player motion newest pda')\
+        Rng = [d.index for d in ap.logic.view(ap.key)\
                  if d.index>=0]
         for i in range(len(prev_inds)):
             if not i in Rng: Rng.append(i)
@@ -354,33 +334,37 @@ class PickNewest(ActionPicker):
             p_bool = prev_inds[index]
             Cmp = ap.components[index_to_ltr(index)]
             if not i_bool: 
-                ap.logic.pop_PDA('player motion newest pda', Cmp)
+                ap.logic.pop_PDA(ap.key, Cmp)
             if i_bool and p_bool: 
-                ap.logic.append_PDA('player motion newest pda', Cmp)
+                ap.logic.append_PDA(ap.key, Cmp)
                 results.append(index)
             if i_bool and not p_bool: 
-                ap.logic.push_PDA('player motion newest pda', Cmp)
+                ap.logic.push_PDA(ap.key, Cmp)
                 results.insert(0, index)
         if len(results)==0: # this is down here so that it gets popped first
-            ap.logic.update_ap('choice', -1, ap.uniq_id)
             return ap.VIABLE()
         print 'results:',results
         for r in results:
             motion = ap.logic.view('available motions')[index_to_ltr(r)]
+            ap.logic.update_global('global movedir choice', motion.index)
             if EVAL_T == motion.find_viability(): 
-                ap.logic.update_ap('choice', motion.index, ap.uniq_id)
+                stored_c = ap.logic.view('global movedir choice')
+#                if not stored_c==motion.index:
+#                    l = [0]*len(prev_inds)
+#                    l[motion.index]=1
+#                    ap.logic.update_global('previous choice', stored_c)
                 return ap.VIABLE()
         ap.viability=EVAL_ERR
         return EVAL_ERR
            
     def implement(ap):
         return
-        ap.components[index_to_ltr(ap.logic.view_my('choice', \
-                    ap.uniq_id))].implement()
+        ap.components[index_to_ltr(ap.logic.view('global movedir choice'))].implement()
     def reset(ap): 
         ap.viability = EVAL_U; 
+#        ap.logic.update_global('global movedir choice', EVAL_U)
         for c in ap.components.values(): c.reset()
-        ap.logic.update_ap('choice', EVAL_U, ap.uniq_id)
+        # DONT change prev_choice!
 
 # COND: basic conditional. Returns what <do> returns only when <cond>, else EVAL_T
 class Cond(ActionPicker):
@@ -482,32 +466,52 @@ class PushDown(ActionPicker):
         ActionPicker.__init__(ap, gm, logic)
         ap.write_state_access = True
         ap.motion = logic.view('available motions')[dname]
+
     def find_viability(ap):
         if ap.motion.name=='-': return ap.VIABLE()
-        print '\tcurrent stack:', [x.name for x in ap.logic.view("player motion rand pda")]
         motion_reqs = [int(i) for i in ap.logic.view('curr move vec')]
-        print '\trequested actions:', motion_reqs,'; req for '+ap.motion.name,\
-                motion_reqs[ap.motion.index]==1;
         if not motion_reqs[ap.motion.index]==1:
             ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
             return ap.INVIABLE() # not requested
 
-        print 'line 414:',ap.motion.name
-        isViable = ap.motion.find_viability()
-        print '  viability:',WHICH_EVAL[isViable]
-        if not isViable==EVAL_T:
-            print '\tcurrent stack:', [x.name for x in ap.logic.view("player motion rand pda")]
-            print 'pop !',ap.motion.name
+        if not ap.motion.find_viability()==EVAL_T:
             ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
-            print '\tcurrent stack:', [x.name for x in ap.logic.view("player motion rand pda")]
-            return ap.INVIABLE() # not requested
+            return ap.INVIABLE() # not valid
 
-        print 'push',ap.motion.name
         ap.logic.push_PDA('player motion rand pda', ap.motion)
         return ap.VIABLE()
 
+    def implement(ap): pass # ap.motion.implement()
+
+class SetPlayerCycleImage(Action):
+    def __init__(action, gm, logic, source_id, source_key):
+        Action.__init__(action, gm) 
+        action.logic=logic
+        action.source_id = source_id
+        action.source_key = source_key
+        action.write_state_access = True
+        action.logic.update_ap('cycler', 0, action.uniq_id)
+    def find_viability(action): return action.VIABLE()
+    def reset(action): action.viability=EVAL_U
+    def implement(action): 
+        c = action.logic.view_my('cycler', action.uniq_id)
+        try:
+            choose_img = action.logic.view(action.source_key)[0].index * 3
+            assert(choose_img>=0)
+        except:
+            choose_img = action.logic.view('global movedir choice') * 3
+            if choose_img<0:
+                raise Exception()
+
+        action.logic.agent.spr.image = action.gm.imgs['player sprite '+\
+                str(  choose_img + c + 1 )]
+        print '------------',action.logic.view('global movedir choice'),
+        print action.logic.view('curr move vec')
+        if sum(action.logic.view('curr move vec'))==0: return
+        c += 1
+        if c==3: c=0
+        action.logic.update_ap('cycler', c, action.uniq_id)
         
-    def implement(ap): pass# ap.motion.implement()
 
 
 # Actually carry out a picked action once ready:
@@ -533,10 +537,11 @@ class PlayerMotion(ActionPicker):
 #        ap.root = Sequential(g,l, [PushDown(g,l,'d'), orderPDAAction(g,l)])
 ##           Sequential(g,l, [ \
 
-    
+        p = PickNewest(g,l, logic.view('available motions'))
         ap.root = Sequential(g,l, [\
-                    PickNewest(g,l, logic.view('available motions')),\
-                    orderPDAAction(g,l, 'newest') \
+                    p,\
+                    orderPDAAction(g,l, 'newest'),\
+                    SetPlayerCycleImage(g,l, p.uniq_id, p.key), \
                   ])
 #            TryCatch(g,l, \
 #                PickRand(g,l, \
@@ -591,70 +596,6 @@ class BasicPlayerActionPicker(ActionPicker):
     def implement(ap): ap.root.implement()
 
 
-#        ap.logic.notify('curr move', choice)
-#
-#        if choice.null and prev_choice.null: # Continue stopped.
-#            ap.image_cycler = 0
-#            ap.choice = prev_choice
-#        elif choice.null and not prev_choice.null: # Just stopped.
-#            ap.image_cycler = 0
-#            ap.choice = choice
-#        elif not choice.null and prev_choice.null: 
-#            ap.image_cycler += 0; ap.image_cycler = ap.image_cycler % 3
-#            ap.choice = choice
-#        elif not choice.null and choice.same(prev_choice):
-#            ap.image_cycler += 0; ap.image_cycler = ap.image_cycler % 3
-#            ap.choice = choice
-#        elif not choice.null and not choice.same(prev_choice):
-#            ap.image_cycler = 0
-#            ap.choice = choice
-#        if ap.choice.same(MotionNull()): return ap.INVIABLE()
-#        return ap.VIABLE()
-#
-#    def _get_valid_input_motions(ap):
-#        moves = ap.logic.view('curr move')
-#        if sum(moves)==0: return MotionStatic()
-#        curpos = ap.gm._t_to_p(ap.logic.view('tpos'))
-#        valid_attempts = []
-#        if not ap.logic.has_sensor('tile obstr'):  return ap.INVIABLE()
-#        for act in ap.active_actions:
-#            if act.index<0:  continue
-#            qpos = floorvec(divvec(addvec(curpos, ap.logic.plyr_steps(act.dvec)), \
-#                    ap.gm.tile_size))
-#            print act.name, ap.gm._p_to_t(curpos), qpos, ap.logic.plyr_steps(\
-#                    act.dvec), act.dvec, qpos
-#            if moves[act.index]==1 and (ap.gm._p_to_t(curpos)==qpos or \
-#                    not ap.logic.access_sensor('tile obstr').sense(qpos, 'plyr')):
-#                valid_attempts.append(act)
-#        if len(valid_attempts)==0:  return MotionStatic()
-#        if len(valid_attempts)==1:  return valid_attempts[0]
-#        return random.choice(valid_attempts)
-#
-#    def implement(ap): 
-#        if not ap.viability==EVAL_T: raise Exception("implement is not trusted.")
-#        motion = ap.choice
-#        which_img = 3 * ap.choice.index + ap.image_cycler
-#        motion.link_to_gent(ap.logic.agent)
-#        motion.unit_move = ap.logic.plyr_steps((1,1,0,0))
-#        motion.implement()
-#        ap.logic.notify('prev move', ap.choice)
-#        ap.logic.notify('curr move', ap.choice)
-#        ap.logic.notify('image', which_img)
-#
-#    def get_which_action_chosen(ap): return ap.choice
-#
-#    def reset(ap):
-#        if not ap.viability in [EVAL_T, EVAL_F, EVAL_INIT]: 
-#            raise Exception("I've already been reset!", WHICH_EVAL[ap.viability])
-#        ap.viability = EVAL_U
-##        ap.valid_attempts=None
-#        ap.choice = MotionNull()
-#        for sub_ap in ap.constituent_APs: sub_ap.reset()
-#
-#
-#
-
-
 
 
 
@@ -702,8 +643,9 @@ class State(Entity): # i do not write, so no need to have logic
                     '-':MotionStatic(st.gm, parent_logic) }
         st.belt.Actions.update(st.s_env['available motions'])
 
-        st.s_env['player motion rand pda'] = [st.s_env['available motions']['-'] ]
-        st.s_env['player motion newest pda'] = [st.s_env['available motions']['-'] ]
+        st.s_env['player motion rand pda'] = [st.s_env['available motions']['-']]
+        st.s_env['player motion newest pda']=[st.s_env['available motions']['-']]
+        st.s_env['global movedir choice'] = 2 # down
 
     def setup_basic_pkmn_fields(st):
         st.s_env['is being caught'] = False
@@ -762,7 +704,7 @@ class Logic(Entity):
 
     def push_PDA(logic, which_pda, element):
         tmp = logic._state.s_env[which_pda]
-        if element in tmp:   tmp.insert(0, tmp.pop(tmp.index(element)))
+        if element in tmp:   return;#tmp.insert(0, tmp.pop(tmp.index(element)))
         else:   tmp.insert(0, element)
         logic._state.s_env[which_pda]=tmp
         print "PDA after push:", [s_.name for s_ in tmp]
@@ -794,6 +736,9 @@ class Logic(Entity):
     
     def update_ap(logic, key, value, who):
         logic._state.update_ap(key, value, who)
+    def update_global(logic, key, value): # for internal use only!
+        logic._state.update_env(key, value)
+
 
     def update(logic):
         # Read and process messages:
@@ -810,7 +755,6 @@ class Logic(Entity):
             put = logic._state.update_env
             put('ppos', logic.agent.get_center())
             put('tpos', logic.agent.get_position())
-            put('prev move vec', logic.view('curr move vec'))
             put('curr move vec', logic.gm.events[:4])
             put('triggered actions', logic.gm.events[4:])
             put('isPlayerActionable', logic.agent.is_plyr_actionable())

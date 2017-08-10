@@ -24,7 +24,7 @@ ACTIONS = [SP_ACTION]
 OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35,-0.34
 if OBJBLOCK_COLL_WIDTH + OBJBLOCK_COLL_SHIFT<=0: raise Exception()
 
-DEFAULT_FPS = 15
+DEFAULT_FPS = 20
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
