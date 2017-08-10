@@ -61,9 +61,12 @@ class TileObstrSensor(Sensor):
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
         occups, tileinfo = sensor.gm.query_tile(tid, blck)
-        print '\ttile obstr sensor occs,info,blck?,tid',occups, tileinfo, blck, tid#, [(u'false',)]==tileinfo
-        if len([o for o in occups if not o[0]==u'plyr'])>0: return True
-        if not len(tileinfo)==1: raise Exception((tileinfo, tid))
+        print '\ttile obstr sensor occs,info,blck?,tid','\n\t',occups, '\n\t'\
+                ,tileinfo, '\n\t',blck, '\n\t',tid
+        #, [(u'false',)]==tileinfo
+        if len([o for o in occups if o[0]==u'pkmn'])>0: return True
+        if not len(tileinfo)==1: 
+            raise Exception((tileinfo, tid))
         return [(u'true',)]==tileinfo
 #        return True if [(u'true',)]==tileinfo else False
         
@@ -104,6 +107,10 @@ class Action(Entity):
             else action.INVIABLE())
     def GETVIA(action, query): return (action.VIABLE() if \
             query.find_viability()==EVAL_T else action.INVIABLE())
+    def Verify(action, query): 
+        if not action.GETVIA(query)==EVAL_T:
+            raise Exception(query, WHICH_EVAL[query.viability])
+        return action.viability
 
 class MotionAction(Action):
     def __init__(action, gm, logic):
@@ -116,25 +123,35 @@ class MotionAction(Action):
             action.unit_move = logic.view('tilesize') 
 
     def find_viability(action):
-        cur_tpos = action.logic.view('tpos')
-        querypos = addvec(action.posvec, cur_tpos)
+        if action.name=='-': return action.VIABLE()
+        if action.viability in [EVAL_T, EVAL_F]: return action.viability
+        cur_ppos = action.logic.view('ppos')
+        query_ppos = addvec(multvec(action.posvec, action.unit_move), cur_ppos)
+        print 'Stepsize:',action.unit_move,'curppos',cur_ppos,'qppos',query_ppos, 
+        print 'action.posvec', action.posvec, '@'+action.name
+        print 'line 122'
         if action.logic.agent.string_sub_class=='plyr':
+            query_tpos = action.logic.pTOt(query_ppos)
+            if action.logic.view('tpos')==query_tpos:
+                print "Same tile: no hinderance.", query_tpos
+                return action.VIABLE()
             #print action.logic.access_sensor('tile obstr').sense(querypos, 'plyr')
-            print 'line 122'
-            v = action.logic.access_sensor('tile obstr').sense(querypos, 'plyr')
+            v = action.logic.access_sensor('tile obstr').sense(query_tpos, 'plyr')
             print 'sensor result: ',v
             if v: return action.INVIABLE()
             else: return action.VIABLE()
+        raise Exception()
 
     def link_to_gent(action, gent, unit_move=None): action.gent = gent
 
     def implement(action):
         print 'MOVING:', action.name, action.index, action.gent
+        assert(action.viability==EVAL_T)
         if action.index<0: return
         if action.gent: 
             action.gent.move_ppos(multvec(action.posvec, action.unit_move))
     def same(action, targ): return action.index==targ.index # etc
-    def reset(action): pass # leaf
+    def reset(action): action.viability = EVAL_U # actually impt here
 
 
 class MotionUp(MotionAction):
@@ -253,11 +270,16 @@ class Sequential(ActionPicker): # in order
         ActionPicker.__init__(ap, gm, logic)
         ap.components = components
         ap.write_state_access = True
-    def find_viability(ap): # unpythonic for loop to verify short circuit
-        for a in ap.components:
-            if not EVAL_T==a.find_viability(): return ap.INVIABLE()
+    def find_viability(ap): # unpythonic for loop: no short circuit
+        print 'seq:', ap.components
+        for __ai, a in enumerate(ap.components):
+            print "sequential success",__ai, a
+            if not EVAL_T==a.find_viability(): 
+                print Failure
+                return ap.INVIABLE()
         return ap.VIABLE()
     def implement(ap):
+        assert(ap.viability==EVAL_T)
         for a in ap.components: a.implement()
     def reset(ap):  
         for a in ap.components: a.reset() # naive
@@ -279,6 +301,7 @@ class Priority(ActionPicker): # AKA, DoOneRetOne in order
                 return ap.VIABILE()
         return ap.INVIABLE()
     def implement(ap):
+        assert(ap.viability==EVAL_T)
         ap.components[ap.logic.view_my(ap.key, ap.uniq_id)].implement()
     def reset(ap):
         ap.viability = EVAL_U
@@ -303,6 +326,7 @@ class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
                 return ap.VIABLE()
         return ap.INVIABLE()
     def implement(ap):
+        assert(ap.viability==EVAL_T)
         ap.components[ap.logic.view_my('choice', ap.uniq_id)].implement()
     def reset(ap): 
         ap.viability = EVAL_U; 
@@ -310,61 +334,6 @@ class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
         ap.logic.update_ap('indices', EVAL_U, ap.uniq_id)
         ap.logic.update_ap('choice', EVAL_U, ap.uniq_id)
 
-# Pick Newest: using Pushdown automata, maintain newest. 
-# This function is not general as-is, but can be cannibalized quite easily.
-class PickNewest(ActionPicker): 
-    def __init__(ap, gm, logic, components):
-        ActionPicker.__init__(ap, gm, logic)
-        ap.write_state_access = True
-        ap.logic.update_global('global movedir choice', 2)
-        ap.components = {k:v for k,v in components.items() if not k=='-'}
-        ap.key = 'player motion newest pda'
-        ap.components = components
-
-    def find_viability(ap):
-        ind_priorities = ap.logic.view('curr move vec')[:] 
-        prev_inds = ap.logic.view('prev move vec')
-        results = []
-        Rng = [d.index for d in ap.logic.view(ap.key)\
-                 if d.index>=0]
-        for i in range(len(prev_inds)):
-            if not i in Rng: Rng.append(i)
-        for index in Rng:
-            i_bool = ind_priorities[index]
-            p_bool = prev_inds[index]
-            Cmp = ap.components[index_to_ltr(index)]
-            if not i_bool: 
-                ap.logic.pop_PDA(ap.key, Cmp)
-            if i_bool and p_bool: 
-                ap.logic.append_PDA(ap.key, Cmp)
-                results.append(index)
-            if i_bool and not p_bool: 
-                ap.logic.push_PDA(ap.key, Cmp)
-                results.insert(0, index)
-        if len(results)==0: # this is down here so that it gets popped first
-            return ap.VIABLE()
-        print 'results:',results
-        for r in results:
-            motion = ap.logic.view('available motions')[index_to_ltr(r)]
-            ap.logic.update_global('global movedir choice', motion.index)
-            if EVAL_T == motion.find_viability(): 
-                stored_c = ap.logic.view('global movedir choice')
-#                if not stored_c==motion.index:
-#                    l = [0]*len(prev_inds)
-#                    l[motion.index]=1
-#                    ap.logic.update_global('previous choice', stored_c)
-                return ap.VIABLE()
-        ap.viability=EVAL_ERR
-        return EVAL_ERR
-           
-    def implement(ap):
-        return
-        ap.components[index_to_ltr(ap.logic.view('global movedir choice'))].implement()
-    def reset(ap): 
-        ap.viability = EVAL_U; 
-#        ap.logic.update_global('global movedir choice', EVAL_U)
-        for c in ap.components.values(): c.reset()
-        # DONT change prev_choice!
 
 # COND: basic conditional. Returns what <do> returns only when <cond>, else EVAL_T
 class Cond(ActionPicker):
@@ -382,6 +351,7 @@ class Cond(ActionPicker):
             return ap.viability
         return ap.VIABLE()
     def implement(ap):
+        assert(ap.viability==EVAL_T)
         if ap.logic.view_my(ap.key, ap.uniq_id)==EVAL_T: ap.do.implement()
 
     def reset(ap): 
@@ -389,7 +359,7 @@ class Cond(ActionPicker):
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
 
 class TryCatch(ActionPicker):
-    def __init__(ap, gm, logic, tr, ca):
+    def __init__(ap, gm, logic, tr, ca=None):
         ActionPicker.__init__(ap, gm, logic)
         ap.tr, ap.ca = tr, ca
         ap.easy_init('valuation')
@@ -398,15 +368,17 @@ class TryCatch(ActionPicker):
         try_via = ap.tr.find_viability()
         ap.logic.update_ap(ap.key, try_via, ap.uniq_id)
         if try_via==EVAL_F:
-            return ap.GETVIA( ap.ca )
+            if ap.ca: return ap.GETVIA( ap.ca )
+            else: print "Failure caught be TryCatch id",ap.uniq_id
         return ap.VIABLE()
     def implement(ap):
+        assert(ap.viability==EVAL_T)
         if ap.logic.view_my(ap.key, ap.uniq_id)==EVAL_T: ap.tr.implement()
-        else: ap.ca.implement() # if implemented, one of the two succeeded.
+        elif ap.ca: ap.ca.implement() # if implemented, one of the two succeeded.
     def reset(ap):
         ap.viability = EVAL_U; 
         ap.tr.reset(); 
-        ap.ca.reset()
+        if ap.ca: ap.ca.reset()
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
 
 
@@ -425,7 +397,8 @@ class wasCaughtProcessing(ActionPicker):
     def find_viability(ap): 
         return { True: ap.VIABLE(), False: ap.INVIABLE() }\
                     [ap.logic.view(ap.key)]
-    def implement(ap): 
+    def implement(ap):
+        assert(ap.viability==EVAL_T)
         pass # set image to white and kill self
     def reset(ap): ap.viability = EVAL_U;
 
@@ -435,8 +408,10 @@ class wander(ActionPicker):
         ActionPicker.__init__(ap, gm, logic)
         ap.card_dirs = logic.view('available motions')
         ap.chooser = PickRand(ap.card_dirs)
-    def find_viability(ap): return ap.GETVIA(ap.chooser) 
-    def implement(ap): ap.chooser.implement()
+    def find_viability(ap): return ap.chooser.find_viability()
+    def implement(ap):
+        assert(ap.viability==EVAL_T)
+        ap.chooser.implement()
     def reset(ap): ap.viability = EVAL_U; ap.chooser.reset()
 
 
@@ -450,8 +425,10 @@ class BasicPkmnActionPicker(ActionPicker):
                 # use attack move (a big AP itself),
                 wander(ap.gm, ap.logic)
                 ] )
-    def find_viability(ap): return ap.GETVIA(ap.root)
-    def implement(ap): ap.root.implement()
+    def find_viability(ap): return ap.root.find_viability()
+    def implement(ap): 
+        assert(ap.viability==EVAL_T)
+        ap.root.implement()
     def reset(ap): ap.viability = EVAL_U; ap.root.reset()
 
 
@@ -459,6 +436,95 @@ class BasicPkmnActionPicker(ActionPicker):
 #-------------#-------------#--------------#--------------#--------------
 
 '''     Player-exclusive logic APs (as of now)   '''
+
+
+# Pick Newest: using Pushdown automata, maintain newest. 
+# This function is not general as-is, but can be cannibalized quite easily.
+class PickNewest(ActionPicker): 
+    def __init__(ap, gm, logic, components):
+        ActionPicker.__init__(ap, gm, logic)
+        ap.write_state_access = True
+        ap.components = {k:v for k,v in components.items() if not k=='-'}
+        ap.key = 'player motion newest pda'
+        ap.components = components
+
+    def find_viability(ap):
+        # Messy messy, but so is lateral non-hierarchical variable passing
+        ind_priorities = ap.logic.view('curr move vec')[:] 
+        prev_inds = ap.logic.view('prev move vec')
+        results = []
+        Rng = [d.index for d in ap.logic.view(ap.key)\
+                 if d.index>=0]
+        for i in range(len(prev_inds)):
+            if not i in Rng: Rng.append(i)
+
+        cmpd = {}
+        def process_each_case(f):
+            for index in Rng:
+                i_bool = ind_priorities[index]
+                p_bool = prev_inds[index]
+                if index in cmpd.keys():
+                    Cmp = cmpd[index]
+                else:
+                    Cmp = cmpd[index] = ap.components[index_to_ltr(index)] # inefficent!
+                f(index, i_bool, p_bool, Cmp)
+
+        def case_both_down(index, i_bool, p_bool, Cmp):
+#                print "Added",Cmp.name
+            if i_bool and p_bool: 
+                ap.logic.update_global('global movedir choice', index)
+                if Cmp.find_viability()==EVAL_T: 
+                    ap.logic.append_PDA(ap.key, Cmp)
+                    results.append(index)
+                else:
+                    ap.logic.pop_PDA(ap.key, Cmp)
+        def case_new_down(index, i_bool, p_bool, Cmp):
+            if i_bool and not p_bool: 
+                ap.logic.update_global('global movedir choice', index)
+                if Cmp.find_viability()==EVAL_T:
+                    ap.logic.push_PDA(ap.key, Cmp)
+                    results.insert(0, index)
+                else:
+                    ap.logic.pop_PDA(ap.key, Cmp)
+        def case_not_down(index, i_bool, p_bool, Cmp):
+            if Cmp.find_viability()==EVAL_T and not i_bool: 
+                ap.logic.pop_PDA(ap.key, Cmp)
+
+        print '--- both down'
+        process_each_case(case_both_down) # in order!
+        print '--- new down'
+        process_each_case(case_new_down) # in order!
+        print '--- not down'
+        process_each_case(case_not_down) # in order!
+
+        if len(results)==0: 
+            ap.logic.push_PDA(ap.key, ap.components['-'])
+        return ap.VIABLE()
+#            ap.logic.update_global('global movedir choice', -1)
+#            return ap.Verify(ap.components['-'])
+#        return
+#        for r in results:
+#            motion = ap.logic.view('available motions')[index_to_ltr(r)]
+#            ap.logic.update_global('global heading', motion.index)
+#            ap.logic.update_global('global movedir choice', motion.index)
+#            print 'b4',motion.viability, 
+#            v = motion.find_viability()
+#            print 'aftr',motion.viability 
+#            if EVAL_T == v: 
+#                stored_c = ap.logic.view('global movedir choice')
+#                print motion.name,'<- Viable'
+#                return ap.Verify(motion)
+#            else: 
+#                print motion.name,'<- Inviable'
+#        ap.logic.update_global('global movedir choice', -1)
+#        return ap.VIABLE()
+#        return ap.Verify(ap.components['-'])
+           
+    def implement(ap): assert(ap.viability==EVAL_T)
+
+    def reset(ap): 
+        ap.viability = EVAL_U; 
+        for c in ap.components.values(): c.reset()
 
 
 class PushDown(ActionPicker):
@@ -473,27 +539,25 @@ class PushDown(ActionPicker):
         if not motion_reqs[ap.motion.index]==1:
             ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
             return ap.INVIABLE() # not requested
-
         if not ap.motion.find_viability()==EVAL_T:
             ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
             return ap.INVIABLE() # not valid
-
         ap.logic.push_PDA('player motion rand pda', ap.motion)
         return ap.VIABLE()
-
-    def implement(ap): pass # ap.motion.implement()
+    def implement(ap): assert(ap.viability==EVAL_T)
 
 class SetPlayerCycleImage(Action):
-    def __init__(action, gm, logic, source_id, source_key):
+    def __init__(action, gm, logic, source):
         Action.__init__(action, gm) 
         action.logic=logic
-        action.source_id = source_id
-        action.source_key = source_key
+        action.source_id = source.uniq_id
+        action.source_key = source.key
         action.write_state_access = True
         action.logic.update_ap('cycler', 0, action.uniq_id)
     def find_viability(action): return action.VIABLE()
     def reset(action): action.viability=EVAL_U
     def implement(action): 
+        assert(action.viability==EVAL_T)
         c = action.logic.view_my('cycler', action.uniq_id)
         try:
             choose_img = action.logic.view(action.source_key)[0].index * 3
@@ -505,14 +569,11 @@ class SetPlayerCycleImage(Action):
 
         action.logic.agent.spr.image = action.gm.imgs['player sprite '+\
                 str(  choose_img + c + 1 )]
-        print '------------',action.logic.view('global movedir choice'),
-        print action.logic.view('curr move vec')
         if sum(action.logic.view('curr move vec'))==0: return
         c += 1
         if c==3: c=0
         action.logic.update_ap('cycler', c, action.uniq_id)
         
-
 
 # Actually carry out a picked action once ready:
 class orderPDAAction(ActionPicker):
@@ -522,46 +583,31 @@ class orderPDAAction(ActionPicker):
         elif mode=='newest': ap.mode=mode
         else: raise Exception("not impl yet")
         ap.VIABLE()
-    def find_viability(ap): return EVAL_T
+    def find_viability(ap): 
+        print "About to enact:", ap.logic.view('player motion '+ap.mode+' pda')[0].name
+        return ap.GETVIA(ap.logic.view('player motion '+ap.mode+' pda')[0]) 
     def reset(ap): ap.viability = EVAL_U;
     def implement(ap): 
-        # DEBUGGING: check, this get hit correctly.
-        print "ordering action:", ap.logic.view('player motion '\
-                +ap.mode+' pda')[0]
-        ap.logic.view('player motion '+ap.mode+' pda')[0].implement()
+        assert(ap.viability==EVAL_T)
+        if not ap.viability==EVAL_T:
+            return logic.do_default()
+        return ap.logic.view('player motion '+ap.mode+' pda')[0].implement()
 
 class PlayerMotion(ActionPicker):
     def __init__(ap, gm, logic):
         ActionPicker.__init__(ap, gm, logic)
         g,l = gm,logic
-#        ap.root = Sequential(g,l, [PushDown(g,l,'d'), orderPDAAction(g,l)])
-##           Sequential(g,l, [ \
-
-        p = PickNewest(g,l, logic.view('available motions'))
+        next_movement = PickNewest(g,l, logic.view('available motions'))
         ap.root = Sequential(g,l, [\
-                    p,\
+                    next_movement,\
                     orderPDAAction(g,l, 'newest'),\
-                    SetPlayerCycleImage(g,l, p.uniq_id, p.key), \
+                    SetPlayerCycleImage(g,l, next_movement), \
                   ])
-#            TryCatch(g,l, \
-#                PickRand(g,l, \
-#                        [PushDown(g,l,'u'), PushDown(g,l,'r'),\
-#                         PushDown(g,l,'d'), PushDown(g,l,'l')]), \
-#                PushDown(g,l,'-')),\
-#             orderAction(g,l)] )
-#       ap.root = \
-#           Sequential(g,l, \
-#             TryCatch(g,l, \
-#                Both([PickRand( 
-#                        [PushDown(g,l,'u'), PushDown(g,l,'r'),\
-#                         PushDown(g,l,'d'), PushDown(g,l,'l')]), 
-#                        ]))
-#                      CycleUp(g,l)]),\
-#                Stand(g,l)),\
-#             orderAction(g,l),\
-#             setNextPlayerImage(g,l) )
-    def find_viability(ap): return ap.GETVIA(ap.root)
-    def implement(ap): print "plyr exe"; ap.root.implement()
+    def find_viability(ap): return ap.Verify(ap.root)
+    def implement(ap): 
+        print "plyr exe";
+        assert(ap.viability==EVAL_T)
+        ap.root.implement()
     def reset(ap): ap.viability = EVAL_U; ap.root.reset()
 
 def ThrowPokeball(x,y): pass            
@@ -582,8 +628,9 @@ class BasicPlayerActionPicker(ActionPicker):
 #                               nonempty('triggered actions')],\
 #                          ThrowPokeball(g,l)),\
 #            PlayerMotion(g,l)))
-        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
-        ap.root = PlayerMotion(g,l) # temporary
+#        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
+        ap.root = TryCatch(g,l, PlayerMotion(g,l) )
+        
 
     def reset(ap): 
         ap.viability = EVAL_U
@@ -591,9 +638,13 @@ class BasicPlayerActionPicker(ActionPicker):
 
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
-        return ap.root.find_viability()
+        print 'Beginning verification dive:'
+        print 'Verification:' , WHICH_EVAL[ap.Verify(ap.root)]
+        return ap.viability
 
-    def implement(ap): ap.root.implement()
+    def implement(ap): 
+        assert(ap.viability==EVAL_T)
+        ap.root.implement()
 
 
 
@@ -703,28 +754,14 @@ class Logic(Entity):
         print "PDA after pop:", [s_.name for s_ in s]
 
     def push_PDA(logic, which_pda, element):
-        tmp = logic._state.s_env[which_pda]
-        if element in tmp:   return;#tmp.insert(0, tmp.pop(tmp.index(element)))
-        else:   tmp.insert(0, element)
-        logic._state.s_env[which_pda]=tmp
-        print "PDA after push:", [s_.name for s_ in tmp]
+        if not element in logic._state.s_env[which_pda]:
+            logic._state.s_env[which_pda].insert(0, element)
     def append_PDA(logic, which_pda, element):
-        tmp = logic._state.s_env[which_pda]
-        if element in tmp:   
-            if len(tmp)>0 and tmp[-1].name=='-':
-                tmp.insert(-2, tmp.pop(tmp.index(element)))
-            else:
-                tmp.append( tmp.pop(tmp.index(element)))
-        else:   
-            if len(tmp)>0 and tmp[-1].name=='-':
-                tmp.insert(-2, element )
-            else:
-                tmp.append( element )
-        logic._state.s_env[which_pda]=tmp
-        print "PDA after append:", [s_.name for s_ in tmp]
-
-
-
+        if not element in logic._state.s_env[which_pda]:
+            logic._state.s_env[which_pda].append(element)
+#    def reset_PDA(logic, which_pda): 
+#        logic._state.s_env[which_pda]=[]
+    def do_default(logic): return EVAL_T
 
 
     def tTOp(logic, X): 
