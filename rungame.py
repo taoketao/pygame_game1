@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from utilities import *
-from agents import *
+from agents2 import *
 from moves import *
                     
 ''' Map Options '''
@@ -23,7 +23,7 @@ ACTIONS = [SP_ACTION]
 OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35,-0.34
 if OBJBLOCK_COLL_WIDTH + OBJBLOCK_COLL_SHIFT<=0: raise Exception()
 
-DEFAULT_FPS = 24
+DEFAULT_FPS = 4
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -99,6 +99,8 @@ class GameManager(object):
     ''' Important global fields '''
     def _init_global_fields(gm):
         gm.uniq_id_counter = 100
+        gm.entities = {}
+
         gm.n_plyr_anim = 3
         gm.n_plyr_dirs = len(DIRECTIONS)
         gm.n_plyr_actions = len(ACTIONS)
@@ -309,15 +311,19 @@ class GameManager(object):
             effect.update_move()
 
         # Update player:
-        if gm.Plyr.plyr_move() or \
-                        any([gm.Plyr.spr.rect.colliderect(u.rect)\
-                        for u in to_update]):
-            to_update.append(gm.Plyr.spr)
-        if gm.events[SP_ACTION] and gm.buttonUp[SP_ACTION]:
-            gm.agent_main_action()
-        else:
-            gm.Mouse.update_position(pygame.mouse.get_pos(), 'default')
+#        if gm.Plyr.plyr_move() or \
+#                        any([gm.Plyr.spr.rect.colliderect(u.rect)\
+#                        for u in to_update]):
+#            to_update.append(gm.Plyr.spr)
+#        if gm.events[SP_ACTION] and gm.buttonUp[SP_ACTION]:
+#            gm.agent_main_action()
+#        else:
+#            gm.Mouse.update_position(pygame.mouse.get_pos(), 'default')
             
+        gm.Plyr.TMP_reset()
+        gm.Plyr.TMP_think()
+        gm.Plyr.TMP_enact()
+
         for ent in to_update: ent.dirty=1
 #        print gm.get_tile_occupants()
         gm.clear_screen()
@@ -510,6 +516,7 @@ class GameManager(object):
                 " FROM tilemap WHERE tx=? AND ty=?;", tid).fetchall()
         return gm.get_tile_occupants(tid), ret
 
+    # Returns: select or full list of tuples [agent_type, uniq_id, team].
     def get_tile_occupants(gm, tid=None):
         if tid==None:
             return gm.db.execute(\

@@ -19,6 +19,7 @@ class Entity(object):
     # IDs. Attributes of Sprites are specifically excluded.
     def __init__(ent, gm):
         gm.uniq_id_counter = gm.uniq_id_counter + 1
+        gm.entities[gm.uniq_id_counter] = ent
         ent.uniq_id = gm.uniq_id_counter
         ent.gm = gm
         ent.string_sub_class = 'None Stub you must override!! : Entity'
