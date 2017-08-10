@@ -14,6 +14,7 @@ MAP_LEVEL_CONFIG = './config7.ini'
 IMGS_LOC = './resources/images/'
 TILE_SIZE = (64,56);
 TILE_SIZE = (32,28);
+TILE_SIZE = (25,25);
 HUD_SIZE = TILE_SIZE[Y]
 X = 0;  Y = 1
 
@@ -23,7 +24,7 @@ ACTIONS = [SP_ACTION]
 OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35,-0.34
 if OBJBLOCK_COLL_WIDTH + OBJBLOCK_COLL_SHIFT<=0: raise Exception()
 
-DEFAULT_FPS = 4
+DEFAULT_FPS = 15
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -102,6 +103,7 @@ class GameManager(object):
         gm.entities = {}
 
         gm.n_plyr_anim = 3
+        gm.smoothing = 1.0          # animation smoothing factor
         gm.n_plyr_dirs = len(DIRECTIONS)
         gm.n_plyr_actions = len(ACTIONS)
         (gm.num_x_tiles, gm.num_y_tiles) = gm.map_num_tiles
@@ -287,7 +289,7 @@ class GameManager(object):
         gm._init_game()
         FRAME_COUNTER = 0
         for _ in range(max_num_epochs_test):
-            print 'FRAME_COUNTER', FRAME_COUNTER; 
+            print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
             FRAME_COUNTER+=1
             gm._run_frame()
 
@@ -297,6 +299,7 @@ class GameManager(object):
             (3) render. """
     def _run_frame(gm):
         gm._standardize_new_frame()
+        print gm.Plyr.get_center()
 
         to_update = [gm.Mouse.spr]
         to_update = []
@@ -395,7 +398,6 @@ class GameManager(object):
         gm.fps_itr = 0
         gm.clock = pygame.time.Clock()  # clock object for frame smoothness
         gm.last_tick = 0            # clock counter field
-        gm.smoothing = 1.0          # animation smoothing factor
 
         gm.active_agents = {}
 

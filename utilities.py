@@ -55,7 +55,7 @@ def multpos(v,m,optn=None):
     try: 
         v[0];m[0]; 
         if optn =='//': 
-            return (v[X]//m[X], v[Y]//m[Y])
+            return (int(v[X]//m[X]), int(v[Y]//m[Y]))
         elif optn=='int' or optn==int:
             return (int(v[X]*m[X]), int(v[Y]*m[Y]))
         return multpos(v,m,'e')
