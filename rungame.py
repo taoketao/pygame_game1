@@ -195,7 +195,6 @@ class GameManager(object):
 #        gm.enemy_team_1 = pygame.sprite.LayeredDirty([])
 #        gm.wild_team = pygame.sprite.LayeredDirty([])
         gm.ai_entities = []
-        gm.environmental_sprites = pygame.sprite.Group([])
         gm.move_effects = []
         
     def _init_plyr_object(gm): 
@@ -245,13 +244,6 @@ class GameManager(object):
  #                   upd_spr.add(agent.spr)
                 except:
                     upd_spr.append(None)
-        for spr in gm.environmental_sprites:
-            if spr.dirty==1: 
-                try:
-                    upd_spr.append((spr, spr.image.get_rect()))
-#                    upd_spr.add(spr)
-                except:
-                    upd_spr.append(None)
         for effect in gm.move_effects:
             if True:#effect.spr.dirty==1: 
                 try:
@@ -269,7 +261,6 @@ class GameManager(object):
 #        gm.mouse_pos
 #        pygame.display.update( upd_spr.draw(gm.screen) )
 
-#        pygame.display.update( gm.environmental_sprites.draw(gm.screen))
 #        pygame.display.update(d.draw(gm.screen))
 #        pygame.display.update(gm.move_effect_sprites.draw(gm.screen))
         del upd_spr
@@ -301,18 +292,22 @@ class GameManager(object):
         gm._standardize_new_frame()
         print gm.Plyr.get_center()
 
-        to_update = [gm.Mouse.spr]
-        to_update = []
+#        to_update = [gm.Mouse.spr]
+#        to_update = []
         # Update agents:
         for agent in gm.ai_entities:
             agent.update_state()
             did_agent_move = agent.act()
-            if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
-                                      for u in to_update]):
-                to_update.append(agent.spr)
+            to_update.append(agent.spr)
+#            if did_agent_move:
+#                to_update.append(agent.spr)
+#            if did_agent_move or any([agent.spr.rect.colliderect(u.rect) \
+#                                      for u in to_update]):
+#                to_update.append(agent.spr)
 
         # Update effects:
         gm.PlyrHighlighter.update_position_and_image()
+        gm.MouseTarget.update_position_and_image()
         for effect in gm.move_effects:
             effect.update_move()
 
@@ -327,8 +322,11 @@ class GameManager(object):
 #            gm.Mouse.update_position(pygame.mouse.get_pos(), 'default')
             
         gm.Plyr.TMP_reset()
+#        gm.Mouse._logic.update()
         gm.Plyr.TMP_think()
+#        gm.Mouse._logic.decide()
         gm.Plyr.TMP_enact()
+#        #gm.Mouse._logic.enact()
 
         for ent in to_update: ent.dirty=1
 #        print gm.get_tile_occupants()
@@ -338,6 +336,10 @@ class GameManager(object):
     def agent_main_action(gm):
         # The player has triggered the agent's main action
         # which for now as a stub is just to throw next pokeball.
+        return # for now
+
+
+
         if not gm.Plyr.is_plyr_actionable(): return
 #        plyr_tpos = gm.Plyr.get_tile_under()
 #        mouse_tpos = gm.Mouse.get_tile_under()
@@ -348,10 +350,10 @@ class GameManager(object):
             tx=? AND ty=?;''', mouse_tpos).fetchall()
         d=dist(plyr_tpos, mouse_tpos,1) 
         if len(query_res)==0:
-            gm.Mouse.update_position(pygame.mouse.get_pos(), 'hud action')
+            pass#gm.Mouse.update_position(pygame.mouse.get_pos(), 'hud action')
         elif d<=3 and not u'true'==query_res[0][0]: # and d>0
             pos = pygame.mouse.get_pos()
-            gm.Mouse.update_position(pos, 'good action')
+            pass#gm.Mouse.update_position(pos, 'good action')
             gm.Plyr.do_primary_action(pos)
 #            gm.Plyr.set_plyr_actionable(False)
             pball = Pokeball(gm, 1, gm.Plyr.get_center(), \
@@ -362,7 +364,7 @@ class GameManager(object):
             gm.move_effects.append(pball)
             gm.buttonUp[SP_ACTION] = False # Require button_up for next action
         else:
-            gm.Mouse.update_position(pygame.mouse.get_pos(), 'bad action')
+            pass#gm.Mouse.update_position(pygame.mouse.get_pos(), 'bad action')
         X = gm.db.execute('''
             SELECT tx, ty, block_plyr, block_pkmn FROM tilemap;''').fetchall()
         x = np.zeros(gm.map_num_tiles)
@@ -429,8 +431,9 @@ class GameManager(object):
             gm.create_new_ai(team,'pkmn', optns)
 
         # Init mouse interface...
-        gm.Mouse = MouseAgent(gm)
-        gm.PlyrHighlighter = Highligher(gm)
+        #gm.Mouse = MouseAgent(gm)
+        gm.MouseTarget = MouseTarget(gm)
+        gm.PlyrHighlighter = Highlighter(gm)
     
     ''' _reset_events: clear the active stored events '''
     def _reset_events(gm):

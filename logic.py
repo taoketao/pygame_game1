@@ -435,6 +435,25 @@ class BasicPkmnActionPicker(ActionPicker):
 
 #-------------#-------------#--------------#--------------#--------------
 
+'''   Mouse follower, almost a stub. Most of this code has been left
+      unotuched, opting to piggyback on previous agents2 work.          '''
+
+class MouseActionPicker(ActionPicker):
+    def __init__(ap, gm, logic):
+        ActionPicker.__init__(ap, gm, logic)
+    def reset(ap): ap.viability=EVAL_U
+    def find_viability(ap):
+        ap.logic.update_global('mouse ppos',pygame.mouse.get_pos())
+        print '*********',ap.logic.view('mouse ppos'), ap.logic.pTOt(ap.logic.view('mouse ppos'))
+        return ap.VIABLE()
+    def implement(ap):
+        ap.logic.agent.update_position(ap.logic.pTOt(\
+                ap.logic.view('mouse ppos')))
+        
+
+
+#-------------#-------------#--------------#--------------#--------------
+
 '''     Player-exclusive logic APs (as of now)   '''
 
 
@@ -500,25 +519,6 @@ class PickNewest(ActionPicker):
         if len(results)==0: 
             ap.logic.push_PDA(ap.key, ap.components['-'])
         return ap.VIABLE()
-#            ap.logic.update_global('global movedir choice', -1)
-#            return ap.Verify(ap.components['-'])
-#        return
-#        for r in results:
-#            motion = ap.logic.view('available motions')[index_to_ltr(r)]
-#            ap.logic.update_global('global heading', motion.index)
-#            ap.logic.update_global('global movedir choice', motion.index)
-#            print 'b4',motion.viability, 
-#            v = motion.find_viability()
-#            print 'aftr',motion.viability 
-#            if EVAL_T == v: 
-#                stored_c = ap.logic.view('global movedir choice')
-#                print motion.name,'<- Viable'
-#                return ap.Verify(motion)
-#            else: 
-#                print motion.name,'<- Inviable'
-#        ap.logic.update_global('global movedir choice', -1)
-#        return ap.VIABLE()
-#        return ap.Verify(ap.components['-'])
            
     def implement(ap): assert(ap.viability==EVAL_T)
 
@@ -674,6 +674,7 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['tilesize'] = st.gm.tile_size
         if what=='plyr': st.setup_plyr_fields(parent_logic)
         if what=='pkmn': st.setup_basic_pkmn_fields(parent_logic)
+        if what=='target': st.setup_mouse(parent_logic) 
 
     def setup_plyr_fields(st, parent_logic):
         st.s_env['image']           = -1
@@ -698,6 +699,9 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['player motion newest pda']=[st.s_env['available motions']['-']]
         st.s_env['global movedir choice'] = 2 # down
 
+    def setup_mouse(st, logic):
+        st.s_env['mouse ppos'] = NULL_POSITION
+
     def setup_basic_pkmn_fields(st):
         st.s_env['is being caught'] = False
         st.s_env['available motions'] = [MotionUp(st.gm), MotionDown(st.gm), \
@@ -710,16 +714,20 @@ class Logic(Entity):
         I organize ActionPickers and field messages to update State. 
         Belt should be fully initialized; changes now must be fielded through me.
         '''
-    def __init__(logic, gm, agent, belt, init_belt=None):
+    def __init__(logic, gm, agent, belt=None, init_belt=None):
         Entity.__init__(logic, gm)
         logic._state = State(gm, belt)
         logic.agent = agent
-        logic.belt = belt
-        for action in belt.Actions.values(): action.logic=logic
+        if belt: 
+            logic.belt = belt
+            for action in belt.Actions.values(): action.logic=logic
         logic.message_queue = []
+        logic._state.setup_fields(agent.string_sub_class, logic)
+        print agent.string_sub_class
         if agent.string_sub_class=='plyr': 
-            logic._state.setup_fields('plyr', logic)
             logic.root_ap = BasicPlayerActionPicker(gm, logic)
+        elif agent.string_sub_class=='target':
+            logic.root_ap = MouseActionPicker(gm, logic)
         else:
             raise Exception('not impl yet')
         
@@ -788,7 +796,6 @@ class Logic(Entity):
 
         if logic.agent.string_sub_class=='plyr': 
             # update _state for new frame for PLAYER:
-#            logic._state.update_env('last move', logic._state.view_env('curr move'))
             put = logic._state.update_env
             put('ppos', logic.agent.get_center())
             put('tpos', logic.agent.get_position())
@@ -799,7 +806,6 @@ class Logic(Entity):
 
     def decide(logic):
         # Player workflow. Query triggers, then move regardless.
-
         logic.root_ap.find_viability()
 #        if any(logic._state.view_ap('triggered actions')):
 #            pass
@@ -842,12 +848,6 @@ class Belt(Entity):
         belt.whose_belt = whose_belt
         belt.gm = gm
         if sp_init=='basic player':
-#            tmp__actions = {'u':MotionUp, 'l':MotionLeft, \
-#                            'd':MotionDown, 'r':MotionRight, \
-#                            '-':MotionStatic, \
-#                            }
-#            belt.Actions = {k:v(gm,None) for k,v in tmp__actions.items()}
-
             belt.Actions = {}
             belt.Items = ['pokeball-lvl-1']*4
             belt.Pkmn = []
@@ -857,9 +857,11 @@ class Belt(Entity):
             belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}
             belt.Pkmn, belt.Items = None, None
             belt.Sensors = [WildEntSensor]
+        elif sp_init=='target':
+            belt.Actions = {}
+            belt.Sensors, belt.Pkmn, belt.Items = None, None, None
         else: raise Exception("an easy, nbd exception but please implement.")
 
-
     def add_pkmn(belt, pkmn):
-        belt.pkmn.append(stored_pkmn(belt.gm, pkmn))
+        belt.Pkmn.append(stored_pkmn(belt.gm, pkmn))
             
