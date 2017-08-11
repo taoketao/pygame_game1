@@ -22,7 +22,7 @@ class Entity(object):
         gm.entities[gm.uniq_id_counter] = ent
         ent.uniq_id = gm.uniq_id_counter
         ent.gm = gm
-        ent.string_sub_class = 'None Stub you must override!! : Entity'
+        ent.string_sub_class = 'Stub None you must override!! : Entity'
 
 class GhostEntity(Entity):
     # 'half-subclass' that is an entity augmented with Sprite essentials like
@@ -40,7 +40,7 @@ class GhostEntity(Entity):
         gent.stepsize_x, gent.stepsize_y = 0,0
         gent.init_shift = (0,0)
         gent.img_id = None
-        gent.string_sub_class = 'None Stub you must override!! : GhostEntity'
+        gent.string_sub_class = 'Stub: GhostEntity'
 
     ''' GameManager: database update '''
     # Tells the Game Manager to update my logged position in the database.
@@ -139,7 +139,7 @@ class Agent(GhostEntity):
             #   number of queries by moving the agents by O(map_num_tiles) by only
             #   checking nearby tiles for collision.
         agent.img_id = None
-        agent.string_sub_class = 'None Stub you must override!! : Agent'
+        agent.string_sub_class = 'Stub None you must override!! : Agent'
 
     ''' Agent movement methods: thin wrappers over GhostEntity movement '''
     def set_tpos(agent, abs_tpos):

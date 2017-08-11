@@ -21,9 +21,6 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT = 0.35,-0.34
-if OBJBLOCK_COLL_WIDTH + OBJBLOCK_COLL_SHIFT<=0: raise Exception()
-
 DEFAULT_FPS = 20
 
 
@@ -33,11 +30,11 @@ class GameManager(object):
         if not which_config_file:  gm.which_config_file = MAP_LEVEL_CONFIG 
         else:                      gm.which_config_file = which_config_file 
 
-    def initialize_internal_structures(gm):
+    def load(gm):
         gm._init_create_database()
-        gm._init_global_fields()
+        gm._init_global_fields() # requires loaded maps
         gm._init_pygame()
-        gm._init_load_imgs()
+        gm._init_load_imgs() # requires pygame
         gm._init_sprite_macros()
         gm._init_start_map()
         gm._init_plyr_object()
@@ -200,9 +197,6 @@ class GameManager(object):
     def _init_plyr_object(gm): 
         gm.Plyr = Player(gm)
 
-    def deflate(gm, targ, pct, shift_down=0.0):
-        r = targ.inflate((gm.tile_x_size * -pct, gm.tile_y_size * -pct))
-        return r.move((0, gm.tile_y_size * shift_down/2))
     def _init_start_map(gm):
         gm.draw_background()
         gm.background = pygame.Surface(gm.map_pix_size)
@@ -293,7 +287,7 @@ class GameManager(object):
         print gm.Plyr.get_center()
 
 #        to_update = [gm.Mouse.spr]
-#        to_update = []
+        to_update = []
         # Update agents:
         for agent in gm.ai_entities:
             agent.update_state()
@@ -534,6 +528,10 @@ class GameManager(object):
                 """SELECT agent_type,uniq_id,team FROM tile_occupants 
                     WHERE tx=? AND ty=?;""", tid).fetchall()
 
+    
+
+
+
     def get_multitiles(gm, tiles, what):
 #        print tiles
         if what in ('block_plyr', 'block_pkmn'):
@@ -558,86 +556,11 @@ class GameManager(object):
                     agent.send_message('getting caught', what_pokeball)
                 else:
                     print "Argh, almost caught:", agent.get_center(), tid
-#                agent.send_message('getting caught', what_pokeball)
-
-
-
-
-
-
-    def _debugutility_print_dir(gm, d, prefix='', end=False):
-        print prefix,
-        print 'U' if d[UDIR] else '_',
-        print 'R' if d[RDIR] else '_',
-        print 'D' if d[DDIR] else '_',
-        print 'L' if d[LDIR] else '_',
-        print '  ',
-        if end: print ''
-
-    ''' This mode is inefficient... but not to be optimized now. '''
-    def get_agent_blocks(gm, agent):
-        #print 'Loaded blocks:', gm.map_blocks.keys()
-        if len(gm.map_dirty_where)>0 or \
-                    not gm.map_blocks.has_key(agent.string_sub_class):
-            gm._recompute_blocks(agent)
-        gm._recompute_blocks(agent)
-        return gm.map_blocks[agent.string_sub_class]
-
-    def _recompute_blocks(gm, agent, debug=False): 
-        blocks = []
-        # 1 acquire map & identify blocking blocks, 2 sequentially compute  blocking rects,
-        # 3 condolidate blocking rects (4: optimize: only update where map was dirty)
-        # 5 store them im a way that is accessible to the agent
-        # Assume uniform blocks!
-        arr = np.zeros(gm.map_num_tiles)
-        query = "SELECT tx,ty,px,py FROM tilemap WHERE block_"+\
-                    agent.string_sub_class+"=?;"
-        res = gm.db.execute(query, ('true',)).fetchall()
-        for tx,ty,px,py in res: 
-            arr[tx,ty] = 1
-        for tx,ty,px,py in res: 
-            blocks.append( gm.deflate(pygame.Rect((px,py), TILE_SIZE), \
-                        OBJBLOCK_COLL_WIDTH, OBJBLOCK_COLL_SHIFT) )
-            if debug: gm._Debug_Draw_Rect_border(blocks[-1], render=False, c='red')
-            for conn in [(0,1),(1,0)]:
-                targ = (gm._px_to_tx(px)+conn[X], gm._py_to_ty(py)+conn[Y])
-                if gm.num_x_tiles<=targ[X] or gm.num_y_tiles<=targ[Y] or \
-                        0>targ[X] or 0>targ[Y]:  continue
-                if arr[targ]==1:
-                    blocks += gm._make_conn(conn, (px,py))
-                    if debug: gm._Debug_Draw_Rect_border(blocks[-1], render=False, c='blue')
-        gm.map_blocks[agent.string_sub_class] = blocks
-        
-    def _make_conn(gm, direction, p_src):
-        if direction[X]<0: return [] # internal error!
-        if direction[Y]<0: return [] # internal inconsistency!
-        w = OBJBLOCK_COLL_WIDTH*gm.tile_x_size
-        h = OBJBLOCK_COLL_WIDTH*gm.tile_y_size
-        h_shift = OBJBLOCK_COLL_SHIFT * gm.tile_y_size
-        _w = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_x_size
-        _h = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size
-        _h_shift = (1-OBJBLOCK_COLL_WIDTH)*gm.tile_y_size+h_shift
-        td= (p_src[X]+w/2, p_src[Y]+_h, _w, h)
-        tr= (p_src[X]+w/2+_w, p_src[Y]+h+h_shift, w, _h)
-        return [pygame.Rect( { (0,1): td, (1,0): tr }[direction])]
-
-    def _Debug_Draw_Rect_border(gm, rect, thickness=2, render=True, c='red'):
-        t=thickness
-        rs = []
-        def _draw(R, rs):
-            rs += [pygame.draw.rect(gm.screen, pygame.Color(c), R)]
-        _draw(pygame.Rect(rect.topleft, (t,rect.h)), rs)
-        _draw(pygame.Rect(rect.topright, (t,rect.h)), rs)
-        _draw(pygame.Rect(rect.topleft, (rect.w,t)), rs)
-        _draw(pygame.Rect(rect.bottomleft, (rect.w,t)), rs)
-        if render:
-            pygame.display.update(rs)
-
 
 
 
 
 
 GM = GameManager()
-GM.initialize_internal_structures()
+GM.load() 
 GM.run_game()

@@ -71,9 +71,9 @@ class Player(Agent):
         ego.catch_box = multvec(gm.tile_size, PLYR_CATCH_DIST)
         ego.catch_rect = pygame.Rect((0,0), ego.catch_box)
 
-    def TMP_reset(ego): ego._logic.update()
-    def TMP_think(ego): ego._logic.decide()
-    def TMP_enact(ego): ego._logic.enact()
+    def TMP_reset(ego): ego._logic.Update()
+    def TMP_think(ego): ego._logic.Decide()
+    def TMP_enact(ego): ego._logic.Implement()
 
 
     # More or less:
@@ -86,9 +86,10 @@ class Player(Agent):
         return ego.catch_rect.collidepoint(query_catch)
 
     def _update_coll(ego):
-        ego.coll = ego.gm.deflate(ego.ppos_rect, PLYR_COLL_WIDTH, PLYR_COLL_SHIFT)
+        pass
 
     def set_plyr_img(ego, dirs, mode=None, init_ppos=None):
+      if False:
         if not any(dirs): dirs[DDIR] = True # default, face down.
         ego.plyr_step_cycler = {'moving': ego.plyr_step_cycler+1, 'stopped':0,\
                 'init-shift':0, 'init-noshift':0}[mode] % ego.gm.n_plyr_anim
@@ -100,8 +101,9 @@ class Player(Agent):
             ego.spr.image = ego.gm.imgs['player sprite 7']
         else:
             ego.spr.image = ego.gm.imgs['player sprite ' + str(ego.img_id)]
-        ego.spr.rect = ego.spr.image.get_rect()
-        ego.spr.rect = ego.get_ppos_rect()
+      ego.spr.image = ego.gm.imgs['player sprite 7']
+      ego.spr.rect = ego.spr.image.get_rect()
+      ego.spr.rect = ego.get_ppos_rect()
 
     def moveparams_to_steps(ego,dirs):
         dx = (dirs[RDIR]-dirs[LDIR]) * ego.gm.smoothing * ego.stepsize_x
@@ -496,12 +498,16 @@ class MouseAgent(GhostEntity):
         databases and queues.    '''
     def __init__(mouse, gm):
         GhostEntity.__init__(mouse, gm)
-        mouse.string_sub_class = 'target'
+        mouse.string_sub_class = 'mouse target'
         mouse.gm.agent_entities.append(mouse)
         mouse.team = '--mouse--'
         mouse.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
         mouse.update_position(mouse.gm.world_pcenter)
         mouse.gm.notify_new(mouse)
+        mouse.gm.move_effects.append(mouse)
+
+        mouse._logic = Logic(gm, mouse)
+
 
                
     def update_position(mouse, targ_ppos, cursor='default'):
@@ -515,6 +521,7 @@ class MouseAgent(GhostEntity):
         mouse.set_cursor(cursor)
         if not prev_pos==targ_pos:
             mouse.gm.update_hud()
+    def update_move(mouse): mouse._logic.root_ap.implement()
 
     def set_cursor(mouse, mode):
         # puts the desired cursor mode sprite at the current pos
@@ -561,13 +568,11 @@ class MouseAgent(GhostEntity):
 
 
 
-class Highligher(GhostEntity):
+class Highlighter(GhostEntity):
     def __init__(h, gm):
         GhostEntity.__init__(h, gm)
         h.string_sub_class = 'target'
-#        h.gm.environmental_sprites.add(h)
         h.gm.move_effects.append(h)
-#        h.gm.environmental_sprites.add(h.spr)
         h.team = '--plyr--'
         h.plyr = gm.Plyr
         h.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
@@ -608,4 +613,16 @@ class Highligher(GhostEntity):
 #        s = pygame.Surface( (4,4) ).convert_alpha()
 #        s.fill( (180,0,0,100) )
 #        h.spr.image.blit(s, (tx/2-2,ty/2-2) )
+
+class MouseTarget(Highlighter):
+    def __init__(mouse, gm): Highlighter.__init__(mouse, gm)
+    def update_move(mouse): mouse.update_position_and_image()
+    def update_position_and_image(mouse): 
+        prev_pos = mouse.get_tpos()
+        newRect = pygame.Rect(mouse._ppos_to_tpos(mouse._tpos_to_ppos(\
+                    pygame.mouse.get_pos())), mouse.gm.tile_size) 
+        mouse._set_tpos(newRect.topleft)
+        if not prev_pos==mouse.get_tpos():
+            mouse.draw_highlight()
+            mouse.spr.dirty=1
 

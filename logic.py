@@ -8,6 +8,7 @@ import abc, pygame, random, sys
 from utilities import *
 from abstractEntities import *
 
+'''   Constants  '''
 # EVAL Key: T/F means the Action[Picker] has evaluated the world and decided
 # definitively whether it ought to be called (#decidability!). U indicates 
 # an unevaluated or undecided, meaning perception and 'thinking' process is
@@ -21,6 +22,11 @@ def index_to_ltr(index): return {0:'u', 1:'l', 2:'d', 3:'r', -1:'-'}[index]
 #   ^^^^^^^^^^^^ as according to Motions below
 
 
+#-------------#-------------#--------------#--------------#--------------
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-------------#-------------#--------------#--------------#--------------
+
+'''             Sensor               '''
 
 class Sensor(Entity):
     ''' Sensor class: this is an object that can answer questions, engaging
@@ -72,10 +78,11 @@ class TileObstrSensor(Sensor):
         
 
 
+#-------------#-------------#--------------#--------------#--------------
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-------------#-------------#--------------#--------------#--------------
 
-
-
-
+'''             Action               '''
 
 
 ''' Abstract Action that encodes an action made by a pokemon, attack, npc, etc.
@@ -89,6 +96,7 @@ class Action(Entity):
     def __init__(action, gm):
         Entity.__init__(action, gm)
         action.string_sub_class = 'action'
+        # action.viability: the core reason for this implementation
         action.viability = EVAL_INIT
 
     # Methods: get_viability(): T/F/U/..., find_viability() T/F, implement()
@@ -113,8 +121,8 @@ class Action(Entity):
         return action.viability
 
 class MotionAction(Action):
-    def __init__(action, gm, logic):
-        Action.__init__(action, gm)
+    def __init__(action, logic):
+        Action.__init__(action, logic.gm)
         action.logic = logic
         action.gent = logic.agent
         if logic.agent.string_sub_class=='plyr':
@@ -150,43 +158,45 @@ class MotionAction(Action):
         if action.index<0: return
         if action.gent: 
             action.gent.move_ppos(multvec(action.posvec, action.unit_move))
+        else:
+            raise Exception("need something to move!")
     def same(action, targ): return action.index==targ.index # etc
     def reset(action): action.viability = EVAL_U # actually impt here
 
 
 class MotionUp(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = [1,0,0,0];      action.posvec = (0,-1);
         action.name = 'u';            action.index = 0
         action.null=False
 class MotionLeft(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = [0,1,0,0];      action.posvec = (-1,0);
         action.name = 'l';            action.index = 1
         action.null=False
 class MotionDown(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = [0,0,1,0];      action.posvec = (0,1);
         action.name = 'd';            action.index = 2
         action.null=False
 class MotionRight(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = [0,0,0,1];      action.posvec = (1,0);
         action.name = 'r';            action.index = 3
         action.null=False
 class MotionStatic(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = [0,0,0,0];      action.posvec = (0,0);
         action.name = '-';            action.index = -1
         action.null=True
 class MotionNull(MotionAction):
-    def __init__(action, gm, logic):
-        MotionAction.__init__(action, gm, logic)
+    def __init__(action, logic):
+        MotionAction.__init__(action, logic)
         action.dvec = None;         action.posvec = NULL_POSITION;
         action.name = '__x__';      action.index = -2
         action.null=True
@@ -212,8 +222,8 @@ class ActionPicker(Action):
             a higher-up logic, entity, or actionPicker has approved this act;
             and reset() which needs to be called 
         '''
-    def __init__(ap, gm, logic):
-        Action.__init__(ap, gm)
+    def __init__(ap, logic):
+        Action.__init__(ap, logic.gm)
         ap.logic=logic
         ap.components = []
         ap.key = 'stub key'
@@ -237,20 +247,20 @@ class ActionPicker(Action):
 
 # Note: All of these are Leaf Actions and should not maintain propagation.
 class View(ActionPicker):
-    def __init__(ap, gm, logic, X):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, X):
+        ActionPicker.__init__(ap, logic)
         ap.X, ap.write_state_access = X, False
     def find_viability(ap): return ap.GETTRUTH(ap.logic.view(ap.X))
     def reset(ap):  ap.viability = EVAL_U;
 class isTrue(ActionPicker): # Only changes if X changes via reference!
-    def __init__(ap, gm, logic, X):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, X):
+        ActionPicker.__init__(ap, logic)
         ap.X, ap.write_state_access = X, False
     def find_viability(ap): return ap.GETTRUTH(ap.X)
     def reset(ap):  ap.viability = EVAL_U
 class nonEmpty(ActionPicker): # Query an element in the State..
-    def __init__(ap, gm, logic, X):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, X):
+        ActionPicker.__init__(ap, logic)
         ap.X, ap.write_state_access = X, False
     def find_viability(ap): 
         return ap.GETVIA(sum(ap.logic.view(X))>0)
@@ -264,10 +274,10 @@ class nonEmpty(ActionPicker): # Query an element in the State..
 
 
 # SEQUENTIAL: does all the actions (in order), and returns EVAL_T iff each
-#  returns EVAL_T. cp DoAllRetAny, DoNRetM.
+#  returns EVAL_T. cp DoAllRetAny, DoAllRetAll.
 class Sequential(ActionPicker): # in order
-    def __init__(ap, gm, logic, components):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, components):
+        ActionPicker.__init__(ap, logic)
         ap.components = components
         ap.write_state_access = True
     def find_viability(ap): # unpythonic for loop: no short circuit
@@ -290,8 +300,8 @@ def Both(g,l,c): return All(g,l,c) if len(c)==2 else EVAL_ERR
 
 # PRIORITY: Given a list, picks the first success in the list (if not any: EVAL_F)
 class Priority(ActionPicker): # AKA, DoOneRetOne in order
-    def __init__(ap, gm, logic, components):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, components):
+        ActionPicker.__init__(ap, logic)
         ap.components = components
         ap.easy_init('choice')
     def find_viability(ap):
@@ -309,8 +319,8 @@ class Priority(ActionPicker): # AKA, DoOneRetOne in order
 
 # PickRand a.k.a. Random Priority: pick a viable element at random, if possible.
 class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
-    def __init__(ap, gm, logic, components):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, components):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
         ap.logic.update_ap('choice', EVAL_INIT, ap.uniq_id)
         ap.logic.update_ap('indices', EVAL_INIT, ap.uniq_id)
@@ -337,8 +347,8 @@ class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
 
 # COND: basic conditional. Returns what <do> returns only when <cond>, else EVAL_T
 class Cond(ActionPicker):
-    def __init__(ap, gm, logic, cond, do):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, cond, do):
+        ActionPicker.__init__(ap, logic)
         ap.cond = cond
         ap.do = do
         ap.easy_init('valuation')
@@ -359,8 +369,8 @@ class Cond(ActionPicker):
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
 
 class TryCatch(ActionPicker):
-    def __init__(ap, gm, logic, tr, ca=None):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, tr, ca=None):
+        ActionPicker.__init__(ap, logic)
         ap.tr, ap.ca = tr, ca
         ap.easy_init('valuation')
 
@@ -390,8 +400,8 @@ class TryCatch(ActionPicker):
 
 # wasCaught: query if the pokemon was caught; execute pkmn removal from scene.
 class wasCaughtProcessing(ActionPicker):
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = False # no update; read-only @ State 
         ap.key = 'was catch completed'
     def find_viability(ap): 
@@ -404,8 +414,8 @@ class wasCaughtProcessing(ActionPicker):
 
 # wander: pick a random valid direction and move there.
 class wander(ActionPicker):
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
         ap.card_dirs = logic.view('available motions')
         ap.chooser = PickRand(ap.card_dirs)
     def find_viability(ap): return ap.chooser.find_viability()
@@ -416,14 +426,14 @@ class wander(ActionPicker):
 
 
 class BasicPkmnActionPicker(ActionPicker):
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
-        ap.root = Priority(ap.gm, ap.logic [ \
-                wasCaughtProcessing(ap.gm, ap.logic) ,\
+        ap.root = Priority(ap.ap.logic [ \
+                wasCaughtProcessing(ap.ap.logic) ,\
                 # is being caught,
                 # use attack move (a big AP itself),
-                wander(ap.gm, ap.logic)
+                wander(ap.ap.logic)
                 ] )
     def find_viability(ap): return ap.root.find_viability()
     def implement(ap): 
@@ -439,8 +449,8 @@ class BasicPkmnActionPicker(ActionPicker):
       unotuched, opting to piggyback on previous agents2 work.          '''
 
 class MouseActionPicker(ActionPicker):
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
     def reset(ap): ap.viability=EVAL_U
     def find_viability(ap):
         ap.logic.update_global('mouse ppos',pygame.mouse.get_pos())
@@ -459,13 +469,15 @@ class MouseActionPicker(ActionPicker):
 
 # Pick Newest: using Pushdown automata, maintain newest. 
 # This function is not general as-is, but can be cannibalized quite easily.
+# Global state update: makes  
 class PickNewest(ActionPicker): 
-    def __init__(ap, gm, logic, components):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
-        ap.components = {k:v for k,v in components.items() if not k=='-'}
+        ap.components = logic.view('available motions')#.copy()
         ap.key = 'player motion newest pda'
-        ap.components = components
+        ap.logic.update_global("motion ap key", ap.key)
+
 
     def find_viability(ap):
         # Messy messy, but so is lateral non-hierarchical variable passing
@@ -489,7 +501,6 @@ class PickNewest(ActionPicker):
                 f(index, i_bool, p_bool, Cmp)
 
         def case_both_down(index, i_bool, p_bool, Cmp):
-#                print "Added",Cmp.name
             if i_bool and p_bool: 
                 ap.logic.update_global('global movedir choice', index)
                 if Cmp.find_viability()==EVAL_T: 
@@ -526,10 +537,9 @@ class PickNewest(ActionPicker):
         ap.viability = EVAL_U; 
         for c in ap.components.values(): c.reset()
 
-
 class PushDown(ActionPicker):
-    def __init__(ap, gm, logic, dname):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic, dname):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
         ap.motion = logic.view('available motions')[dname]
 
@@ -546,62 +556,57 @@ class PushDown(ActionPicker):
         return ap.VIABLE()
     def implement(ap): assert(ap.viability==EVAL_T)
 
-class SetPlayerCycleImage(Action):
-    def __init__(action, gm, logic, source):
-        Action.__init__(action, gm) 
-        action.logic=logic
-        action.source_id = source.uniq_id
-        action.source_key = source.key
-        action.write_state_access = True
-        action.logic.update_ap('cycler', 0, action.uniq_id)
-    def find_viability(action): return action.VIABLE()
-    def reset(action): action.viability=EVAL_U
-    def implement(action): 
-        assert(action.viability==EVAL_T)
-        c = action.logic.view_my('cycler', action.uniq_id)
+class SetPlayerCycleImage(ActionPicker):
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic) 
+        ap.write_state_access = True
+        ap.logic.update_ap('cycler', 0, ap.uniq_id)
+
+    def find_viability(ap): return ap.VIABLE()
+    def reset(ap): ap.viability=EVAL_U
+    def implement(ap): 
+        assert(ap.viability==EVAL_T)
+        c = ap.logic.view_my('cycler', ap.uniq_id)
         try:
-            choose_img = action.logic.view(action.source_key)[0].index * 3
+            choose_img = ap.logic.view(ap.logic.view("motion ap key"))[0].index*3
             assert(choose_img>=0)
         except:
-            choose_img = action.logic.view('global movedir choice') * 3
+            choose_img = ap.logic.view('global movedir choice') * 3
             if choose_img<0:
                 raise Exception()
 
-        action.logic.agent.spr.image = action.gm.imgs['player sprite '+\
+        ap.logic.agent.spr.image = ap.gm.imgs['player sprite '+\
                 str(  choose_img + c + 1 )]
-        if sum(action.logic.view('curr move vec'))==0: return
+        if sum(ap.logic.view('curr move vec'))==0: return
         c += 1
         if c==3: c=0
-        action.logic.update_ap('cycler', c, action.uniq_id)
+        ap.logic.update_ap('cycler', c, ap.uniq_id)
         
 
 # Actually carry out a picked action once ready:
 class orderPDAAction(ActionPicker):
-    def __init__(ap, gm, logic, mode):
-        ActionPicker.__init__(ap, gm, logic)
-        if mode=='rand': ap.mode=mode
-        elif mode=='newest': ap.mode=mode
-        else: raise Exception("not impl yet")
+    def __init__(ap, logic, mode):
+        ActionPicker.__init__(ap, logic)
         ap.VIABLE()
     def find_viability(ap): 
-        print "About to enact:", ap.logic.view('player motion '+ap.mode+' pda')[0].name
-        return ap.GETVIA(ap.logic.view('player motion '+ap.mode+' pda')[0]) 
+#        motion_key = ap.logic.view("motion ap key")
+#        print "About to enact:", ap.logic.view(motion_key)[0].name
+        return ap.GETVIA(ap.logic.view(ap.logic.view("motion ap key"))[0]) 
     def reset(ap): ap.viability = EVAL_U;
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         if not ap.viability==EVAL_T:
             return logic.do_default()
-        return ap.logic.view('player motion '+ap.mode+' pda')[0].implement()
+        motion_key = ap.logic.view("motion ap key")
+        return ap.logic.view(motion_key)[0].implement()
 
 class PlayerMotion(ActionPicker):
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
-        g,l = gm,logic
-        next_movement = PickNewest(g,l, logic.view('available motions'))
-        ap.root = Sequential(g,l, [\
-                    next_movement,\
-                    orderPDAAction(g,l, 'newest'),\
-                    SetPlayerCycleImage(g,l, next_movement), \
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
+        ap.root = Sequential(logic, [\
+                    PickNewest(logic),\
+                    orderPDAAction(logic, 'newest'),\
+                    SetPlayerCycleImage(logic), \
                   ])
     def find_viability(ap): return ap.Verify(ap.root)
     def implement(ap): 
@@ -615,21 +620,20 @@ def ThrowPokeball(x,y): pass
 
 class BasicPlayerActionPicker(ActionPicker): 
     # directly-used subclasses inherit from Entity.
-    def __init__(ap, gm, logic):
-        ActionPicker.__init__(ap, gm, logic)
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
         ap.logic.update_ap('last move', EVAL_INIT, ap.uniq_id)
         ap.logic.update_ap('heading', EVAL_INIT, ap.uniq_id)
         ap.logic.update_ap('cycle', EVAL_INIT, ap.uniq_id)
 
-        l,g = ap.logic,ap.gm
 #        ap.root = Sequential(g,l, \
 #            Cond(g,l, All(g,l,[View(g,l,'isPlayerActionable'), 
 #                               nonempty('triggered actions')],\
 #                          ThrowPokeball(g,l)),\
 #            PlayerMotion(g,l)))
 #        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
-        ap.root = TryCatch(g,l, PlayerMotion(g,l) )
+        ap.root = TryCatch(logic, PlayerMotion(logic) )
         
 
     def reset(ap): 
@@ -648,6 +652,11 @@ class BasicPlayerActionPicker(ActionPicker):
 
 
 
+#-------------#-------------#--------------#--------------#--------------
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-------------#-------------#--------------#--------------#--------------
+
+'''             State               '''
 
 
 class State(Entity): # i do not write, so no need to have logic
@@ -668,7 +677,9 @@ class State(Entity): # i do not write, so no need to have logic
     def view_ap(st, what, who):  return st.s_ap[who][what]
 
     def update_env(st, key, val): st.s_env[key] = val
-    def view_env(st, what): return st.s_env[what]
+    def view_env(st, what):
+        print what
+        return st.s_env[what]
 
     def setup_fields(st, what, parent_logic):
         st.s_env['tilesize'] = st.gm.tile_size
@@ -684,15 +695,20 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['prev move vec']   = [0,0,0,0]
         st.s_env['curr move vec']   = [0,0,0,0]
         st.s_env['num moves']  = 4
+        st.s_env['motion ap key'] = None 
+        # ^^ motion ap key: This key should change to a string that signals 
+        # what method is determining push-down motions. This could, say, be
+        # changed by a cutscene that wants to walk the player around tempor-
+        # arily before returning control.
         st.s_env['isPlayerActionable'] = None
         if not st.belt: raise Exception('Need at least an empty belt.')
 
         st.s_env['available motions'] = {  \
-                    'u':MotionUp(st.gm, parent_logic),\
-                    'd':MotionDown(st.gm, parent_logic),    \
-                    'l':MotionLeft(st.gm, parent_logic), \
-                    'r':MotionRight(st.gm, parent_logic),  \
-                    '-':MotionStatic(st.gm, parent_logic) }
+                    'u':MotionUp(parent_logic),\
+                    'd':MotionDown(parent_logic),    \
+                    'l':MotionLeft(parent_logic), \
+                    'r':MotionRight(parent_logic),  \
+                    '-':MotionStatic(parent_logic) }
         st.belt.Actions.update(st.s_env['available motions'])
 
         st.s_env['player motion rand pda'] = [st.s_env['available motions']['-']]
@@ -708,12 +724,50 @@ class State(Entity): # i do not write, so no need to have logic
                 MotionLeft(st.gm), MotionRight(st.gm), MotionStatic(st.gm) ]
 
 
+#-------------#-------------#--------------#--------------#--------------
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-------------#-------------#--------------#--------------#--------------
+
+'''             Logic               '''
+
 class Logic(Entity):
     ''' Logic: the unique logic root of an agent that maintains an active
         internal state and belts for the agent. Simple entities like most Moves 
         I organize ActionPickers and field messages to update State. 
         Belt should be fully initialized; changes now must be fielded through me.
-        '''
+
+        Public Methods: 
+        (cp Update/Decide/Implement with reset/find_viability/implement)   '''
+
+#-- Interface method        __ Update __        Call before choosing actions 
+    def Update(logic):
+       # Read and process messages:
+        while len(logic.message_queue)>0:
+            msg = logic.message_queue.pop(0)
+            logic._state.update_ext(msg[0],msg[1])
+
+        # Notify actions and ActionPickers that they can reset for next frame:
+        logic.root_ap.reset()
+
+        if logic.agent.string_sub_class=='plyr': 
+            # Update _state for new frame for PLAYER:
+            # (ideally, sensors would offload most of this)
+            put = logic._state.update_env
+            put('ppos', logic.agent.get_center())
+            put('tpos', logic.agent.get_position())
+            put('curr move vec', logic.gm.events[:4])
+            put('triggered actions', logic.gm.events[4:])
+            put('isPlayerActionable', logic.agent.is_plyr_actionable())
+
+
+#-- Interface method        __ Decide __        Call for ALL before implementing
+    def Decide(logic):      logic.root_ap.find_viability()
+#-- Interface method        __ Implement __        Call after Deciding, for all
+    def Implement(logic):   logic.root_ap.implement()
+
+
+    # Private methods
+
     def __init__(logic, gm, agent, belt=None, init_belt=None):
         Entity.__init__(logic, gm)
         logic._state = State(gm, belt)
@@ -725,9 +779,9 @@ class Logic(Entity):
         logic._state.setup_fields(agent.string_sub_class, logic)
         print agent.string_sub_class
         if agent.string_sub_class=='plyr': 
-            logic.root_ap = BasicPlayerActionPicker(gm, logic)
+            logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.string_sub_class=='target':
-            logic.root_ap = MouseActionPicker(gm, logic)
+            logic.root_ap = MouseActionPicker(logic)
         else:
             raise Exception('not impl yet')
         
@@ -739,9 +793,9 @@ class Logic(Entity):
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
         logic.message_queue.append( (whatCol, whatVal) )
-    def get_resource(logic, database, resourceName):
+    def get_resource(logic, database, which_resource):
         if database=='plyr img':
-            return logic.gm.imgs['player sprite '+str(resourceName)]
+            return logic.gm.imgs['player sprite '+str(which_resource)]
     def has_sensor(logic, what_sensor):
         return logic.belt.Sensors.has_key(what_sensor)
     def access_sensor(logic, what_sensor, query=None):
@@ -752,24 +806,18 @@ class Logic(Entity):
         return ( dvec[X] * logic.gm.smoothing * logic.agent.stepsize_x, \
                  dvec[Y] * logic.gm.smoothing * logic.agent.stepsize_y)
     def pop_PDA(logic, which_pda, new):
-        if not which_pda in ['player motion rand pda', \
-                    'player motion newest pda']: 
+        if not which_pda in ['player motion rand pda', 'player motion newest pda']: 
             raise Exception("This pushdown Automata not impl")
-#        print logic._state.s_env[which_pda]
-#        print element, [w.index for w in logic._state.s_env[which_pda]]
         s=[w for w in logic._state.s_env[which_pda] if not w.index==new.index]
         logic._state.s_env[which_pda] = s
-        print "PDA after pop:", [s_.name for s_ in s]
-
     def push_PDA(logic, which_pda, element):
         if not element in logic._state.s_env[which_pda]:
             logic._state.s_env[which_pda].insert(0, element)
     def append_PDA(logic, which_pda, element):
         if not element in logic._state.s_env[which_pda]:
             logic._state.s_env[which_pda].append(element)
-#    def reset_PDA(logic, which_pda): 
-#        logic._state.s_env[which_pda]=[]
-    def do_default(logic): return EVAL_T
+
+    def do_default(logic): return EVAL_T # semi-stub
 
 
     def tTOp(logic, X): 
@@ -785,38 +833,13 @@ class Logic(Entity):
         logic._state.update_env(key, value)
 
 
-    def update(logic):
-        # Read and process messages:
-        while len(logic.message_queue)>0:
-            msg = logic.message_queue.pop(0)
-            logic._state.update_ext(msg[0],msg[1])
 
-        # Notify actions and ActionPickers that they can reset for next frame:
-        logic.root_ap.reset()
-
-        if logic.agent.string_sub_class=='plyr': 
-            # update _state for new frame for PLAYER:
-            put = logic._state.update_env
-            put('ppos', logic.agent.get_center())
-            put('tpos', logic.agent.get_position())
-            put('curr move vec', logic.gm.events[:4])
-            put('triggered actions', logic.gm.events[4:])
-            put('isPlayerActionable', logic.agent.is_plyr_actionable())
-
-
-    def decide(logic):
-        # Player workflow. Query triggers, then move regardless.
-        logic.root_ap.find_viability()
-#        if any(logic._state.view_ap('triggered actions')):
-#            pass
-#        attmptMove = logic.root_ap.find_viability()
-#        if attmptMove==EVAL_T:
-#            #logic.chosen_action = logic.root_ap.get_which_action_chosen()
-#            logic.chosen_action = logic.root_ap
         
-   # def enact(logic): logic.chosen_action.implement() 
-    def enact(logic): 
-        logic.root_ap.implement()
+#-------------#-------------#--------------#--------------#--------------
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#-------------#-------------#--------------#--------------#--------------
+
+'''             Belt               '''
 
 
 
@@ -836,7 +859,8 @@ class stored_pkmn(Entity):
         sp.max_health = pkmn_ai.max_health
         sp.cur_health = pkmn_ai.cur_health
         sp.was_wild = True if pkmn_ai.team=='wild' else False
-        
+
+
 
 class Belt(Entity):
     ''' Belt: Actions and Sensors are lists of available functions for Action

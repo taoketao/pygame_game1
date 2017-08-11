@@ -24,7 +24,7 @@ def dist(p1,p2,Q):
     if Q in [1,'manh']: 
         return abs(p1[X]-p2[X])+abs(p1[Y]-p2[Y])
     if Q in [2,'eucl']: 
-        return np.sqrt(np.square(p1[X]-p2[X])+np.square(p1[Y]-p2[Y]))
+        return ((p1[X]-p2[X])**2+(p1[Y]-p2[Y])**2)**0.5
 
 def sub_aFb(a,b): return b[X]-a[X], b[Y]-a[Y]
 def addpos(a,b,optn=None):
@@ -58,32 +58,13 @@ def multpos(v,m,optn=None):
             return (int(v[X]//m[X]), int(v[Y]//m[Y]))
         elif optn=='int' or optn==int:
             return (int(v[X]*m[X]), int(v[Y]*m[Y]))
-        return multpos(v,m,'e')
+        return (v[X]*m[X], v[Y]*m[Y])
     except: pass
     if optn==int or optn=='int': return (int(v[X]*m), int(v[Y]*m))
     elif optn in ('elemwise','e','vector'): return (v[X]*m[X], v[Y]*m[Y])
     elif optn in ('div', '/'): return (v[X]/m, v[Y]/m)
-    elif optn =='//': return (v[X]//m, v[Y]//m)
-    elif optn==None:
-        return (v[X]*m, v[Y]*m)
+    elif optn =='//': return (int(v[X]//m), int(v[Y]//m))
+    elif optn==None: return (v[X]*m, v[Y]*m)
     else: raise Exception()
 def multvec(v,m,optn=None):return multpos(v,m,optn)
 def divvec(v,m):return multpos(v,m,'//')
-
-def sign_vec(v):
-    return tuple([{True:1, False:-1}[vi>=0] for vi in v])
-
-''' has_surpassed: see if the query (x,y) position has surpassed the target
-    position, linearly, with surpassing defined by the cone signvec:
-    if the value is +/- 1, requires passed; if 0, ignore. '''
-def has_surpassed(sign, targ, query):
-    print [sign[xy]*query[xy] >= sign[xy]*targ[xy] for xy in [X,Y]], [0 < sign[xy]*(query[xy]-targ[xy]) for xy in [X,Y]], sign, targ, query,divvec(targ,(50,40)), divvec(query,(50,40))
-
-    print sign == sign_vec(addvec(query, targ, 'bFa'))
-
-
-    print [sign[xy]*query[xy] >= sign[xy]*targ[xy] for xy in [X,Y]], [0 < sign[xy]*(query[xy]-targ[xy]) for xy in [X,Y]], sign, targ, query,divvec(targ,(50,40)), divvec(query,(50,40))
-    return all([0 < sign[xy]*(query[xy]-targ[xy]) for xy in [X,Y]])
-    #return any()
-
-
