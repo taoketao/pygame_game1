@@ -81,6 +81,69 @@ class Player(VisualStepAgent):
         return (dx,dy)
     def get_num_actions(ego): return len(ego._belt.Actions)
 
+
+class Highlighter(TileAgent):
+    def __init__(h, gm):
+        TileAgent.__init__(h, gm, (0,0))
+        h.string_sub_class = 'target'
+        h.team = '--plyr--'
+        h.image = pygame.Surface(gm.tile_size).convert_alpha()
+        h.update_position_and_image()
+        # h.gm.notify_new_agent(h)
+        h.position = (0,0)
+
+    def update_position_and_image(h): 
+        prev_pos = h.position
+        new_pos = h.gm.request_tpos('Player')
+#        h._set_tpos(h._ppos_to_tpos(divvec(addvec(r.center, r.midbottom),2)))
+        if not prev_pos==new_pos:
+            h.draw_highlight(new_pos)
+    def update_move(h): h.update_position_and_image()
+
+    def draw_highlight(h):
+        r,g,b,a = (180,0,0,160)
+        h.spr.image.fill((0,0,0,0))
+        tx,ty = h.gm.tile_size
+        tx = tx-2; ty=ty-2
+        M = MOUSE_CURSOR_DISPL = 1; # stub!
+#        for i in [1,2,3]:
+        for i in [1,3,4,5]:
+            for d in DIRECTIONS:
+                rect_size = { UDIR: (tx-2*(i+1)*M, M),  
+                              DDIR: (tx-2*(i+1)*M, M),
+                              LDIR: (M, ty-2*(i+1)*M), 
+                              RDIR: (M, ty-2*(i+1)*M) }[d]
+                location = {
+                    UDIR: ((i+1)*M, i*M),    DDIR: ((i+1)*M, ty-(i+1)*M), 
+                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
+                if rect_size[X]<=0 or rect_size[Y]<=0: continue
+
+
+                s = pygame.Surface( rect_size ).convert_alpha()
+                try:
+                    s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
+                except:
+                    s.fill( (r,g,b, MOUSE_GRAD[-1]) )
+                h.gm.display.queue_E_img(None, s, location)
+
+#                h.spr.image.blit(s, location)
+
+
+
+
+
+
+
+#class MouseTarget(Highlighter):
+#    def __init__(mouse, gm): Highlighter.__init__(mouse, gm)
+#    def update_move(mouse): mouse.update_position_and_image()
+#    def update_position_and_image(mouse): 
+#        prev_pos = mouse.get_tpos()
+#        newRect = pygame.Rect(mouse._ppos_to_tpos(mouse._tpos_to_ppos(\
+#                    pygame.mouse.get_pos())), mouse.gm.tile_size) 
+#        mouse._set_tpos(newRect.topleft)
+#        if not prev_pos==mouse.get_tpos():
+#            mouse.draw_highlight()
 #
 #
 #
@@ -403,63 +466,7 @@ class Player(VisualStepAgent):
 #
 #
 #
-#class Highlighter(GhostEntity):
-#    def __init__(h, gm):
-#        GhostEntity.__init__(h, gm)
-#        h.string_sub_class = 'target'
-#        h.gm.move_effects.append(h)
-#        h.team = '--plyr--'
-#        h.plyr = gm.Plyr
-#        h.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
-#        h.update_position_and_image()
-#        h.gm.notify_new(h)
 #
-#    def update_position_and_image(h): 
-#        prev_pos = h.get_tpos()
-#        r = h.plyr.ppos_rect
-#        h._set_tpos(h._ppos_to_tpos(divvec(addvec(r.center, r.midbottom),2)))
-#        if not prev_pos==h.get_tpos():
-#            h.draw_highlight()
-#            h.spr.dirty=1
-#    def update_move(h): h.update_position_and_image()
-#
-#    def draw_highlight(h):
-#        r,g,b,a = (180,0,0,160)
-#        h.spr.image.fill((0,0,0,0))
-#        tx,ty = h.gm.tile_size
-#        tx = tx-2; ty=ty-2
-#        M = MOUSE_CURSOR_DISPL
-##        for i in [1,2,3]:
-#        for i in [1,3,4,5]:
-#            for d in DIRECTIONS:
-#                rect_size = { UDIR: (tx-2*(i+1)*M, M),   DDIR: (tx-2*(i+1)*M, M),
-#                              LDIR: (M, ty-2*(i+1)*M),   RDIR: (M, ty-2*(i+1)*M) }[d]
-#                location = {
-#                    UDIR: ((i+1)*M, i*M),        DDIR: ((i+1)*M, ty-(i+1)*M), 
-#                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
-##                print i, DIRNAMES[d], 'size/loc:',rect_size, location
-#                if rect_size[X]<=0 or rect_size[Y]<=0: continue
-#                s = pygame.Surface( rect_size ).convert_alpha()
-#                try:
-#                    s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
-#                except:
-#                    s.fill( (r,g,b, MOUSE_GRAD[-1]) )
-#                h.spr.image.blit(s, location)
-##        s = pygame.Surface( (4,4) ).convert_alpha()
-##        s.fill( (180,0,0,100) )
-##        h.spr.image.blit(s, (tx/2-2,ty/2-2) )
-#
-#class MouseTarget(Highlighter):
-#    def __init__(mouse, gm): Highlighter.__init__(mouse, gm)
-#    def update_move(mouse): mouse.update_position_and_image()
-#    def update_position_and_image(mouse): 
-#        prev_pos = mouse.get_tpos()
-#        newRect = pygame.Rect(mouse._ppos_to_tpos(mouse._tpos_to_ppos(\
-#                    pygame.mouse.get_pos())), mouse.gm.tile_size) 
-#        mouse._set_tpos(newRect.topleft)
-#        if not prev_pos==mouse.get_tpos():
-#            mouse.draw_highlight()
-#            mouse.spr.dirty=1
 #
 #
 

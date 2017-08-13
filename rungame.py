@@ -268,7 +268,7 @@ class GameManager(object): # *
         tx, ty = divvec(ploc, gm.ts())
         gm.db.execute('''UPDATE OR FAIL agent_locations SET tx=?, ty=?, px=?, py=?
              WHERE uniq_id=?''', (tx, ty, ploc[X], ploc[Y], agent_id))
-    #        gm.visual_update_agents.append((agent_id, ploc, img))
+
     def notify_imgChange(gm, ref_who, img_name, where='not provided'):
         if where=='not provided':
             where = gm.request_ppos(ref_who.uniq_id)
@@ -277,14 +277,15 @@ class GameManager(object): # *
                 isinstance(ref_who, VisualStepAgent)](ref_who.uniq_id, img_name, where)
 
     def request_tpos(gm, agent_id):
+        if not type(agent_id)==int:
+            agent_id = gm.Agents[agent_id].uniq_id
         q = 'SELECT tx,ty FROM agent_locations WHERE uniq_id=?;'
-##        print "$$$$$$$$$ REQUEST tpos",gm.db.execute(q, (agent_id,)).fetchall()[0]
         return gm.db.execute(q, (agent_id,)).fetchall()[0]
+
     def request_ppos(gm, agent_id): # return if possible, else NULL_POSITION.
         q = 'SELECT px,py FROM agent_locations WHERE uniq_id=?;'
-        r = gm.db.execute(q, (agent_id,)).fetchall()[0]
-#        print "REQUEST response:", r
-        return r
+        return gm.db.execute(q, (agent_id,)).fetchall()[0]
+
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
 
