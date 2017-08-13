@@ -58,16 +58,20 @@ def multpos(v,m,optn=None):
             return (int(v[X]//m[X]), int(v[Y]//m[Y]))
         elif optn=='int' or optn==int:
             return (int(v[X]*m[X]), int(v[Y]*m[Y]))
+        if optn =='/': 
+            return ((float(v[X])/m[X]), (float(v[Y])/m[Y]))
         return (v[X]*m[X], v[Y]*m[Y])
     except: pass
     if optn==int or optn=='int': return (int(v[X]*m), int(v[Y]*m))
     elif optn in ('elemwise','e','vector'): return (v[X]*m[X], v[Y]*m[Y])
-    elif optn in ('div', '/'): return (v[X]/m, v[Y]/m)
+    elif optn in ('div', '/'): return (v[X]/float(m), v[Y]/float(m))
     elif optn =='//': return (int(v[X]//m), int(v[Y]//m))
     elif optn==None: return (v[X]*m, v[Y]*m)
     else: raise Exception()
 def multvec(v,m,optn=None):return multpos(v,m,optn)
-def divvec(v,m):return multpos(v,m,'//')
+def divvec(v,m,optn='//'):
+    if optn=='/': return (v[X]/m[X], v[Y]/m[Y])
+    return multpos(v,m,optn)
 
 def orvec(a, op, b): 
     if op=='>': op = lambda x,y: cmp(x,y)>0
@@ -88,3 +92,4 @@ def andvec(a, op, b):
     except: return op(a[X],b) and op(a[Y],b)
 
 def floormod(a,b): return (int(a[Y]//b[Y])*b[Y], int(a[Y]//b[Y])*b[Y])
+def roundvec(a): return (int(round(a[X])), int(round(a[Y])))

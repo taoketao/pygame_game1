@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 20
+DEFAULT_FPS = 10
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -160,7 +160,7 @@ class GameManager(object): # *
         cur_true_fps = gm.clock.get_fps()
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
-        gm._smoothing = dt * gm.fpms if gm.last_tick>0 else 1
+        gm._smoothing = dt * (gm.fpms if gm.last_tick>0 else 1)
         gm.last_tick = this_tick
         gm.fps_itr = (gm.fps_itr+1)%10
 
@@ -265,25 +265,25 @@ class GameManager(object): # *
         # of interaction that are better handled as converted back-and-forth.
 
     def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False, img=None):
-        print ploc, gm.ts()
         tx, ty = divvec(ploc, gm.ts())
         gm.db.execute('''UPDATE OR FAIL agent_locations SET tx=?, ty=?, px=?, py=?
-             WHERE uniq_id=?''', (tx, ty, ploc[X], ploc[Y], agent.uniq_id))
+             WHERE uniq_id=?''', (tx, ty, ploc[X], ploc[Y], agent_id))
     #        gm.visual_update_agents.append((agent_id, ploc, img))
     def notify_imgChange(gm, ref_who, img_name, where='not provided'):
         if where=='not provided':
             where = gm.request_ppos(ref_who.uniq_id)
+        where = sub_aFb(ref_who.default_img_offset, where)
         { True: gm.display.queue_A_img, False: gm.display.queue_E_img}[\
                 isinstance(ref_who, VisualStepAgent)](ref_who.uniq_id, img_name, where)
 
     def request_tpos(gm, agent_id):
         q = 'SELECT tx,ty FROM agent_locations WHERE uniq_id=?;'
-        print "$$$$$$$$$ REQUEST tpos",gm.db.execute(q, (agent_id,)).fetchall()[0]
+##        print "$$$$$$$$$ REQUEST tpos",gm.db.execute(q, (agent_id,)).fetchall()[0]
         return gm.db.execute(q, (agent_id,)).fetchall()[0]
     def request_ppos(gm, agent_id): # return if possible, else NULL_POSITION.
         q = 'SELECT px,py FROM agent_locations WHERE uniq_id=?;'
         r = gm.db.execute(q, (agent_id,)).fetchall()[0]
-        print "REQUEST response:", r
+#        print "REQUEST response:", r
         return r
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 

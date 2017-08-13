@@ -153,6 +153,7 @@ class VisualStepAgent(Entity):
 
         ta.species = 'Stub: VisualStepAgent'
         ta.initialized=False
+        ta.default_img_offset = multvec(gm.ts(), (0.3,1))
 
     ''' set_img and get_step: these are the two core functionalities that 
         VisualStepAgents must have. You must implement them. '''
@@ -163,7 +164,8 @@ class VisualStepAgent(Entity):
 
 
     # scale: convenience function that yields a converted version of a vector.
-    def _scale(ta, X): return multvec(ta.get_step(), X)
+    def _scale(ta, X): 
+        return multvec(multvec(ta.get_step(), X), ta.gm.ts())
     # Local positions should be phased out before being sent to the game manager.
 
     # Initialize: run ONCE or overwrite.
@@ -178,13 +180,11 @@ class VisualStepAgent(Entity):
         if not ta.initialized: raise Exception("Not initialized")
         if not andvec(ta.get_step(),'>=',0): raise Exception("Factor not set.")
 #        if ta._logic.view("ppos")==loc: return # optimization?
-        print '\tloc:',ppos
         ta.gm.notify_pmove(ta.uniq_id, ppos)
     
     # Public access function: move in Delta(X,Y) *local units*. Call by Logic.
     def move_in_direction(ta, delta_xy):
         p= addvec(ta._scale(delta_xy) , ta._logic.view("ppos"))
-        print 'p:',p, delta_xy; ta._logic.view("ppos")
         ta._set_new_ppos(p)
 
     # position for local scaling: not exactly recommended...

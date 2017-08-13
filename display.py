@@ -109,26 +109,27 @@ class Display(Entity):
 
     def std_render(disp):
         imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
-        print imgAgents
         imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
         update_sprites=[] # Will carry 2-tuples of ploc and img
-        reset_tiles = set()
+        reset_tiles = []
+
+        ts = disp.gm.ts()
 
         for ent, img, ploc in imgEffects + imgAgents:
             if not img:
                 img = disp.gm.entities[ent.uniq_id].query_image()
-            t=tx,ty=multvec(disp.gm.ts(), 0.8, int)
-            for rect in [(tx,ty),(tx,-ty),(-tx,ty),(-tx,-ty),(0,0)]:
-                reset_tiles.add( divvec(floormod(addvec(ploc,rect),t),t) )
+            for i in [-1,0,1]:
+                for j in [-1,0,1,2]:
+                    tp = divvec(addvec(multvec((i,j), disp.gm.ts()), ploc), ts)
+                    if not tp in reset_tiles and not disp.oob(tpos=tp): 
+                        reset_tiles.append(tp)
             update_sprites.append( (ploc, img) )
 
         upd_tiles = []
-        print "Tiles: ", reset_tiles
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         # Blit the background over the new image:
         for tile in reset_tiles:
             tmp = disp.gm.db.execute(query, tile).fetchone()
-            print "tmp:",tmp
             base,obstr = tmp
             ploc = multvec(tile, disp.gm.ts())
             disp.screen.blit(disp.imgs[base], ploc)
@@ -143,3 +144,10 @@ class Display(Entity):
 
         # Wipe the render-update queues:
         disp._effect_update_tups, disp._agent_update_tups = [],[]
+
+    def oob(disp, tpos=None, ppos=None): 
+        if tpos:
+            if orvec(tpos, '>=', disp.gm.map_num_tiles) or orvec(tpos, '<', (0,0)):
+                return True
+            return False
+        raise Exception()

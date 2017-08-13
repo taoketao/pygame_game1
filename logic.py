@@ -167,11 +167,11 @@ class MotionAction(Action):
         if action.logic.agent.species=='plyr':
             query_tpos = action.logic.pTOt(query_ppos)
             if action.logic.view('tpos')==query_tpos:
-                print "Same tile: no hinderance.", query_tpos
+#                print "Same tile: no hinderance.", query_tpos
                 return action.VIABLE()
             #print action.logic.access_sensor('tile obstr').sense(querypos, 'plyr')
             v = action.logic.access_sensor('tile obstr').sense(query_tpos, 'plyr')
-            print 'sensor result: ',v
+#            print 'sensor result: ',v
             if v: return action.INVIABLE()
             else: return action.VIABLE()
         raise Exception()
@@ -179,7 +179,7 @@ class MotionAction(Action):
     def implement(action):
         assert(action.viability==EVAL_T)
         if action.index<0: return
-        print "posvec:", action.posvec
+#        print "posvec:", action.posvec
         action.agent.move_in_direction(action.posvec)
 
     def same(action, targ): return action.index==targ.index # etc
@@ -263,11 +263,11 @@ class Sequential(ActionPicker): # in order
         ap.components = components
         ap.write_state_access = True
     def find_viability(ap): # unpythonic for loop: no short circuit
-        print 'seq:', ap.components
+#        print 'seq:', ap.components
         for __ai, a in enumerate(ap.components):
-            print "sequential success",__ai, a
+#            print "sequential success",__ai, a
             if not EVAL_T==a.find_viability(): 
-                print Failure
+#                print Failure
                 return ap.INVIABLE()
         return ap.VIABLE()
     def implement(ap):
@@ -361,7 +361,7 @@ class TryCatch(ActionPicker):
         ap.logic.update_ap(ap.key, try_via, ap.uniq_id)
         if try_via==EVAL_F:
             if ap.ca: return ap.GETVIA( ap.ca )
-            else: print "Failure caught be TryCatch id",ap.uniq_id
+#            else: print "Failure caught be TryCatch id",ap.uniq_id
         return ap.VIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
@@ -503,11 +503,11 @@ class PickNewest(ActionPicker):
             if Cmp.find_viability()==EVAL_T and not i_bool: 
                 ap.logic.pop_PDA(ap.key, Cmp)
 
-        print '--- both down'
+#        print '--- both down'
         process_each_case(case_both_down) # in order!
-        print '--- new down'
+#        print '--- new down'
         process_each_case(case_new_down) # in order!
-        print '--- not down'
+#        print '--- not down'
         process_each_case(case_not_down) # in order!
 
         if len(results)==0: 
@@ -594,7 +594,7 @@ class PlayerMotion(ActionPicker):
                   ])
     def find_viability(ap): return ap.Verify(ap.root)
     def implement(ap): 
-        print "plyr exe";
+#        print "plyr exe";
         assert(ap.viability==EVAL_T)
         ap.root.implement()
     def reset(ap): ap.viability = EVAL_U; ap.root.reset()
@@ -626,7 +626,7 @@ class BasicPlayerActionPicker(ActionPicker):
 
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
-        print 'Beginning verification dive:'
+#        print 'Beginning verification dive:'
         print 'Verification:' , WHICH_EVAL[ap.Verify(ap.root)]
         return ap.viability
 
@@ -666,7 +666,7 @@ class State(Entity): # i do not write, so no need to have logic
 #                "Global field was not initialized; please specify in setup or use Sensor.")
         st.s_env[key] = val
     def view_env(st, what):
-        print what
+#        print what
         return st.s_env[what]
 
     # Initialize and define global fields. All globals must start here.
@@ -679,7 +679,7 @@ class State(Entity): # i do not write, so no need to have logic
         if genus=='pkmn':   st.setup_basic_pkmn_fields(parent_logic)
         if genus=='target': st.setup_mouse(parent_logic) 
         if init_pos:
-            print '########################################initpos',init_pos
+#            print '########################################initpos',init_pos
             st.s_env['tpos'] = init_pos[0]; st.s_env['ppos'] = init_pos[1]; 
 
 
@@ -779,7 +779,7 @@ class Logic(Entity):
             for action in belt.Actions.values(): action.logic=logic
         logic.message_queue = []
         logic._state.setup_fields(agent.species, logic, init_pos=init_position)
-        print agent.species
+#        print agent.species
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':
