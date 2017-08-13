@@ -68,3 +68,23 @@ def multpos(v,m,optn=None):
     else: raise Exception()
 def multvec(v,m,optn=None):return multpos(v,m,optn)
 def divvec(v,m):return multpos(v,m,'//')
+
+def orvec(a, op, b): 
+    if op=='>': op = lambda x,y: cmp(x,y)>0
+    if op=='<': op = lambda x,y: cmp(x,y)<0
+    if op=='>=': op = lambda x,y: cmp(x,y)>=0
+    if op=='<=': op = lambda x,y: cmp(x,y)<=0
+    if op=='=': op = lambda x,y: cmp(x,y)==0
+    try:    return (op(a[X],b[X]) or op(a[Y],b[Y]))
+    except: return (op(a[X],b) or op(a[Y],b))
+
+def andvec(a, op, b): 
+    if op=='>': op = lambda x,y: cmp(x,y)>0
+    if op=='<': op = lambda x,y: cmp(x,y)<0
+    if op=='>=': op = lambda x,y: cmp(x,y)>=0
+    if op=='<=': op = lambda x,y: cmp(x,y)<=0
+    if op=='=': op = lambda x,y: cmp(x,y)==0
+    try:    return op(a[X],b[X]) and op(a[Y],b[Y])
+    except: return op(a[X],b) and op(a[Y],b)
+
+def floormod(a,b): return (int(a[Y]//b[Y])*b[Y], int(a[Y]//b[Y])*b[Y])
