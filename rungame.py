@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 1
+DEFAULT_FPS = 10
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -139,10 +139,10 @@ class GameManager(object): # *
     def _run_frame(gm):
 #        raw_input("Launch Next frame:")
 
-        print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
+#        print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
         gm._punch_clock()
         gm._get_events()
-        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall(), ' Player pos:', gm.Agents['Player'].get_ppos(), gm.Agents['Player'].get_tpos()
+#        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall(), ' Player pos:', gm.Agents['Player'].get_ppos(), gm.Agents['Player'].get_tpos()
         gm.BroadcastAll('Reset')
         gm.BroadcastAll('PrepareAction')
         gm.BroadcastAll('DoAction')
@@ -276,7 +276,7 @@ class GameManager(object): # *
              WHERE uniq_id=?;''', (tx, ty, ploc[X], ploc[Y], agent_id))
         gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=?
              WHERE uniq_id=?;''', (tx, ty, agent_id))
-        print "--New DB:", gm.db.execute('SELECT * FROM tile_occupants').fetchall()
+#        print "--New DB:", gm.db.execute('SELECT * FROM tile_occupants').fetchall()
 
     def notify_imgChange(gm, ref_who, img_name, where='not provided'):
         if where=='not provided':

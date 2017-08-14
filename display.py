@@ -18,8 +18,7 @@ class Display(Entity):
         disp.draw_background()
         disp.map_background = pygame.Surface(gm.map_pix_size)
         disp.draw_background(disp.map_background)
-        disp._agent_update_tups = []
-        disp._effect_update_tups = []
+        disp._wipe_queues()
 
     def _init_display(disp):
         disp.screen = pygame.display.set_mode(disp.gm.screen_size)
@@ -102,28 +101,30 @@ class Display(Entity):
 # offload all pygame sprites to here?
 
 
+    def queue_reset_tile(disp, pos, tpos_or_ppos='tpos'):
+        if tpos_or_ppos=='tpos':    
+            disp._tiles_to_reset.append(pos)
+        elif tpos_or_ppos=='ppos':  
+            disp._tiles_to_reset.append(divvec(pos, disp.gm.ts()))
     def queue_A_img(disp, Id, img, ppos):
         disp._agent_update_tups.insert(0, (Id, img, ppos))
     def queue_E_img(disp, Id, img, ppos):
         disp._effect_update_tups.append( (Id, img, ppos) )
 
     def std_render(disp):
+        print "Rendering:", disp._effect_update_tups, disp._agent_update_tups, disp._tiles_to_reset
         imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
         imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
-        update_sprites=[] # Will carry 2-tuples of ploc and img
-        reset_tiles = []
+        reset_tiles = disp._tiles_to_reset[:]
 
         ts = disp.gm.ts()
 
-        for ent, img, ploc in imgEffects + imgAgents:
-            if not img:
-                img = disp.gm.entities[ent.uniq_id].query_image()
+        for ent_id, img, ploc in imgEffects + imgAgents:
             for i in [-1,0,1]:
                 for j in [-1,0,1,2]:
                     tp = divvec(addvec(multvec((i,j), disp.gm.ts()), ploc), ts)
                     if not tp in reset_tiles and not disp.oob(tpos=tp): 
                         reset_tiles.append(tp)
-            update_sprites.append( (ploc, img) )
 
         upd_tiles = []
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
@@ -137,13 +138,21 @@ class Display(Entity):
                 disp.screen.blit(disp.imgs[obstr], ploc)
             upd_tiles.append(ploc)
         # Blit the new image:
-        for ploc,img in update_sprites:
+        for ent, img, ploc in imgEffects + imgAgents:
+            if not img:
+                img = disp.gm.entities[ent.uniq_id].query_image()
+
+
             disp.screen.blit(disp.imgs[img], ploc)
             upd_tiles.append(ploc)
         pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in upd_tiles])
+        disp._wipe_queues()
 
-        # Wipe the render-update queues:
-        disp._effect_update_tups, disp._agent_update_tups = [],[]
+    # Wipe the render-update queues:
+    def _wipe_queues(disp):
+        disp._effect_update_tups    =[]
+        disp._agent_update_tups     =[]
+        disp._tiles_to_reset       =[]
 
     def oob(disp, tpos=None, ppos=None): 
         if tpos:

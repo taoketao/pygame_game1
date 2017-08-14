@@ -45,7 +45,7 @@ class Player(VisualStepAgent):
         ego.species='plyr'
         ego.stepsize_x, ego.stepsize_y = \
                 ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
-        print 'stepsize, tpos:', ego.stepsize, divvec(gm.map_num_tiles,2)
+#        print 'stepsize, tpos:', ego.stepsize, divvec(gm.map_num_tiles,2)
         ego._belt = (Belt(gm, ego, 'basic player') if belt=='init' else belt)
         ego._logic = Logic(gm, ego, ego._belt)
         ego.initialized = True
@@ -76,7 +76,8 @@ class Player(VisualStepAgent):
 #        x= multvec( ego.stepsize, ego._logic.view('smoothing'))
 #        print x, ego.stepsize
 #        return x
-        print x; return x
+#        print x; 
+        return x
 
     ''' Methods: available to many for read.  ( No need to overwrite 
             move_in_direction for Player(VisualStepAgent)  ) '''
