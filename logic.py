@@ -101,16 +101,18 @@ class GetPPosSensor(Sensor):
             return sensor._storage[sensor.access_name]
         sensor._sensor_check('sense')
         querystr = 'SELECT px,py FROM agent_locations WHERE uniq_id==?;'
-        sensor._store(sensor.gm.db.execute(querystr, (agent_id,)).fetchone())
+        sensor._store([agent_id, sensor.gm.db.execute(querystr, (agent_id,)).fetchone()])
         return PRIMED(sensor) # todo: error hangle this a little better.
 
-    def access(sensor, agent_id): 
+    def access(sensor): 
+        print 'sensor priming', sensor.priming
+        agent_id=sensor._storage[sensor.access_name][0]
         if sensor.priming==EVAL_F: 
-            return EVAL_F
-        if sensor.priming==EVAL_U: 
             sensor.sense(agent_id)
+        if sensor.priming==EVAL_F:  # still:
+            raise Exception(sensor.priming)
             return sensor.access(agent_id)
-        return sensor._storage[sensor.access_name]
+        return sensor._storage[sensor.access_name][1]
 
 
 class GetFrameSmoothingSensor(Sensor):
@@ -153,15 +155,19 @@ class TileObstrSensor(Sensor):
         print '\ttile obstr sensor occs,info,blck?,tid','\n\t',occups, '\n\t'\
                 ,tileinfo, '\n\t',blck, '\n\t',tid
         if len([o for o in occups if o[0]==u'pkmn'])>0: 
+            print "Getting primed: pokemon"
             return GET_PRIMED(sensor, sensor._store([ False, tid, blck]))
         if not len(tileinfo)==1: 
             raise Exception((tileinfo, tid))
         blocked_res = [(u'true',)]==tileinfo
         sensor._store([ blocked_res, tid, blck])
+        print "blocked result: ", blocked_res, tid, WHICH_EVAL[{True: NOTPRIMED, \
+                False: PRIMED}[blocked_res](sensor)], sensor._storage
         return {True: NOTPRIMED, False: PRIMED}[blocked_res](sensor)
 
     def access(sensor):
         sensor._sensor_check('access')
+        print "TileObstr access returns:", sensor._storage[sensor.access_name][0]
         return sensor._storage[sensor.access_name][0]
         
     # Two more sensors to make:
@@ -201,7 +207,7 @@ class Action(Entity):
     def reset(action): raise Exception("Must implement me!")
 
     # helpers:
-    def INVIABLE(action): action.viability=EVAL_F; return EVAL_F
+    def INVIABLE(action): action.viability=EVAL_F; print "inviable:", action; return EVAL_F
     def VIABLE(action): action.viability=EVAL_T; return EVAL_T
     def GETTRUTH(action, query): return (action.VIABLE() if query==True \
             else action.INVIABLE())
@@ -212,6 +218,7 @@ class Action(Entity):
             raise Exception(query, WHICH_EVAL[query.viability])
         return action.viability
     def VIABILITY_ERROR(action): action.viability = EVAL_ERR; return EVAL_ERR
+    def COPYEVAL(action, val): action.viability=val; return val
 
 class ActionPicker(Action):
     ''' ActionPicker: a more practical version of Action that takes Logic. '''
@@ -243,26 +250,38 @@ class MotionAction(Action):
         action.logic = logic
         action.agent = logic.agent
 
-    def find_viability(action):
+    def find_viability(action): # TODO : a likely place to resume work.
+        print "FINDING ACTIONVIA"
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
-        cur_ppos = action.logic.detect('ppos', agent_id=action.logic.agent.uniq_id)
+
+        #cur_ppos = action.logic.detect('ppos', agent_id=action.logic.agent.uniq_id)
+        cur_ppos = action.logic.detect('ppos', agent_id=action.agent.uniq_id)
         unit_step = action.logic.view('unit step')
+
         if EVAL_F in [cur_ppos, unit_step]:
             print "ERR?: cur_ppos & unit_step", cur_ppos, unit_step
             return action.INVIABLE()
         query_ppos = addvec(multvec(action.posvec, unit_step), cur_ppos)
+
         if action.logic.agent.species=='plyr':
             query_tpos = action.logic.pTOt(query_ppos)
-            if action.logic.view('tpos')==query_tpos: return action.VIABLE()
-#            print 'curp,unit,queryp,queryt,curt',cur_ppos, unit_step, \
-#                    query_ppos, query_tpos, action.logic.view('tpos')
+            print 'curp,unit,queryp,queryt',cur_ppos, unit_step, \
+                    query_ppos, query_tpos#, action.logic.view('tpos')
             if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
                     blck='plyr'): return action.VIABILITY_ERROR()
-            return action.GETTRUTH(action.logic.access_sensor('tile obstr'))
+            print 'tile obstructed:', action.logic.access_sensor('tile obstr')
+
+            if action.logic.access_sensor('tile obstr')==False:
+                action.logic.prime_sensor('ppos', agent_id=action.logic.agent.uniq_id)
+                return action.VIABLE()
+            else:
+                return action.INVIABLE()
+#            if action.logic.detect('tpos')==query_tpos: return action.VIABLE() # An opt: later.
         raise Exception()
 
     def implement(action):
+        print '*'*30,"ENACTING", action.index, action.posvec
         assert(action.viability==EVAL_T)
         if action.index<0: return
         action.agent.move_in_direction(action.posvec)
@@ -349,12 +368,16 @@ class Sequential(ActionPicker): # in order
         ap.write_state_access = True
     def find_viability(ap): # unpythonic for loop: no short circuit
         for __ai, a in enumerate(ap.components):
+            print 'sequential via:',a
             if not EVAL_T==a.find_viability(): 
                 return ap.INVIABLE()
         return ap.VIABLE()
     def implement(ap):
+        print "Seuqential's viability:", ap.viability
         assert(ap.viability==EVAL_T)
-        for a in ap.components: a.implement()
+        for a in ap.components: 
+            print 'sequential impl:',a
+            a.implement()
     def reset(ap):  
         for a in ap.components: a.reset() # naive
         ap.viability = EVAL_U; 
@@ -540,99 +563,74 @@ class PickNewest(ActionPicker):
         ap.key = 'player motion newest pda'
         ap.logic.update_global("motion ap key", ap.key)
 
+        ap.logic.update_global("prev motion", 2)
+        ap.logic.update_global("mov choice", -1)
+        ap.logic.update_global("img choice", 2)
+
 
     def find_viability(ap):
         # Messy messy, but so is lateral non-hierarchical variable passing
         ind_priorities = ap.logic.view('curr move vec')[:] 
 #        prev_inds = ap.logic.view('prev move vec')
+        print ind_priorities
         results = []
         Rng = [d.index for d in ap.logic.view(ap.key) if d.index>=0]
         for i in range(len(ind_priorities)):
             if not i in Rng: Rng.append(i)
-
         cmpd = {}
-        def process_each_case(f):
-            for index in Rng:
-                i_bool = ind_priorities[index]
-                if index in cmpd.keys():
-                    Cmp = cmpd[index]
-                else:
-                    Cmp = cmpd[index] = ap.components[index_to_ltr(index)] # inefficent!
-                f(index, i_bool, Cmp)
-        def case_new_down(index, i_bool, Cmp):
-            if i_bool: 
-                ap.logic.update_global('global movedir choice', index)
-                if Cmp.find_viability()==EVAL_T:
-                    ap.logic.push_PDA(ap.key, Cmp)
-                    results.insert(0, index)
-                else:
-                    ap.logic.pop_PDA(ap.key, Cmp)
-        def case_not_down(index, i_bool, Cmp):
-            if Cmp.find_viability()==EVAL_T and not i_bool: 
-                ap.logic.pop_PDA(ap.key, Cmp)
+        for index in Rng:
+            if index in cmpd.keys(): Cmp = cmpd[index]
+            else: Cmp = cmpd[index] = ap.components[index_to_ltr(index)]
 
-##        print '--- both down'
-#        process_each_case(case_both_down) # in order!
-#        print '--- new down'
-        process_each_case(case_new_down) # in order!
-#        print '--- not down'
-        process_each_case(case_not_down) # in order!
-
-        if len(results)==0: 
-            ap.logic.push_PDA(ap.key, ap.components['-'])
+        prev = ap.logic.get_PDA()
+        #print "--PDA prior:", ap.logic._state.s_env['PDA'], prev.index
+        #prev = ap.logic.view('PDA')[0]
+        for index in range(len(ind_priorities)):
+            if ind_priorities[index]:
+                ap.logic.push_PDA(index)
+            elif ind_priorities[index]==prev.index:
+                ap.logic.append_PDA(index)
+            else:
+                ap.logic.pop_PDA(index)
+        curnew = ap.logic.get_PDA()
+        if curnew.index==-1:
+            ap.logic.update_global('mov choice', -1)
+            ap.logic.update_global('prev motion', prev.index)
+            ap.logic.push_PDA(prev)
+        else:
+            if curnew==prev:  v=prev.index
+            else:             v=curnew.index
+            ap.logic.update_global('img choice', v)
+            ap.logic.update_global('mov choice', v)
+            ap.logic.update_global('prev motion', v)
+        #print "--PDA post:", ap.logic._state.s_env['PDA'], curnew
         return ap.VIABLE()
-           
-    def implement(ap): assert(ap.viability==EVAL_T)
 
-    def reset(ap): 
-        ap.viability = EVAL_U; 
-        for c in ap.components.values(): c.reset()
+    def implement(ap): pass
+        
 
-class PushDown(ActionPicker):
-    def __init__(ap, logic, dname):
-        ActionPicker.__init__(ap, logic)
-        ap.write_state_access = True
-        ap.motion = logic.view('available motions')[dname]
-
-    def find_viability(ap):
-        if ap.motion.name=='-': return ap.VIABLE()
-        motion_reqs = [int(i) for i in ap.logic.view('curr move vec')]
-        if not motion_reqs[ap.motion.index]==1:
-            ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
-            return ap.INVIABLE() # not requested
-        if not ap.motion.find_viability()==EVAL_T:
-            ap.logic.pop_PDA('player motion rand pda', ap.motion.index)
-            return ap.INVIABLE() # not valid
-        ap.logic.push_PDA('player motion rand pda', ap.motion)
-        return ap.VIABLE()
-    def implement(ap): assert(ap.viability==EVAL_T)
 
 class SetPlayerCycleImage(ActionPicker):
     def __init__(ap, logic):
-        ActionPicker.__init__(ap, logic) 
+        ActionPicker.__init__(ap,logic)
         ap.write_state_access = True
         ap.logic.update_ap('cycler', 0, ap.uniq_id)
-
+        
     def find_viability(ap): return ap.VIABLE()
     def reset(ap): ap.viability=EVAL_U
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         c = ap.logic.view_my('cycler', ap.uniq_id)
-        if ap.logic.view(ap.logic.view("motion ap key"))[0].name=='-':
-            c=0
-        try:
-            choose_img = ap.logic.view(ap.logic.view("motion ap key"))[0].index*3
-            assert(choose_img>=0)
-        except:
-            choose_img = ap.logic.view('global movedir choice') * 3
-            if choose_img<0:
-                raise Exception()
-#        choose_img = ap.logic.view('global movedir choice') * 3
+        mvname=ap.logic.get_PDA().name
+        if mvname=='-': c=0
+        choose_img = ap.logic.view('img choice') * 3
+        if choose_img<0: 
+            raise Exception(map(ap.logic.view, ['img choice', 'mov choice', 'prev motion']))
 
         ap.logic.agent.set_img(choose_img + c )
-        ap.logic.update_global("Image", 'player sprite '+\
-                                str(choose_img + c ))
-        if sum(ap.logic.view('curr move vec'))==0: return
+#        ap.logic.update_global("Image", 'player sprite '+\
+#                                str(choose_img + c ))
+        if mvname=='-': return
         c += 1
         if c==3: c=0
         ap.logic.update_ap('cycler', c, ap.uniq_id)
@@ -644,15 +642,28 @@ class orderPDAAction(ActionPicker):
         ActionPicker.__init__(ap, logic)
         ap.VIABLE()
     def find_viability(ap): 
-#        motion_key = ap.logic.view("motion ap key")
-        return ap.GETVIA(ap.logic.view(ap.logic.view("motion ap key"))[0]) 
+        x= ap.logic.get_PDA().find_viability()
+        print "---pda order via:", WHICH_EVAL[x]
+        if ap.logic.get_PDA().find_viability()==EVAL_T:
+            return ap.VIABLE()
+        return ap.INVIABLE()
+        return {EVAL_T:ap.VIABLE(), EVAL_F:ap.INVIABLE()}.get(x, EVAL_ERR)
+
     def reset(ap): ap.viability = EVAL_U;
     def implement(ap): 
+        print 'pda via:',
+        x= ap.logic.get_PDA().find_viability()
+
+        print "---pda order impl:", x, ap.logic.get_PDA()
         assert(ap.viability==EVAL_T)
         if not ap.viability==EVAL_T:
+            print 'default err'
             return logic.do_default()
-        motion_key = ap.logic.view("motion ap key")
-        return ap.logic.view(motion_key)[0].implement()
+        return ap.logic.get_PDA().implement()
+
+#        motion_key = ap.logic.view("motion ap key")
+#        motion_key = ap.logic.view("motion ap key")
+#        return ap.logic.view(motion_key)[0].implement()
 
 
 class PlayerMotion(ActionPicker):
@@ -663,7 +674,10 @@ class PlayerMotion(ActionPicker):
                     orderPDAAction(logic, 'newest'),\
                     SetPlayerCycleImage(logic), \
                   ])
-    def find_viability(ap): return ap.Verify(ap.root)
+    #def find_viability(ap): return ap.Verify(ap.root)
+    def find_viability(ap): 
+        return ap.COPYEVAL(ap.root.find_viability())
+        print '\t',s; return s
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
@@ -696,6 +710,10 @@ class BasicPlayerActionPicker(ActionPicker):
 
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
+        via= ap.root.find_viability()
+        print WHICH_EVAL[via]
+        if via==EVAL_T: return ap.VIABLE(); 
+        return ap.INVIABLE()
         return ap.Verify(ap.root)
 
     def implement(ap): 
@@ -761,8 +779,6 @@ class State(Entity): # i do not write, so no need to have logic
 
     def setup_plyr_fields(st, parent_logic):
         # Simple status fields, eg primitives or fixed-structure collections:
-        st.s_env['tpos']            = NULL_POSITION
-        st.s_env['ppos']            = NULL_POSITION
         st.s_env['available']       = True
         st.s_env['unit step']       = parent_logic.plyr_steps((1,1))
 #        st.s_env['prev move vec']   = [0,0,0,0]
@@ -773,11 +789,12 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['isPlayerActionable'] = True
         if not st.belt: raise Exception('Need at least an empty belt.')
 
+        st.s_env['PDA']             = [st.belt.Actions['d']]
         # Dynamic fields:
         st.s_env['player motion rand pda'] = [st.s_env['available motions']['-']]
         st.s_env['player motion newest pda']=[st.s_env['available motions']['-']]
         st.s_env['global movedir choice'] = 2 # down
-
+  
 
 
     def setup_mouse(st, logic):
@@ -878,35 +895,51 @@ class Logic(Entity):
             return logic.gm.imgs['player sprite '+str(which_resource)]
     def has_sensor(logic, what_sensor):
         return not logic.get_sensor(what_sensor)==False
-    def detect(logic, what_sensor, **args): 
+    def detect(logic, what_sensor, agent_id=None): 
         # specialty method that both primes and accesses
-        s = logic.get_sensor(what_sensor)
-        #print '>>',WHICH_EVAL[s.sense(**args)]
-        return s.access(**args)
+        s=logic.get_sensor(what_sensor)
+        u=s.sense(agent_id)
+        t=s.access()
+        print ' *** ', s,u, t, logic._state.s_env[logic._state.s_env['motion ap key']]
+        return t
 
     def prime_sensor(logic, what_sensor, **args):
         return logic.get_sensor(what_sensor).sense(**args)
-    def access_sensor(logic, what_sensor, **args):
+    def access_sensor(logic, what_sensor, **args): # Sensors can elect to prime also
         return logic.get_sensor(what_sensor).access(**args)
-
+#
     def plyr_steps(logic, dvec): 
         if not logic.agent.species=='plyr': 
             raise Exception('notice: not plyr object')
-        print '^v^v^', dvec, logic.gm.smoothing(), logic.agent.stepsize
-        return ( dvec[X] * logic.gm.smoothing() * logic.agent.stepsize_x, \
-                 dvec[Y] * logic.gm.smoothing() * logic.agent.stepsize_y)
-    def pop_PDA(logic, which_pda, new):
-        if not which_pda in ['player motion rand pda', 'player motion newest pda']: 
-            raise Exception("This pushdown Automata not impl")
-        s=[w for w in logic._state.s_env[which_pda] if not w.index==new.index]
-        logic._state.s_env[which_pda] = s
-    def push_PDA(logic, which_pda, element):
-        if not element in logic._state.s_env[which_pda]:
-            logic._state.s_env[which_pda].insert(0, element)
-    def append_PDA(logic, which_pda, element):
-        if not element in logic._state.s_env[which_pda]:
-            logic._state.s_env[which_pda].append(element)
-
+        return ( int(dvec[X] * logic.gm.smoothing() * logic.agent.stepsize_x), \
+                 int(dvec[Y] * logic.gm.smoothing() * logic.agent.stepsize_y))
+#    def pop_PDA(logic, which_pda, new):
+#        if not which_pda in ['player motion rand pda', 'player motion newest pda']: 
+#            raise Exception("This pushdown Automata not impl")
+#        s=[w for w in logic._state.s_env[which_pda] if not w.index==new.index]
+#        logic._state.s_env[which_pda] = s
+    def pop_PDA(logic, index):
+        if not type(index)==int: index = index.index # hack city
+        logic._state.s_env['PDA'] = [i for i in \
+                logic._state.s_env['PDA'] if not i.index==index]
+    def push_PDA(logic, index):
+        if not type(index)==int: index = index.index # hack city
+        if not index in logic._state.s_env['PDA']:
+            logic._state.s_env['PDA'].insert(0, logic.belt.Actions[index_to_ltr(index)])
+    def append_PDA(logic, index):
+        if not type(index)==int: index = index.index # hack city
+        if not index in logic._state.s_env['PDA']:
+            logic._state.s_env['PDA'].append(logic.belt.Actions[index_to_ltr(index)])
+    def get_PDA(logic):
+        try: 
+            return logic._state.s_env['PDA'][0]
+        except: 
+            logic.push_PDA(-1)
+            return logic.belt.Actions['-']
+#    def append_PDA(logic, which_pda, element):
+#        if not element in logic._state.s_env[which_pda]:
+#            logic._state.s_env[which_pda].append(element)
+#
     def do_default(logic): return EVAL_T # semi-stub
 
 

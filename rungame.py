@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 5
+DEFAULT_FPS = 1
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -142,7 +142,7 @@ class GameManager(object): # *
         print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
         gm._punch_clock()
         gm._get_events()
-        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall()
+        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall(), ' Player pos:', gm.Agents['Player'].get_ppos(), gm.Agents['Player'].get_tpos()
         gm.BroadcastAll('Reset')
         gm.BroadcastAll('PrepareAction')
         gm.BroadcastAll('DoAction')
@@ -162,14 +162,9 @@ class GameManager(object): # *
         this_tick = pygame.time.get_ticks()
         dt = (this_tick - gm.last_tick)
         cur_true_fps = gm.clock.get_fps()
-#        print '\tthis_tick, dt, cur fps, targ fps x2:', this_tick, dt, cur_true_fps, gm.fps,
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
-#        gm._smoothing = dt * {True:gm.fpms, False:ONE_MILLISECOND}[gm.last_tick>0]
-#        print 'smth',gm._smoothing, 
-#        gm._smoothing = {True:dt * gm.fps, False:1}[gm.last_tick>0]
         gm._smoothing = {True:dt * gm.fpms, False:1}[gm.last_tick>0]
-#        print 'smth',gm._smoothing
         gm.last_tick = this_tick
         gm.fps_itr = (gm.fps_itr+1)%10
 
@@ -278,7 +273,10 @@ class GameManager(object): # *
     def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False, img=None):
         tx, ty = divvec(ploc, gm.ts())
         gm.db.execute('''UPDATE OR FAIL agent_locations SET tx=?, ty=?, px=?, py=?
-             WHERE uniq_id=?''', (tx, ty, ploc[X], ploc[Y], agent_id))
+             WHERE uniq_id=?;''', (tx, ty, ploc[X], ploc[Y], agent_id))
+        gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=?
+             WHERE uniq_id=?;''', (tx, ty, agent_id))
+        print "--New DB:", gm.db.execute('SELECT * FROM tile_occupants').fetchall()
 
     def notify_imgChange(gm, ref_who, img_name, where='not provided'):
         if where=='not provided':
@@ -317,23 +315,26 @@ class GameManager(object): # *
 #        gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=? \
 #                WHERE uniq_id=?''', (next_tid[X], next_tid[Y], uniq_id))
 #        
-    def notify_move(gm, agent, next_tid=None):
-        if not next_tid: next_tid = agent.get_tpos();
-        gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=? \
-                WHERE uniq_id=?''', (next_tid[X], next_tid[Y], agent.uniq_id))
-        
-    def notify_kill(gm, agent):
-        gm.db.execute('DELETE FROM tile_occupants WHERE uniq_id=?;', \
-                (agent.uniq_id, ))
-
-    def foo(gm):
-        if not next_tid==NULL_POSITION:
-            gm.db.execute('INSERT INTO tile_occupants VALUES (?,?,?,?,?);',
-                    (uniq_id, next_tid[X], next_tid[Y], atype, team));
-        if not prev_tid==NULL_POSITION:
-            gm.db.execute('''DELETE FROM tile_occupants WHERE uniq_id=?
-                    AND tx=? AND ty=?;''', (uniq_id, prev_tid[X], prev_tid[Y]))
-
+#    def notify move(gm, agent, ppos):
+#        if not next_tid: next_tid = agent.get_tpos();
+#        tx,ty = divvec(ppos, gm.tile_size)
+#        gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=? \
+#                WHERE uniq_id=?''', (tx, ty, agent.uniq_id))
+#        gm.db.execute('''UPDATE OR FAIL agent_locations SET tx=?, ty=? \
+#                WHERE uniq_id=?''', (next_tid[X], next_tid[Y], agent.uniq_id))
+#        
+#    def notify_kill(gm, agent):
+#        gm.db.execute('DELETE FROM tile_occupants WHERE uniq_id=?;', \
+#                (agent.uniq_id, ))
+#
+#    def foo(gm):
+#        if not next_tid==NULL_POSITION:
+#            gm.db.execute('INSERT INTO tile_occupants VALUES (?,?,?,?,?);',
+#                    (uniq_id, next_tid[X], next_tid[Y], atype, team));
+#        if not prev_tid==NULL_POSITION:
+#            gm.db.execute('''DELETE FROM tile_occupants WHERE uniq_id=?
+#                    AND tx=? AND ty=?;''', (uniq_id, prev_tid[X], prev_tid[Y]))
+#
     ''' Query a specific tile for occupants and tile info. Supply WHAT columns.'''
     def query_tile(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)

@@ -67,7 +67,8 @@ class Player(VisualStepAgent):
 
     ''' Methods: fulfill inheritance. '''
     def set_img(ego, which_img): 
-        if (not type(which_img)==int) or not which_img in range(12): raise Exception()
+        if (not type(which_img)==int) or not which_img in range(12): \
+                raise Exception(which_img, type(which_img))
         ego.gm.notify_imgChange(ego, 'player sprite '+str(which_img+1))
     def get_pstep(ego):
         return multvec(ego.stepsize, ego.gm.smoothing())
