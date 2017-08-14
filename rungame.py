@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 10
+DEFAULT_FPS = 20
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''

@@ -180,7 +180,7 @@ class VisualStepAgent(Entity):
     # Public access function: move in Delta(X,Y) *local units*. Call by Logic.
     def move_in_direction(ta, delta_xy):
         p= addvec(multvec(ta.get_pstep(), delta_xy), ta._logic.access_sensor("ppos"))
-        print '\t\tmoving by delta:',delta_xy,'from',ta._logic.access_sensor("ppos"),'to',p
+#        print '\t\tmoving by delta:',delta_xy,'from',ta._logic.access_sensor("ppos"),'to',p
         ta._set_new_ppos(p)
 
     # position for local scaling: not exactly recommended...

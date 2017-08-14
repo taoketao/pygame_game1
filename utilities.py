@@ -1,12 +1,6 @@
 import numpy as np
-X=0; Y=1;
-UDIR = 0;       LDIR = 1;       DDIR = 2;       RDIR = 3
-UVEC=[1,0,0,0]; LVEC=[0,1,0,0]; DVEC=[0,0,1,0]; RVEC=[0,0,0,1]; xVEC=[0,0,0,0]
-DIR_LONG_VECS = [UVEC, LVEC, DVEC, RVEC]
-DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
-DIR_TILE_VECS = [(0,-1), (-1,0), (0,1), (1,0)]
-DIRNAMES = ['u','l','d','r']
-NULL_POSITION = (-1,-1)
+from constants import *
+
 def Events_To_Vec(e):
     l=[]; 
     for a,b in zip(DIRECTIONS, DIR_TILE_VECS):
