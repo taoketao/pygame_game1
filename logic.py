@@ -28,25 +28,108 @@ def index_to_ltr(index): return {0:'u', 1:'l', 2:'d', 3:'r', -1:'-'}[index]
 
 '''             Sensor               '''
 
+def NOTPRIMED(sensor): sensor.priming=EVAL_F; return EVAL_F
+def PRIMED(sensor): sensor.priming=EVAL_T; return EVAL_T
+def GET_PRIMED(sensor,p): sensor.priming=p; return p
 class Sensor(Entity):
     ''' Sensor class: this is an object that can answer questions, engaging
         various game resources if necessary.  '''
     def __init__(sensor, gm):
         Entity.__init__(sensor, gm)
         sensor.gm = gm
-#        sensor.belt = belt
-        #sensor.parent = parent_action_picker
-        pass
+        sensor.priming = EVAL_INIT # Like Actions below, must compute before use.
+        sensor.write_state_access = True # Sensors inherently write!
+        sensor.state = None
+
+    def _sensor_check(sensor, what):
+        assert(sensor.priming in [EVAL_T,EVAL_F])
+        if what=='access':
+            if sensor.priming == EVAL_F: 
+                return EVAL_F
+        return EVAL_T
+
     def _abstract_query(sensor, acquisition_method, condition, am_params=None):
         try: options = acquisition_method(am_params)
         except: options = acquisition_method()
         return [o for o in options if condition(o)]
 
+    def set_state(sensor, state): # Init function.
+        if not sensor.state == None: raise Exception("State has already been set.")
+        #state.s_ssr[sensor.uniq_id] = {}
+        #sensor._storage = state.s_ssr[sensor.uniq_id]
+        state.s_ssr = {}
+        sensor._storage = state.s_ssr
+
+    def _store(sensor, value): # ret: was the store successful?
+        sensor._storage[sensor.access_name] = value
+
+    def get_priming(sensor): return sensor.priming
+
+    def access(sensor, *what): # ret: was the store successful?
+        if sensor._sensor_check('access')==EVAL_F:
+            if not sensor.sense(what)==EVAL_T:
+                return EVAL_F;
+        return sensor._storage[sensor.access_name]
+
+    def rescan(sensor):
+        NOTPRIMED(sensor)
+
     @abc.abstractmethod
-    def sense(sensor, params): raise Exception("Implement me please")
+    def sense(sensor, *what): raise Exception("Implement me please")
 
 
-class WildEntSensor(Sensor):
+class GetTPosSensor(Sensor):
+    def __init__(sensor, gm):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'tpos'
+    def sense(sensor, args):
+        sensor._sensor_check('sense')
+        agent_id = args['agent id']
+        querystr = 'SELECT tx,ty FROM agent_locations WHERE uniq_id==?;'
+        try:
+            sensor._store(sensor.gm.db.execute(querystr, (agent_id,)).fetchone())
+            return PRIMED(sensor)
+        except: return NOTPRIMED(sensor)
+
+class GetPPosSensor(Sensor):
+    def __init__(sensor, gm):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'ppos'
+
+    def sense(sensor, agent_id):
+        if sensor.priming==EVAL_T: # a positive result has already been found:
+            return sensor._storage[sensor.access_name]
+        sensor._sensor_check('sense')
+        querystr = 'SELECT px,py FROM agent_locations WHERE uniq_id==?;'
+        sensor._store(sensor.gm.db.execute(querystr, (agent_id,)).fetchone())
+        return PRIMED(sensor) # todo: error hangle this a little better.
+
+    def access(sensor, agent_id): 
+        if sensor.priming==EVAL_F: 
+            return EVAL_F
+        if sensor.priming==EVAL_U: 
+            sensor.sense(agent_id)
+            return sensor.access(agent_id)
+        return sensor._storage[sensor.access_name]
+
+
+class GetFrameSmoothingSensor(Sensor):
+    def __init__(sensor, gm):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'tpos'
+    def sense(sensor): 
+        sensor._store(sensor.gm.smoothing())
+        return PRIMED(sensor)
+
+class GetCurUnitStepSensor(Sensor):
+    def __init__(sensor, gm):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'unit step'
+    def sense(sensor, vsa_id): 
+        sensor._store(sensor.gm.entities[vsa_id].get_pstep())
+        return PRIMED(sensor)
+
+class WildEntSensor(Sensor): # TODO totally out of date!
     # Query: at the specific tile, get all the wild pokemon here.
     # Use case: estimated, for pokeball_throw move.
     def __init__(sensor, gm): Sensor.__init__(sensor, gm)
@@ -63,19 +146,27 @@ class TileObstrSensor(Sensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-        #blck = 'block_'+sensor.logic.agent.species
+        sensor._sensor_check('sense')
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
         occups, tileinfo = sensor.gm.query_tile(tid, blck)
         print '\ttile obstr sensor occs,info,blck?,tid','\n\t',occups, '\n\t'\
                 ,tileinfo, '\n\t',blck, '\n\t',tid
-        #, [(u'false',)]==tileinfo
-        if len([o for o in occups if o[0]==u'pkmn'])>0: return True
+        if len([o for o in occups if o[0]==u'pkmn'])>0: 
+            return GET_PRIMED(sensor, sensor._store([ False, tid, blck]))
         if not len(tileinfo)==1: 
             raise Exception((tileinfo, tid))
-        return [(u'true',)]==tileinfo
-#        return True if [(u'true',)]==tileinfo else False
+        blocked_res = [(u'true',)]==tileinfo
+        sensor._store([ blocked_res, tid, blck])
+        return {True: NOTPRIMED, False: PRIMED}[blocked_res](sensor)
+
+    def access(sensor):
+        sensor._sensor_check('access')
+        return sensor._storage[sensor.access_name][0]
         
+    # Two more sensors to make:
+#            put('curr move vec', logic.gm.events[:4])
+#            put('triggered actions', logic.gm.events[4:])
 
 
 #-------------#-------------#--------------#--------------#--------------
@@ -120,6 +211,7 @@ class Action(Entity):
         if not action.GETVIA(query)==EVAL_T:
             raise Exception(query, WHICH_EVAL[query.viability])
         return action.viability
+    def VIABILITY_ERROR(action): action.viability = EVAL_ERR; return EVAL_ERR
 
 class ActionPicker(Action):
     ''' ActionPicker: a more practical version of Action that takes Logic. '''
@@ -150,36 +242,29 @@ class MotionAction(Action):
         Action.__init__(action, logic.gm)
         action.logic = logic
         action.agent = logic.agent
-        if logic.agent.species=='plyr':
-            action.unit_move = logic.plyr_steps((1,1))
-        else:
-            action.unit_move = logic.view('tilesize') 
 
     def find_viability(action):
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
-        cur_ppos = action.logic.view('ppos')
+        cur_ppos = action.logic.detect('ppos', agent_id=action.logic.agent.uniq_id)
         unit_step = action.logic.view('unit step')
+        if EVAL_F in [cur_ppos, unit_step]:
+            print "ERR?: cur_ppos & unit_step", cur_ppos, unit_step
+            return action.INVIABLE()
         query_ppos = addvec(multvec(action.posvec, unit_step), cur_ppos)
-#        print 'Stepsize:',action.unit_move,'curppos',cur_ppos,'qppos',query_ppos, 
-#        print 'action.posvec', action.posvec, '@'+action.name
-#        print 'line 122'
         if action.logic.agent.species=='plyr':
             query_tpos = action.logic.pTOt(query_ppos)
-            if action.logic.view('tpos')==query_tpos:
-#                print "Same tile: no hinderance.", query_tpos
-                return action.VIABLE()
-            #print action.logic.access_sensor('tile obstr').sense(querypos, 'plyr')
-            v = action.logic.access_sensor('tile obstr').sense(query_tpos, 'plyr')
-#            print 'sensor result: ',v
-            if v: return action.INVIABLE()
-            else: return action.VIABLE()
+            if action.logic.view('tpos')==query_tpos: return action.VIABLE()
+#            print 'curp,unit,queryp,queryt,curt',cur_ppos, unit_step, \
+#                    query_ppos, query_tpos, action.logic.view('tpos')
+            if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
+                    blck='plyr'): return action.VIABILITY_ERROR()
+            return action.GETTRUTH(action.logic.access_sensor('tile obstr'))
         raise Exception()
 
     def implement(action):
         assert(action.viability==EVAL_T)
         if action.index<0: return
-#        print "posvec:", action.posvec
         action.agent.move_in_direction(action.posvec)
 
     def same(action, targ): return action.index==targ.index # etc
@@ -263,11 +348,8 @@ class Sequential(ActionPicker): # in order
         ap.components = components
         ap.write_state_access = True
     def find_viability(ap): # unpythonic for loop: no short circuit
-#        print 'seq:', ap.components
         for __ai, a in enumerate(ap.components):
-#            print "sequential success",__ai, a
             if not EVAL_T==a.find_viability(): 
-#                print Failure
                 return ap.INVIABLE()
         return ap.VIABLE()
     def implement(ap):
@@ -361,11 +443,9 @@ class TryCatch(ActionPicker):
         ap.logic.update_ap(ap.key, try_via, ap.uniq_id)
         if try_via==EVAL_F:
             if ap.ca: return ap.GETVIA( ap.ca )
-#            else: print "Failure caught be TryCatch id",ap.uniq_id
         return ap.VIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
-        print '4444',WHICH_EVAL[ap.logic.view_my(ap.key, ap.uniq_id)]
         if ap.logic.view_my(ap.key, ap.uniq_id)==EVAL_T: ap.tr.implement()
         elif ap.ca: ap.ca.implement() # if implemented, one of the two succeeded.
     def reset(ap):
@@ -437,7 +517,6 @@ class MouseActionPicker(ActionPicker):
     def reset(ap): ap.viability=EVAL_U
     def find_viability(ap):
         ap.logic.update_global('mouse ppos',pygame.mouse.get_pos())
-        print '*********',ap.logic.view('mouse ppos'), ap.logic.pTOt(ap.logic.view('mouse ppos'))
         return ap.VIABLE()
     def implement(ap):
         ap.logic.agent.update_position(ap.logic.pTOt(\
@@ -465,46 +544,35 @@ class PickNewest(ActionPicker):
     def find_viability(ap):
         # Messy messy, but so is lateral non-hierarchical variable passing
         ind_priorities = ap.logic.view('curr move vec')[:] 
-        prev_inds = ap.logic.view('prev move vec')
+#        prev_inds = ap.logic.view('prev move vec')
         results = []
-        Rng = [d.index for d in ap.logic.view(ap.key)\
-                 if d.index>=0]
-        for i in range(len(prev_inds)):
+        Rng = [d.index for d in ap.logic.view(ap.key) if d.index>=0]
+        for i in range(len(ind_priorities)):
             if not i in Rng: Rng.append(i)
 
         cmpd = {}
         def process_each_case(f):
             for index in Rng:
                 i_bool = ind_priorities[index]
-                p_bool = prev_inds[index]
                 if index in cmpd.keys():
                     Cmp = cmpd[index]
                 else:
                     Cmp = cmpd[index] = ap.components[index_to_ltr(index)] # inefficent!
-                f(index, i_bool, p_bool, Cmp)
-
-        def case_both_down(index, i_bool, p_bool, Cmp):
-            if i_bool and p_bool: 
-                ap.logic.update_global('global movedir choice', index)
-                if Cmp.find_viability()==EVAL_T: 
-                    ap.logic.append_PDA(ap.key, Cmp)
-                    results.append(index)
-                else:
-                    ap.logic.pop_PDA(ap.key, Cmp)
-        def case_new_down(index, i_bool, p_bool, Cmp):
-            if i_bool and not p_bool: 
+                f(index, i_bool, Cmp)
+        def case_new_down(index, i_bool, Cmp):
+            if i_bool: 
                 ap.logic.update_global('global movedir choice', index)
                 if Cmp.find_viability()==EVAL_T:
                     ap.logic.push_PDA(ap.key, Cmp)
                     results.insert(0, index)
                 else:
                     ap.logic.pop_PDA(ap.key, Cmp)
-        def case_not_down(index, i_bool, p_bool, Cmp):
+        def case_not_down(index, i_bool, Cmp):
             if Cmp.find_viability()==EVAL_T and not i_bool: 
                 ap.logic.pop_PDA(ap.key, Cmp)
 
-#        print '--- both down'
-        process_each_case(case_both_down) # in order!
+##        print '--- both down'
+#        process_each_case(case_both_down) # in order!
 #        print '--- new down'
         process_each_case(case_new_down) # in order!
 #        print '--- not down'
@@ -550,6 +618,8 @@ class SetPlayerCycleImage(ActionPicker):
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         c = ap.logic.view_my('cycler', ap.uniq_id)
+        if ap.logic.view(ap.logic.view("motion ap key"))[0].name=='-':
+            c=0
         try:
             choose_img = ap.logic.view(ap.logic.view("motion ap key"))[0].index*3
             assert(choose_img>=0)
@@ -557,6 +627,7 @@ class SetPlayerCycleImage(ActionPicker):
             choose_img = ap.logic.view('global movedir choice') * 3
             if choose_img<0:
                 raise Exception()
+#        choose_img = ap.logic.view('global movedir choice') * 3
 
         ap.logic.agent.set_img(choose_img + c )
         ap.logic.update_global("Image", 'player sprite '+\
@@ -574,7 +645,6 @@ class orderPDAAction(ActionPicker):
         ap.VIABLE()
     def find_viability(ap): 
 #        motion_key = ap.logic.view("motion ap key")
-#        print "About to enact:", ap.logic.view(motion_key)[0].name
         return ap.GETVIA(ap.logic.view(ap.logic.view("motion ap key"))[0]) 
     def reset(ap): ap.viability = EVAL_U;
     def implement(ap): 
@@ -583,6 +653,7 @@ class orderPDAAction(ActionPicker):
             return logic.do_default()
         motion_key = ap.logic.view("motion ap key")
         return ap.logic.view(motion_key)[0].implement()
+
 
 class PlayerMotion(ActionPicker):
     def __init__(ap, logic):
@@ -594,7 +665,6 @@ class PlayerMotion(ActionPicker):
                   ])
     def find_viability(ap): return ap.Verify(ap.root)
     def implement(ap): 
-#        print "plyr exe";
         assert(ap.viability==EVAL_T)
         ap.root.implement()
     def reset(ap): ap.viability = EVAL_U; ap.root.reset()
@@ -626,9 +696,7 @@ class BasicPlayerActionPicker(ActionPicker):
 
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
-#        print 'Beginning verification dive:'
-        print 'Verification:' , WHICH_EVAL[ap.Verify(ap.root)]
-        return ap.viability
+        return ap.Verify(ap.root)
 
     def implement(ap): 
         assert(ap.viability==EVAL_T)
@@ -650,10 +718,10 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env = {} # environment info and holistic internal state
         st.s_ap = {} # space reserved for ActionPickers to store exec data
 #        st.running = {} # a log of fields specifically indicating Running actions.
+        st.s_ssr = {} # space reserved for sensors to hold intermediate values
         st.belt = (belt if belt else None)
 
     def update_ap(st, key, val, who):
-        #print who, st.gm.entities[who]
         if not st.gm.entities[who].write_state_access==True: 
             raise Exception('State writing access not permitted.')
         if not st.s_ap.has_key(who):
@@ -666,11 +734,10 @@ class State(Entity): # i do not write, so no need to have logic
 #                "Global field was not initialized; please specify in setup or use Sensor.")
         st.s_env[key] = val
     def view_env(st, what):
-#        print what
         return st.s_env[what]
 
     # Initialize and define global fields. All globals must start here.
-    def setup_fields(st, genus, parent_logic, init_pos=None):
+    def setup_fields(st, genus, parent_logic, ppos=None):
         st._init_sensors(parent_logic)
         st._init_actions(parent_logic)
 
@@ -678,13 +745,16 @@ class State(Entity): # i do not write, so no need to have logic
         if genus=='plyr':   st.setup_plyr_fields(parent_logic)
         if genus=='pkmn':   st.setup_basic_pkmn_fields(parent_logic)
         if genus=='target': st.setup_mouse(parent_logic) 
-        if init_pos:
-#            print '########################################initpos',init_pos
-            st.s_env['tpos'] = init_pos[0]; st.s_env['ppos'] = init_pos[1]; 
+        if ppos:
+            st.s_env['tpos'] = divvec(ppos, st.gm.ts())
+            st.s_env['ppos'] = ppos
 
 
     def _init_sensors(st, parent_logic):
         st.belt.Sensors = {k:v(st.gm) for k,v in st.belt.Sensors.items()}
+        for sensor in st.belt.Sensors.values():
+            sensor.set_state(st)
+
     def _init_actions(st, parent_logic):
         st.belt.Actions = {k:v(parent_logic) for k,v in st.belt.Actions.items()}
         st.s_env['available motions'] = st.belt.Actions # todo! For now.
@@ -694,8 +764,8 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['tpos']            = NULL_POSITION
         st.s_env['ppos']            = NULL_POSITION
         st.s_env['available']       = True
-        st.s_env['unit move']       = parent_logic.plyr_steps((1,1))
-        st.s_env['prev move vec']   = [0,0,0,0]
+        st.s_env['unit step']       = parent_logic.plyr_steps((1,1))
+#        st.s_env['prev move vec']   = [0,0,0,0]
         st.s_env['curr move vec']   = [0,0,0,0]
         st.s_env['num moves']       = 4
         st.s_env['Image']           = 'player sprite 7' # down
@@ -740,6 +810,7 @@ class Logic(Entity):
 
         # Read and process messages:
         while len(logic.message_queue)>0:
+            print "processing message..."
             msg = logic.message_queue.pop(0)
             logic._state.update_ext(msg[0],msg[1])
 
@@ -749,12 +820,14 @@ class Logic(Entity):
         if logic.agent.species=='plyr': 
             # Update _state for new frame for PLAYER:
             # (ideally, sensors would offload most of this)
-            put('ppos', logic.agent.get_ppos())
-            put('tpos', logic.agent.get_tpos())
-            put('smoothing', logic.gm.smoothing())
             put('curr move vec', logic.gm.events[:4])
             put('triggered actions', logic.gm.events[4:])
-            put('unit step', logic.agent.get_step())
+            print '---'
+
+#        prev_inds = ap.logic.view('prev move vec')
+
+        for snm,sensor in logic.belt.Sensors.items():
+            sensor.rescan()
 
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
@@ -769,8 +842,7 @@ class Logic(Entity):
 
     ''' ----------  Private methods  ---------- '''
 
-    def __init__(logic, gm, agent, belt=None, init_belt=None, init_position=\
-                 None):
+    def __init__(logic, gm, agent, belt=None, init_belt=None, init_ppos=None):
         Entity.__init__(logic, gm)
         logic._state = State(gm, belt)
         logic.agent = agent
@@ -778,8 +850,7 @@ class Logic(Entity):
             logic.belt = belt
             for action in belt.Actions.values(): action.logic=logic
         logic.message_queue = []
-        logic._state.setup_fields(agent.species, logic, init_pos=init_position)
-#        print agent.species
+        logic._state.setup_fields(agent.species, logic, ppos=init_ppos)
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':
@@ -789,21 +860,39 @@ class Logic(Entity):
         
         logic.root_ap.reset()
 
+    def get_sensor(logic, name): return logic.belt.Sensors.get(name, False)
+
     def view_my(logic, what, who): return logic._state.view_ap(what, who)
-    def view(logic, what):  
-        pass; # THIS function is a good place to engage Sensors.
+    def view(logic, what):  # view environmental variables.
         return logic._state.view_env(what)
+        pass; # THIS function is a good place to engage Sensors.
+#        sensor_name = logic.sensor_map(what) 
+#        sensor_status = logic._state.sensor_status.get(sensor_name, EVAL_U)
+#        if sensor_status==EVAL_U: sensor_status = sensor.rescan()
+#        if sensor_status==EVAL_F: return None
+#        if sensor_status==EVAL_T:
+#            return logic._state.view_env(what)
 
     def get_resource(logic, database, which_resource):
         if database=='plyr img':
             return logic.gm.imgs['player sprite '+str(which_resource)]
     def has_sensor(logic, what_sensor):
-        return logic.belt.Sensors.has_key(what_sensor)
-    def access_sensor(logic, what_sensor, query=None):
-        return logic.belt.Sensors[what_sensor]
+        return not logic.get_sensor(what_sensor)==False
+    def detect(logic, what_sensor, **args): 
+        # specialty method that both primes and accesses
+        s = logic.get_sensor(what_sensor)
+        #print '>>',WHICH_EVAL[s.sense(**args)]
+        return s.access(**args)
+
+    def prime_sensor(logic, what_sensor, **args):
+        return logic.get_sensor(what_sensor).sense(**args)
+    def access_sensor(logic, what_sensor, **args):
+        return logic.get_sensor(what_sensor).access(**args)
+
     def plyr_steps(logic, dvec): 
         if not logic.agent.species=='plyr': 
             raise Exception('notice: not plyr object')
+        print '^v^v^', dvec, logic.gm.smoothing(), logic.agent.stepsize
         return ( dvec[X] * logic.gm.smoothing() * logic.agent.stepsize_x, \
                  dvec[Y] * logic.gm.smoothing() * logic.agent.stepsize_y)
     def pop_PDA(logic, which_pda, new):
@@ -825,7 +914,7 @@ class Logic(Entity):
         try: return multvec(X, logic.gm.tile_size, int)
         except: raise Exception(X)
     def pTOt(logic, X): 
-        try: return multvec(X, logic.gm.tile_size, '//')
+        try: return divvec(X, logic.gm.tile_size, '//')
         except: raise Exception(X)
     
     def update_ap(logic, key, value, who):
@@ -877,12 +966,17 @@ class Belt(Entity):
         --Pkmn: The list of pokemon this character or object 'owns'.
 
         future: add AnimationScript? Versioning? Geomapping? Zoning? '''
-    def __init__(belt, gm, whose_belt, sp_init=None): 
+    def __init__(belt, gm, whose_belt, sp_init=None, std_sensor_suite=True): 
         Entity.__init__(belt, gm)
         if not isinstance(whose_belt, VisualStepAgent): 
             raise Exception(type(whose_belt))
         belt.whose_belt = whose_belt
         belt.gm = gm
+
+        belt.Sensors = {True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
+                                'smoothing':GetFrameSmoothingSensor ,\
+                                'unit step':GetCurUnitStepSensor }, \
+                        False: {} }[std_sensor_suite==True]
         
         if sp_init=='basic player':
             belt.Items = ['pokeball-lvl-1']*4
@@ -892,7 +986,7 @@ class Belt(Entity):
                             'l':MotionLeft,   \
                             'r':MotionRight,  \
                             '-':MotionStatic  }
-            belt.Sensors = {'tile obstr':TileObstrSensor }
+            belt.Sensors.update({'tile obstr':TileObstrSensor })
         elif sp_init=='pokeball catch':
             belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}
             belt.Sensors = [WildEntSensor]

@@ -15,7 +15,7 @@ from display import Display
 ''' Map Options '''
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (64,56);
-TILE_SIZE = (32,28);
+TILE_SIZE = (40,40);
 TILE_SIZE = (25,25);
 HUD_SIZE = TILE_SIZE[Y] # one tile
 X = 0;  Y = 1
@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 10
+DEFAULT_FPS = 5
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -138,8 +138,11 @@ class GameManager(object): # *
 
     def _run_frame(gm):
 #        raw_input("Launch Next frame:")
+
+        print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
         gm._punch_clock()
         gm._get_events()
+        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall()
         gm.BroadcastAll('Reset')
         gm.BroadcastAll('PrepareAction')
         gm.BroadcastAll('DoAction')
@@ -154,13 +157,19 @@ class GameManager(object): # *
     ''' Using the clock, determine the time that passed since last frame
         and calculate a multiplicative factor to smooth animation. '''
     def _punch_clock(gm):
+        print '$$$$ PUNCH CLOCK'
         gm.clock.tick(gm.fps)
         this_tick = pygame.time.get_ticks()
         dt = (this_tick - gm.last_tick)
         cur_true_fps = gm.clock.get_fps()
+#        print '\tthis_tick, dt, cur fps, targ fps x2:', this_tick, dt, cur_true_fps, gm.fps,
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
-        gm._smoothing = dt * (gm.fpms if gm.last_tick>0 else 1)
+#        gm._smoothing = dt * {True:gm.fpms, False:ONE_MILLISECOND}[gm.last_tick>0]
+#        print 'smth',gm._smoothing, 
+#        gm._smoothing = {True:dt * gm.fps, False:1}[gm.last_tick>0]
+        gm._smoothing = {True:dt * gm.fpms, False:1}[gm.last_tick>0]
+#        print 'smth',gm._smoothing
         gm.last_tick = this_tick
         gm.fps_itr = (gm.fps_itr+1)%10
 
@@ -253,8 +262,10 @@ class GameManager(object): # *
 #       and use query/message when talking to other agents. *
 #----------#----------#----------#----------#----------#----------#----------
 
-    def notify_new_agent(gm, agent_ref, init_tpos, init_ppos):
-        if not divvec(init_ppos, gm.tile_size)==init_tpos: raise Exception()
+    def notify_new_agent(gm, agent_ref, init_tpos):
+        init_ppos = multvec(init_tpos, gm.tile_size)
+        if not divvec(init_ppos, gm.tile_size)==init_tpos: \
+                raise Exception(divvec(init_ppos, gm.tile_size),init_tpos)
         gm.db.execute('INSERT INTO agent_locations VALUES (?,?,?,?,?);',\
                       ( agent_ref.uniq_id, \
                         init_tpos[X], init_tpos[Y], \

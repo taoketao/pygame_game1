@@ -33,23 +33,22 @@ DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'}
 # (color) options for Mouse:
 MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60)
+#INIT_POS = (100,100)
 
 
 
 class Player(VisualStepAgent):
     def __init__(ego, gm, belt):
-        VisualStepAgent.__init__(ego,    gm,     belt_init = belt, \
-                    init_tpos = divvec(gm.map_num_tiles,2), \
-                    init_ppos = floormod(divvec(gm.map_pix_size, 2),\
-                                gm.map_num_tiles) )
+#        print divvec(gm.map_num_tiles,2), multvec(divvec(gm.map_num_tiles,2),gm.ts())
+        VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos = \
+                                 divvec(gm.map_num_tiles,2) )
         ego.species='plyr'
-        ego.stepsize_x, ego.stepsize_y = ego.stepsize = (DEFAULT_STEPSIZE, DEFAULT_STEPSIZE)
+        ego.stepsize_x, ego.stepsize_y = \
+                ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
+        print 'stepsize, tpos:', ego.stepsize, divvec(gm.map_num_tiles,2)
         ego._belt = (Belt(gm, ego, 'basic player') if belt=='init' else belt)
-        init_position = divvec(gm.map_num_tiles,2), \
-                    floormod(divvec(gm.map_pix_size, 2), gm.map_num_tiles) # tpos, ppos
-        ego._logic = Logic(gm, ego, ego._belt, init_position = init_position)
+        ego._logic = Logic(gm, ego, ego._belt)
         ego.initialized = True
-        ego.gm.notify_new_agent(ego, init_position[0], init_position[1])
 
     ''' Methods: Game Manager to PlayerAgent '''
     def Reset(ego):         
@@ -70,8 +69,13 @@ class Player(VisualStepAgent):
     def set_img(ego, which_img): 
         if (not type(which_img)==int) or not which_img in range(12): raise Exception()
         ego.gm.notify_imgChange(ego, 'player sprite '+str(which_img+1))
-    def get_step(ego):
-        return multvec( ego.stepsize, ego._logic.view('smoothing'))
+    def get_pstep(ego):
+        return multvec(ego.stepsize, ego.gm.smoothing())
+        x = ego._logic.plyr_steps((1,1))
+#        x= multvec( ego.stepsize, ego._logic.view('smoothing'))
+#        print x, ego.stepsize
+#        return x
+        print x; return x
 
     ''' Methods: available to many for read.  ( No need to overwrite 
             move_in_direction for Player(VisualStepAgent)  ) '''
@@ -88,21 +92,22 @@ class Highlighter(TileAgent):
         h.string_sub_class = 'target'
         h.team = '--plyr--'
         h.image = pygame.Surface(gm.tile_size).convert_alpha()
-        h.update_position_and_image()
-        # h.gm.notify_new_agent(h)
         h.position = (0,0)
+        #h.update_position_and_image()
 
     def update_position_and_image(h): 
-        prev_pos = h.position
-        new_pos = h.gm.request_tpos('Player')
+        prev_tpos = h.position
+        new_tpos = h.gm.request_tpos('Player')
 #        h._set_tpos(h._ppos_to_tpos(divvec(addvec(r.center, r.midbottom),2)))
-        if not prev_pos==new_pos:
-            h.draw_highlight(new_pos)
-    def update_move(h): h.update_position_and_image()
+        if not prev_tpos==new_tpos:
+            h.gm.display.queue_reset_tile(prev_tpos)
+            h.draw_highlight(new_tpos)
+        h.position = new_tpos
 
-    def draw_highlight(h):
+    def draw_highlight(h, tile_location):
         r,g,b,a = (180,0,0,160)
-        h.spr.image.fill((0,0,0,0))
+        image = pygame.Surface(h.gm.ts()).convert_alpha()
+        image.fill((0,0,0,0))
         tx,ty = h.gm.tile_size
         tx = tx-2; ty=ty-2
         M = MOUSE_CURSOR_DISPL = 1; # stub!
@@ -124,11 +129,13 @@ class Highlighter(TileAgent):
                     s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
                 except:
                     s.fill( (r,g,b, MOUSE_GRAD[-1]) )
-                h.gm.display.queue_E_img(None, s, location)
-
+                image.blit( s, location )
+        h.gm.display.queue_E_img(-1, image, tile_location)
 #                h.spr.image.blit(s, location)
 
-
+    def Reset(h): pass
+    def PrepareAction(h): pass
+    def DoAction(h): h.update_position_and_image()
 
 
 

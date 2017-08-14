@@ -142,30 +142,25 @@ class Entity(object):
 class VisualStepAgent(Entity):
     def __init__(ta, gm, init_ppos=None, init_tpos=None, belt_init=None):
         Entity.__init__(ta, gm)
-        if not (init_ppos or init_tpos): raise Exception()
-        if init_tpos and (orvec(init_tpos,'<',0) or orvec(init_tpos,'>',\
-                gm.map_num_tiles)): raise Exception()
-        if init_ppos and (orvec(init_ppos,'<',0) or orvec(init_ppos,'>',\
-                gm.map_pix_size)): raise Exception()
         if not init_tpos: init_tpos = divvec(init_ppos, ta.gm.ts())
 
-        gm.notify_new_agent(ta, init_tpos=init_tpos, init_ppos=init_ppos)
+        gm.notify_new_agent(ta, init_tpos)
 
         ta.species = 'Stub: VisualStepAgent'
         ta.initialized=False
         ta.default_img_offset = multvec(gm.ts(), (0.3,1))
 
-    ''' set_img and get_step: these are the two core functionalities that 
+    ''' set_img and get_pstep: these are the two core functionalities that 
         VisualStepAgents must have. You must implement them. '''
     @abc.abstractmethod
     def set_img(ta, img_info): raise Exception("Stub Error!")
     @abc.abstractmethod
-    def get_step(ta): raise Exception("Stub Err! Return 2-tuple of nonneg ints.")
+    def get_pstep(ta): raise Exception("Stub Err! Return 2-tuple of nonneg ints.")
 
 
     # scale: convenience function that yields a converted version of a vector.
-    def _scale(ta, X): 
-        return multvec(multvec(ta.get_step(), X), ta.gm.ts())
+    def _scale_pvec(ta, pvec): 
+        return multvec(ta.get_pstep(), X)
     # Local positions should be phased out before being sent to the game manager.
 
     # Initialize: run ONCE or overwrite.
@@ -178,13 +173,15 @@ class VisualStepAgent(Entity):
     # Internal (gateway) motion function.
     def _set_new_ppos(ta, ppos): 
         if not ta.initialized: raise Exception("Not initialized")
-        if not andvec(ta.get_step(),'>=',0): raise Exception("Factor not set.")
+        if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
 #        if ta._logic.view("ppos")==loc: return # optimization?
         ta.gm.notify_pmove(ta.uniq_id, ppos)
     
     # Public access function: move in Delta(X,Y) *local units*. Call by Logic.
     def move_in_direction(ta, delta_xy):
-        p= addvec(ta._scale(delta_xy) , ta._logic.view("ppos"))
+        p= addvec(ta._scale_pvec(delta_xy) , ta._logic.view("ppos"))
+#        p= addvec(delta_xy, ta._logic.view("ppos"))
+        print '\t\tmoving by delta:',delta_xy,'from',ta._logic.view("ppos"),'to',p
         ta._set_new_ppos(p)
 
     # position for local scaling: not exactly recommended...
@@ -198,14 +195,16 @@ class VisualStepAgent(Entity):
 
 class PixelAgent(VisualStepAgent):
     def __init__(ta, gm, init_ppos, belt_init=None):
-        VisualStepAgent.__init__(ta, gm, init_ppos=init_ppos, belt_init=belt_init)
+        VisualStepAgent.__init__(ta, gm, init_tpos=divvec(init_tpos, gm.ts()), \
+                init_ppos = init_ppos, belt_init=belt_init)
         ta.species += '[Stub: PixelAgent]'
-    def get_step(ta): return (1,1)
+    def get_pstep(ta): return (1,1)
 
 class TileAgent(VisualStepAgent): # Standard agent that operates in increments of TILES.
     def __init__(ta, gm, init_tpos, belt_init=None):
-        VisualStepAgent.__init__(ta, gm, init_tpos=init_tpos, belt_init=belt_init)
+        VisualStepAgent.__init__(ta, gm, init_tpos=init_tpos, \
+                init_ppos = multvec(init_tpos, gm.ts()), belt_init=belt_init)
         ta.species += '[Stub: TileAgent]'
-    def get_step(ta): return ta.gm.ts()
+    def get_pstep(ta): return ta.gm.ts()
         
 
