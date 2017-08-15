@@ -47,7 +47,9 @@ class Logic(Entity):
         if logic.agent.species=='plyr': 
             # Update _state for new frame for PLAYER:
             # (ideally, sensors would offload most of this)
-            put('curr move vec', logic.gm.events[:4])
+
+            put('prev move vec', logic.view('curr move vec'))   # do both these lines
+            put('curr move vec', logic.gm.events[:4])           # with a Sensor
             put('triggered actions', logic.gm.events[4:])
 #            print '---'
 
@@ -90,76 +92,57 @@ class Logic(Entity):
     def get_sensor(logic, name): return logic.belt.Sensors.get(name, False)
 
     def view_my(logic, what, who): return logic._state.view_ap(what, who)
-    def view(logic, what):  # view environmental variables.
-        return logic._state.view_env(what)
-        pass; # THIS function is a good place to engage Sensors.
-#        sensor_name = logic.sensor_map(what) 
-#        sensor_status = logic._state.sensor_status.get(sensor_name, EVAL_U)
-#        if sensor_status==EVAL_U: sensor_status = sensor.rescan()
-#        if sensor_status==EVAL_F: return None
-#        if sensor_status==EVAL_T:
-#            return logic._state.view_env(what)
+    def view(logic, what):  return logic._state.view_env(what)
+    def view_sensor(logic, what_sensor, **args): # Sensors can elect to prime also
+        return logic.get_sensor(what_sensor).sense(**args)
 
     def get_resource(logic, database, which_resource):
         if database=='plyr img':
             return logic.gm.imgs['player sprite '+str(which_resource)]
     def has_sensor(logic, what_sensor):
         return not logic.get_sensor(what_sensor)==False
-    def detect(logic, what_sensor, agent_id=None): 
-        # specialty method that both primes and accesses
-        s=logic.get_sensor(what_sensor)
-        u=s.sense(agent_id)
-        t=s.access()
-        return t
-
-    def prime_sensor(logic, what_sensor, **args):
-        return logic.get_sensor(what_sensor).sense(**args)
-    def access_sensor(logic, what_sensor, **args): # Sensors can elect to prime also
-        return logic.get_sensor(what_sensor).access(**args)
 #
     def plyr_steps(logic, dvec): 
         if not logic.agent.species=='plyr': 
             raise Exception('notice: not plyr object')
         return ( int(dvec[X] * logic.gm.smoothing() * logic.agent.stepsize_x), \
                  int(dvec[Y] * logic.gm.smoothing() * logic.agent.stepsize_y))
-#    def pop_PDA(logic, which_pda, new):
-#        if not which_pda in ['player motion rand pda', 'player motion newest pda']: 
-#            raise Exception("This pushdown Automata not impl")
-#        s=[w for w in logic._state.s_env[which_pda] if not w.index==new.index]
-#        logic._state.s_env[which_pda] = s
     def pop_PDA(logic, index):
         if not type(index)==int: index = index.index # hack city
-#        print "Popping: ", [i.index for i in logic._state.s_env['PDA']]
         s = []
         for i in logic._state.s_env['PDA']:
             if not i.index==index: 
                 s.append(i)
-#        if not logic._state.s_env['PDA'] == s:
-#            print " ->> popping:",index
         logic._state.s_env['PDA'] = s
 
     def push_PDA(logic, index): # CHECK
         if not type(index)==int: index = index.index # hack city
-        a = logic.belt.Actions[index_to_ltr(index)]
+        a = logic.belt.Actions[index_to_ltr[index]]
         logic.pop_PDA(a)
         if not a in logic._state.s_env['PDA']:
-#            print " ->> pushing:", a
             logic._state.s_env['PDA'].insert(0, a)
 
-    def downgrade_PDA(logic, index):
-        if not type(index)==int: index = index.index # hack city
-        a = logic.belt.Actions[index_to_ltr(index)]
-        if a in logic._state.s_env['PDA']:
-            logic._state.s_env['PDA'].pop(a)
-            logic._state.s_env['PDA'].append(a)
-        else:
-#            logic._state.s_env['PDA'].remove(a)
+#    def detect(logic, what_sensor, agent_id=None): 
+#        # specialty method that both primes and accesses
+#        s=logic.get_sensor(what_sensor)
+#        u=s.sense(agent_id)
+#        t=s.access()
+#        return t
+#
+#    def downgrade_PDA(logic, index):
+#        if not type(index)==int: index = index.index # hack city
+#        a = logic.belt.Actions[index_to_ltr(index)]
+#        if a in logic._state.s_env['PDA']:
+#            logic._state.s_env['PDA'].pop(a)
 #            logic._state.s_env['PDA'].append(a)
-#            print " ->> downgrading:", a
-            pass#logic._state.s_env['PDA'].append(a)
-
-    def clear_PDA(logic):
-        logic._state.s_env['PDA'] = [logic.belt.Actions['-']]
+#        else:
+##            logic._state.s_env['PDA'].remove(a)
+##            logic._state.s_env['PDA'].append(a)
+##            print " ->> downgrading:", a
+#            pass#logic._state.s_env['PDA'].append(a)
+#
+#    def clear_PDA(logic):
+#        logic._state.s_env['PDA'] = [logic.belt.Actions['-']]
     def get_PDA(logic):
         try: 
             return logic._state.s_env['PDA'][0]

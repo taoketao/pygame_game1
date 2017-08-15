@@ -144,7 +144,9 @@ class GameManager(object): # *
         gm._get_events()
 #        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall(), ' Player pos:', gm.Agents['Player'].get_ppos(), gm.Agents['Player'].get_tpos()
         gm.BroadcastAll('Reset')
+        print "---- Preparing:"
         gm.BroadcastAll('PrepareAction')
+        print "---- Doing:"
         gm.BroadcastAll('DoAction')
 #        for ae in gm.active_entities():   ae.Reset()
 #        for ae in gm.active_entities():   ae.PrepareAction()

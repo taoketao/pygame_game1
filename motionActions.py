@@ -15,15 +15,15 @@ class MotionAction(Action):
         action.agent = logic.agent
 
     def find_viability(action): # TODO : a likely place to resume work.
-#        print "FINDING ACTIONVIA"
-        print '(',action.logic.prime_sensor('tpos', agent_id=action.logic.agent.uniq_id),'), ',
-        print 'curr tpos:',action.logic.access_sensor('tpos')
-        print action.name
+        print 'Action being verified:',action.name
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
 
         #cur_ppos = action.logic.detect('ppos', agent_id=action.logic.agent.uniq_id)
-        cur_ppos = action.logic.detect('ppos', agent_id=action.agent.uniq_id)
+#        print "DEBUG motion sensors:", action.logic._state.s_ssr,\
+#                [{snm: WHICH_EVAL[s.get_priming()]} for snm,s in action.logic.belt.Sensors.items()]
+        cur_ppos = action.logic.view_sensor('ppos', agent_id=action.agent.uniq_id)
+#        print 'for action <',action.name,'>'
         unit_step = action.logic.view('unit step')
 
         if EVAL_F in [cur_ppos, unit_step]:
@@ -35,27 +35,31 @@ class MotionAction(Action):
             query_tpos = action.logic.pTOt(query_ppos)
 #            print 'curp,unit,queryp,queryt',cur_ppos, unit_step, \
 #                    query_ppos, query_tpos#, action.logic.view('tpos')
-
-            if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
-                    blck='plyr'): return action.VIABILITY_ERROR()
+#            if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
+#                    blck='plyr'): return action.VIABILITY_ERROR()
 #            print 'tile obstructed:', action.logic.access_sensor('tile obstr')
 
-            if action.logic.access_sensor('tile obstr')==False:
-                action.logic.prime_sensor('ppos', agent_id=action.logic.agent.uniq_id)
+            if action.logic.view_sensor('tile obstr', tid=query_tpos, blck='plyr')==False:
+#                action.logic.prime_sensor('ppos', agent_id=action.logic.agent.uniq_id)
+#                print 'action determined viable'
                 return action.VIABLE()
             else:
+#                print 'action determined inviable:'
+#                print action.logic.view_sensor('tile obstr', tid=query_tpos, blck='plyr')
                 return action.INVIABLE()
 #            if action.logic.detect('tpos')==query_tpos: return action.VIABLE() # An opt: later.
         raise Exception()
 
     def implement(action):
-#        print '*'*30,"ENACTING", action.index, action.posvec
+#        print '*'*30,"ENACTING", action.index, action.posvec, WHICH_EVAL[action.viability]
         assert(action.viability==EVAL_T)
         if action.index<0: return
         action.agent.move_in_direction(action.posvec)
 
     def same(action, targ): return action.index==targ.index # etc
-    def reset(action): action.viability = EVAL_U # actually impt here
+    def reset(action): 
+#        print '<<<<   motion reseting:',action.name
+        action.viability = EVAL_U # actually impt here
 
 
 class MotionUp(MotionAction):

@@ -27,53 +27,73 @@ class PickNewest(ActionPicker):
         # Messy messy, but so is lateral non-hierarchical variable passing
         curmove = ap.logic.view('curr move vec')[:] 
         prev = ap.logic.get_PDA()
+
+        # One: ingest new request into the Pushdown Automata (PDA).
         for index in range(len(curmove)):
+            ltr = index_to_ltr[index]
             if curmove[index]:
                 if not index==prev.index:
                     ap.logic.push_PDA(index) # key is down
             else:
                 ap.logic.pop_PDA(index) # key is up
-        curnew = ap.logic.get_PDA()
-        if curnew.index==-1:
-            ap.logic.update_global('mov choice', -1)
-            ap.logic.update_global('prev motion', prev.index)
-            ap.logic.push_PDA(prev.index)
-        else:
-            if not curnew==prev:  v=prev.index
-            else:             v=curnew.index
-#            ap.logic.update_global('img choice', v)
-#            ap.logic.update_global('mov choice', v)
-            ap.logic.update_global('prev motion', curnew.index)
-            ap.logic.update_global('img choice', curnew.index)
-            ap.logic.update_global('mov choice', curnew.index)
-#            ap.logic.update_global('prev motion', {True:prev, False:curnew}[curnew==prev].index)
-        return ap.VIABLE()
+        new_aut = ap.logic.get_PDA()
+        # Two: filter attempted moves for viability
+        for act in ap.components.values():
+            av = act.find_viability()
+            if av==EVAL_F:
+                ap.logic.pop_PDA(act.index)
+        allowed_top_move = ap.logic.get_PDA()
 
-    def implement(ap): pass
+        # Three: update global fields
+        if allowed_top_move.index==-1:
+            ap.logic.update_global('mov choice', -1)
+            ap.logic.update_global('prev motion', new_aut.index)
+            ap.logic.push_PDA(new_aut.index)
+        else:
+            for key in ['prev motion','img choice','mov choice']:
+                ap.logic.update_global(key, allowed_top_move.index)
+
+        return ap.Verify(allowed_top_move)
+
+#            vias[act.index] = av
+#        if curmove==ap.logic.view('prev move vec'): 
+#            # assert all 
+#            return ap.VIABLE()
+
+    def implement(ap): 
+        if ap.logic.view("mov choice")>=0: 
+            return ap.logic.get_PDA().implement()
+
+    def reset(ap):
+        ap.viability=EVAL_U
+        for a in ap.components.values(): a.reset()
         
 
 # Actually carry out a picked action once ready:
-class orderPDAAction(ActionPicker):
-    def __init__(ap, logic, mode):
-        ActionPicker.__init__(ap, logic)
-        ap.VIABLE()
-    def find_viability(ap): 
-        x= ap.logic.get_PDA().find_viability()
-        if ap.logic.get_PDA().find_viability()==EVAL_T:
-            return ap.VIABLE()
-        return ap.INVIABLE()
-        return {EVAL_T:ap.VIABLE(), EVAL_F:ap.INVIABLE()}.get(x, EVAL_ERR)
-
-    def reset(ap): ap.viability = EVAL_U;
-    def implement(ap): 
-        x= ap.logic.get_PDA().find_viability()
-        assert(ap.viability==EVAL_T)
-        if not ap.viability==EVAL_T:
-            print 'default err'
-            return logic.do_default()
-#       hack:
-        if ap.logic.view("mov choice")>=0: 
-            return ap.logic.get_PDA().implement()
+#class orderPDAAction(ActionPicker):
+#    def __init__(ap, logic, mode):
+#        ActionPicker.__init__(ap, logic)
+#        ap.VIABLE()
+#    def find_viability(ap): 
+#        return ap.VIABLE()
+##        act = ap.logic.get_PDA()
+#        if act.find_viability()==EVAL_T:
+#            return ap.VIABLE()
+#        ap.logic.update_global('img choice', act.index)
+#        return ap.INVIABLE()
+##        return {EVAL_T:ap.VIABLE(), EVAL_F:ap.INVIABLE()}.get(x, EVAL_ERR)
+#
+#    def reset(ap): 
+#        ap.viability = EVAL_U
+#    def implement(ap): pass
+#        x= ap.logic.get_PDA().find_viability()
+#        assert(ap.viability==EVAL_T)
+#        if not ap.viability==EVAL_T:
+#            print 'default err'
+#            return logic.do_default()
+##       hack:
+#        if ap.logic.view("mov choice")>=0: 
+#            return ap.logic.get_PDA().implement()
 
 
 class SetPlayerCycleImage(ActionPicker):
@@ -83,13 +103,15 @@ class SetPlayerCycleImage(ActionPicker):
         ap.logic.update_ap('cycler', 0, ap.uniq_id)
         
     def find_viability(ap): return ap.VIABLE()
-    def reset(ap): ap.viability=EVAL_U
+    def reset(ap): 
+#        print '<<   setplyrimg resetting'
+        ap.viability=EVAL_U
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         if ap.logic.view("mov choice")<0: 
              ap.logic.update_ap('cycler', 0, ap.uniq_id)
         c = ap.logic.view_my('cycler', ap.uniq_id)
-        mvname=ap.logic.get_PDA().index
+#        mvname=ap.logic.get_PDA().index
 #        print 'MVNAME', mvname,  ap.logic.view("mov choice")
         choose_img = ap.logic.view('img choice') * 3
         if choose_img<0: 
@@ -111,8 +133,7 @@ class PlayerMotion(ActionPicker):
         ActionPicker.__init__(ap, logic)
         ap.root = Sequential(logic, [\
                     PickNewest(logic),\
-                    orderPDAAction(logic, 'newest'),\
-                    SetPlayerCycleImage(logic), \
+                    SetPlayerCycleImage(logic)
                   ])
     #def find_viability(ap): return ap.Verify(ap.root)
     def find_viability(ap): 
@@ -121,7 +142,11 @@ class PlayerMotion(ActionPicker):
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
-    def reset(ap): ap.viability = EVAL_U; ap.root.reset()
+    def reset(ap): 
+#        print '<<   PlayerMotion beginning resetting [[['
+        ap.viability = EVAL_U; 
+        ap.root.reset()
+#        print '<<   PlayerMotion finished resetting ]]]'
 
 def ThrowPokeball(x,y): pass            
 
@@ -141,7 +166,8 @@ class BasicPlayerActionPicker(ActionPicker):
 #                          ThrowPokeball(g,l)),\
 #            PlayerMotion(g,l)))
 #        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
-        ap.root = Try(logic, PlayerMotion(logic) )
+#        ap.root = Try(logic, PlayerMotion(logic) )
+        ap.root = PlayerMotion(logic)
         
 
     def reset(ap): 

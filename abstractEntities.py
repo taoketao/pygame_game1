@@ -148,7 +148,7 @@ class VisualStepAgent(Entity):
 
         ta.species = 'Stub: VisualStepAgent'
         ta.initialized=False
-        ta.default_img_offset = multvec(gm.ts(), (0.3,1))
+        ta.default_img_offset = multvec(gm.ts(), (0.4,0.9))
 
     ''' set_img and get_pstep: these are the two core functionalities that 
         VisualStepAgents must have. You must implement them. '''
@@ -179,8 +179,8 @@ class VisualStepAgent(Entity):
     
     # Public access function: move in Delta(X,Y) *local units*. Call by Logic.
     def move_in_direction(ta, delta_xy):
-        p= addvec(multvec(ta.get_pstep(), delta_xy), ta._logic.access_sensor("ppos"))
-#        print '\t\tmoving by delta:',delta_xy,'from',ta._logic.access_sensor("ppos"),'to',p
+        p= addvec(multvec(ta.get_pstep(), delta_xy), 
+                ta._logic.view_sensor("ppos", agent_id=ta.uniq_id))
         ta._set_new_ppos(p)
 
     # position for local scaling: not exactly recommended...

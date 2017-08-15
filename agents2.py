@@ -40,8 +40,8 @@ MOUSE_GRAD = (180,160,60)
 class Player(VisualStepAgent):
     def __init__(ego, gm, belt):
 #        print divvec(gm.map_num_tiles,2), multvec(divvec(gm.map_num_tiles,2),gm.ts())
-        VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos = \
-                                 divvec(gm.map_num_tiles,2) )
+        VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos = (1,1) )
+#                                 divvec(gm.map_num_tiles,2) )
         ego.species='plyr'
         ego.stepsize_x, ego.stepsize_y = \
                 ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
