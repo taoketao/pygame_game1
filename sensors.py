@@ -35,14 +35,15 @@ class Sensor(Entity):
         except: options = acquisition_method()
         return [o for o in options if condition(o)]
 
-    def set_state(sensor, state): # Init function.
-        if not sensor.state == None: raise Exception("State has already been set.")
-        #state.s_ssr[sensor.uniq_id] = {}
-        #sensor._storage = state.s_ssr[sensor.uniq_id]
-        sensor._storage = state.s_ssr[sensor.access_name] = {}
+    def set_state(sensor, state): # Init function
+        if not sensor.state == None: 
+            raise Exception("State has already been set.")
+        if state=='stateless':
+            sensor._storage = {}
+        else:
+            sensor._storage = state.s_ssr[sensor.access_name] = {}
 
     def _store(sensor, value): # ret: was the store successful?
-#        print "Storing: ",value,'in',sensor.access_name
         if type(value)==dict:
             sensor._storage.update(value)
             for k in value.keys():
@@ -55,8 +56,6 @@ class Sensor(Entity):
         sensor._sensor_check('sense')
         return PRIMED(sensor)
     def _retrieve(sensor, *keys):
-        print '\tretrieving @',sensor.access_name
-#        print 'DEBUG: SENSOR',sensor.access_name, sensor._storage, keys
         if len(keys)==0: return sensor._storage
         elif len(keys)==1: return sensor._storage[keys[0]]
         else: 
@@ -69,28 +68,19 @@ class Sensor(Entity):
 
 
 class GetTPosSensor(Sensor):
-    def __init__(sensor, gm):
+    def __init__(sensor, gm, agent_id=None):
         Sensor.__init__(sensor, gm)
         sensor.access_name = 'tpos'
-    def sense(sensor, agent_id):
+        if agent_id: sensor.agent_id = agent_id
+    def sense(sensor, agent_id=None):
+        if agent_id==None: agent_id = sensor.agent_id
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
-#            return sensor._storage[sensor.access_name][agent_id]
         sensor.prime()
         querystr = 'SELECT tx,ty FROM agent_locations WHERE uniq_id==?;'
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
-#    def access(sensor): 
-#        #print 'sensor priming', sensor.priming
-#        agent_id=sensor._storage[sensor.access_name][0]
-#        if sensor.priming==EVAL_F: 
-#            sensor.sense(agent_id)
-#        if sensor.priming==EVAL_F:  # still:
-#            raise Exception(sensor.priming)
-#            return sensor.access(agent_id)
-#        return sensor._storage[sensor.access_name][1]
-#
 
 class GetPPosSensor(Sensor):
     def __init__(sensor, gm):
@@ -100,21 +90,22 @@ class GetPPosSensor(Sensor):
     def sense(sensor, agent_id):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
-#            return sensor._storage[sensor.access_name][agent_id]
         sensor.prime()
         querystr = 'SELECT px,py FROM agent_locations WHERE uniq_id==?;'
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
-#    def access(sensor): 
-#        #print 'sensor priming', sensor.priming
-#        agent_id=sensor._storage[sensor.access_name][0]
-#        if sensor.priming==EVAL_F: 
-#            sensor.sense(agent_id)
-#        if sensor.priming==EVAL_F:  # still:
-#            raise Exception(sensor.priming)
-#            return sensor.access(agent_id)
-#        return sensor._storage[sensor.access_name][1]
+class GetMouseTIDSensor(Sensor):
+    def __init__(sensor, gm):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'mousepos'
+
+    def sense(sensor):
+        if sensor.get_priming()==EVAL_T:
+            return sensor._retrieve()
+        sensor.prime()
+        sensor._store(sensor.gm.request_mousepos('tpos'))
+        return sensor._retrieve()
 
 
 class GetFrameSmoothingSensor(Sensor):
@@ -177,7 +168,7 @@ class MultiSensor(Sensor):
             sensor._storage[k]=value[k]
 
     def _retrieve(sensor, *keys):
-        print '\tretrieving @',sensor.access_name
+#        print '\tretrieving @',sensor.access_name
         sensor._sensor_check()
         return sensor._storage[keys]
     
@@ -195,7 +186,7 @@ class TileObstrSensor(MultiSensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-        print "sensing tile",tid,'. Primings:', sensor.get_primings()
+#        print "sensing tile",tid,'. Primings:', sensor.get_primings()
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
 

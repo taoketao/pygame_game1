@@ -22,7 +22,6 @@ class Sequential(ActionPicker): # in order
         for a in ap.components: 
             a.implement()
     def reset(ap):  
-        print '<<   sequential resetting'
         ap.viability = EVAL_U; 
         for a in ap.components: a.reset() # naive
 

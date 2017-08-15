@@ -112,7 +112,6 @@ class Display(Entity):
         disp._effect_update_tups.append( (Id, img, ppos) )
 
     def std_render(disp):
-#        print "Rendering:", disp._effect_update_tups, disp._agent_update_tups, disp._tiles_to_reset
         imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
         imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
         reset_tiles = disp._tiles_to_reset[:]
@@ -139,11 +138,9 @@ class Display(Entity):
             upd_tiles.append(ploc)
         # Blit the new image:
         for ent, img, ploc in imgEffects + imgAgents:
-            if not img:
-                img = disp.gm.entities[ent.uniq_id].query_image()
-
-
-            disp.screen.blit(disp.imgs[img], ploc)
+            if not img: img = disp.gm.entities[ent.uniq_id].query_image()
+            if ent<0:   disp.screen.blit(img, ploc)
+            else:       disp.screen.blit(disp.imgs[img], ploc)
             upd_tiles.append(ploc)
         pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in upd_tiles])
         disp._wipe_queues()

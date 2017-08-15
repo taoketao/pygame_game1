@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from utilities import *
-from agents2 import *
+from agents import *
 from display import Display
                     
 ''' Map Options '''
@@ -142,11 +142,10 @@ class GameManager(object): # *
 #        print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
         gm._punch_clock()
         gm._get_events()
-#        print '% % % Status:',gm.db.execute("SELECT * FROM agent_locations;",()).fetchall(), ' Player pos:', gm.Agents['Player'].get_ppos(), gm.Agents['Player'].get_tpos()
         gm.BroadcastAll('Reset')
-        print "---- Preparing:"
+#        print "---- Preparing:"
         gm.BroadcastAll('PrepareAction')
-        print "---- Doing:"
+#        print "---- Doing:"
         gm.BroadcastAll('DoAction')
 #        for ae in gm.active_entities():   ae.Reset()
 #        for ae in gm.active_entities():   ae.PrepareAction()
@@ -211,11 +210,11 @@ class GameManager(object): # *
         gm.clock = pygame.time.Clock()  # clock object for frame smoothness
         gm.last_tick = 0            # clock counter field
 
-        gm.Agents = { \
-                'Player': Player(gm, 'init'),\
-#                'Mouse': MouseTarget(gm), \
-#                'player highlighter': Highlighter(gm)   \
-                }
+        gm.Agents = { 'Player': Player(gm, 'init') }
+        gm.Agents.update( {\
+                'Mouse': MouseTarget(gm), \
+                'player highlighter': PlayerHighlighter(gm)   \
+                } )
 
         gm._reset_events()
         gm.prev_e = gm.events[:]
@@ -297,6 +296,9 @@ class GameManager(object): # *
         q = 'SELECT px,py FROM agent_locations WHERE uniq_id=?;'
         return gm.db.execute(q, (agent_id,)).fetchall()[0]
 
+    def request_mousepos(gm, mode):
+        if mode=='tpos': return divvec(pygame.mouse.get_pos(), gm.ts())
+        if mode=='ppos': return pygame.mouse.get_pos()
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
 

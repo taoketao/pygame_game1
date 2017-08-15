@@ -27,8 +27,12 @@ class PickNewest(ActionPicker):
         # Messy messy, but so is lateral non-hierarchical variable passing
         curmove = ap.logic.view('curr move vec')[:] 
         prev = ap.logic.get_PDA()
+        # One: for consistent behavior, use old move if it's still valid.
+        if curmove==ap.logic.view('prev move vec'): 
+            if prev.find_viability()==EVAL_T:
+                return ap.VIABLE()
 
-        # One: ingest new request into the Pushdown Automata (PDA).
+        # Two: ingest new request into the Pushdown Automata (PDA).
         for index in range(len(curmove)):
             ltr = index_to_ltr[index]
             if curmove[index]:
@@ -37,14 +41,14 @@ class PickNewest(ActionPicker):
             else:
                 ap.logic.pop_PDA(index) # key is up
         new_aut = ap.logic.get_PDA()
-        # Two: filter attempted moves for viability
+        # Three: filter attempted moves for viability
         for act in ap.components.values():
             av = act.find_viability()
             if av==EVAL_F:
                 ap.logic.pop_PDA(act.index)
         allowed_top_move = ap.logic.get_PDA()
 
-        # Three: update global fields
+        # Four: update global fields
         if allowed_top_move.index==-1:
             ap.logic.update_global('mov choice', -1)
             ap.logic.update_global('prev motion', new_aut.index)
@@ -54,11 +58,6 @@ class PickNewest(ActionPicker):
                 ap.logic.update_global(key, allowed_top_move.index)
 
         return ap.Verify(allowed_top_move)
-
-#            vias[act.index] = av
-#        if curmove==ap.logic.view('prev move vec'): 
-#            # assert all 
-#            return ap.VIABLE()
 
     def implement(ap): 
         if ap.logic.view("mov choice")>=0: 

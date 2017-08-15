@@ -15,15 +15,9 @@ class MotionAction(Action):
         action.agent = logic.agent
 
     def find_viability(action): # TODO : a likely place to resume work.
-        print 'Action being verified:',action.name
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
-
-        #cur_ppos = action.logic.detect('ppos', agent_id=action.logic.agent.uniq_id)
-#        print "DEBUG motion sensors:", action.logic._state.s_ssr,\
-#                [{snm: WHICH_EVAL[s.get_priming()]} for snm,s in action.logic.belt.Sensors.items()]
         cur_ppos = action.logic.view_sensor('ppos', agent_id=action.agent.uniq_id)
-#        print 'for action <',action.name,'>'
         unit_step = action.logic.view('unit step')
 
         if EVAL_F in [cur_ppos, unit_step]:
@@ -33,21 +27,11 @@ class MotionAction(Action):
 
         if action.logic.agent.species=='plyr':
             query_tpos = action.logic.pTOt(query_ppos)
-#            print 'curp,unit,queryp,queryt',cur_ppos, unit_step, \
-#                    query_ppos, query_tpos#, action.logic.view('tpos')
-#            if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
-#                    blck='plyr'): return action.VIABILITY_ERROR()
-#            print 'tile obstructed:', action.logic.access_sensor('tile obstr')
-
+            return action.GETTRUTH(action.logic.view_sensor('tile obstr', tid=query_tpos, blck='plyr')==False)
             if action.logic.view_sensor('tile obstr', tid=query_tpos, blck='plyr')==False:
-#                action.logic.prime_sensor('ppos', agent_id=action.logic.agent.uniq_id)
-#                print 'action determined viable'
                 return action.VIABLE()
             else:
-#                print 'action determined inviable:'
-#                print action.logic.view_sensor('tile obstr', tid=query_tpos, blck='plyr')
                 return action.INVIABLE()
-#            if action.logic.detect('tpos')==query_tpos: return action.VIABLE() # An opt: later.
         raise Exception()
 
     def implement(action):
