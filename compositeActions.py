@@ -12,17 +12,14 @@ class Sequential(ActionPicker): # in order
         ActionPicker.__init__(ap, logic)
         ap.components = components
         ap.write_state_access = True
-    def find_viability(ap): # unpythonic for loop: no short circuit
+    def find_viability(ap):
         for __ai, a in enumerate(ap.components):
-#            print 'sequential via:',a
             if not EVAL_T==a.find_viability(): 
                 return ap.INVIABLE()
         return ap.VIABLE()
     def implement(ap):
-#        print "Seuqential's viability:", ap.viability
         assert(ap.viability==EVAL_T)
         for a in ap.components: 
-#            print 'sequential impl:',a
             a.implement()
     def reset(ap):  
         for a in ap.components: a.reset() # naive

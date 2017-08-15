@@ -11,13 +11,12 @@ from compositeActions import *
 # Pick Newest: using Pushdown automata, maintain newest. 
 # This function is not general as-is, but can be cannibalized quite easily.
 # Global state update: makes  
+
 class PickNewest(ActionPicker): 
     def __init__(ap, logic):
         ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
         ap.components = logic.view('available motions')#.copy()
-        ap.key = 'player motion newest pda'
-        ap.logic.update_global("motion ap key", ap.key)
 
         ap.logic.update_global("prev motion", 2)
         ap.logic.update_global("mov choice", -1)
@@ -26,25 +25,11 @@ class PickNewest(ActionPicker):
 
     def find_viability(ap):
         # Messy messy, but so is lateral non-hierarchical variable passing
-        ind_priorities = ap.logic.view('curr move vec')[:] 
-#        prev_inds = ap.logic.view('prev move vec')
-#        print ind_priorities
-        results = []
-        Rng = [d.index for d in ap.logic.view(ap.key) if d.index>=0]
-        for i in range(len(ind_priorities)):
-            if not i in Rng: Rng.append(i)
-        cmpd = {}
-        for index in Rng:
-            if index in cmpd.keys(): Cmp = cmpd[index]
-            else: Cmp = cmpd[index] = ap.components[index_to_ltr(index)]
-
+        curmove = ap.logic.view('curr move vec')[:] 
         prev = ap.logic.get_PDA()
-        print '& '*10,"PDA prior:", ap.logic._state.s_env['PDA'].index, 'prev:',prev.index, 'input:',ind_priorities
-        for index in range(len(ind_priorities)):
-            if ind_priorities[index]:
-                if index==prev.index:
-                    pass# key is already down
-                else:
+        for index in range(len(curmove)):
+            if curmove[index]:
+                if not index==prev.index:
                     ap.logic.push_PDA(index) # key is down
             else:
                 ap.logic.pop_PDA(index) # key is up
@@ -54,7 +39,7 @@ class PickNewest(ActionPicker):
             ap.logic.update_global('prev motion', prev.index)
             ap.logic.push_PDA(prev.index)
         else:
-            if curnew==prev:  v=prev.index
+            if not curnew==prev:  v=prev.index
             else:             v=curnew.index
 #            ap.logic.update_global('img choice', v)
 #            ap.logic.update_global('mov choice', v)
@@ -62,7 +47,6 @@ class PickNewest(ActionPicker):
             ap.logic.update_global('img choice', curnew.index)
             ap.logic.update_global('mov choice', curnew.index)
 #            ap.logic.update_global('prev motion', {True:prev, False:curnew}[curnew==prev].index)
-#        #print "--PDA post:", ap.logic._state.s_env['PDA'], curnew
         return ap.VIABLE()
 
     def implement(ap): pass
@@ -75,7 +59,6 @@ class orderPDAAction(ActionPicker):
         ap.VIABLE()
     def find_viability(ap): 
         x= ap.logic.get_PDA().find_viability()
-#        print '<'*15,"pda order via:", WHICH_EVAL[x]
         if ap.logic.get_PDA().find_viability()==EVAL_T:
             return ap.VIABLE()
         return ap.INVIABLE()
@@ -83,10 +66,7 @@ class orderPDAAction(ActionPicker):
 
     def reset(ap): ap.viability = EVAL_U;
     def implement(ap): 
-#        print 'pda via:',
         x= ap.logic.get_PDA().find_viability()
-
-#        print '>'*15,"pda order impl:", x, ap.logic.get_PDA()
         assert(ap.viability==EVAL_T)
         if not ap.viability==EVAL_T:
             print 'default err'
@@ -94,11 +74,6 @@ class orderPDAAction(ActionPicker):
 #       hack:
         if ap.logic.view("mov choice")>=0: 
             return ap.logic.get_PDA().implement()
-#   cp. return ap.logic.get_PDA().implement()
-
-#        motion_key = ap.logic.view("motion ap key")
-#        motion_key = ap.logic.view("motion ap key")
-#        return ap.logic.view(motion_key)[0].implement()
 
 
 class SetPlayerCycleImage(ActionPicker):
@@ -115,7 +90,7 @@ class SetPlayerCycleImage(ActionPicker):
              ap.logic.update_ap('cycler', 0, ap.uniq_id)
         c = ap.logic.view_my('cycler', ap.uniq_id)
         mvname=ap.logic.get_PDA().index
-        print 'MVNAME', mvname,  ap.logic.view("mov choice")
+#        print 'MVNAME', mvname,  ap.logic.view("mov choice")
         choose_img = ap.logic.view('img choice') * 3
         if choose_img<0: 
             raise Exception(map(ap.logic.view, ['img choice', 'mov choice', 'prev motion']))
@@ -142,7 +117,7 @@ class PlayerMotion(ActionPicker):
     #def find_viability(ap): return ap.Verify(ap.root)
     def find_viability(ap): 
         return ap.COPYEVAL(ap.root.find_viability())
-        print '\t',s; return s
+#        print '\t',s; return s
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
@@ -176,7 +151,7 @@ class BasicPlayerActionPicker(ActionPicker):
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
         via= ap.root.find_viability()
-        print WHICH_EVAL[via]
+#        print WHICH_EVAL[via]
         if via==EVAL_T: return ap.VIABLE(); 
         return ap.INVIABLE()
         return ap.Verify(ap.root)

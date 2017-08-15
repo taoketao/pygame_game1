@@ -112,7 +112,7 @@ class Display(Entity):
         disp._effect_update_tups.append( (Id, img, ppos) )
 
     def std_render(disp):
-        print "Rendering:", disp._effect_update_tups, disp._agent_update_tups, disp._tiles_to_reset
+#        print "Rendering:", disp._effect_update_tups, disp._agent_update_tups, disp._tiles_to_reset
         imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
         imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
         reset_tiles = disp._tiles_to_reset[:]

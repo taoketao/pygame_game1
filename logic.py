@@ -49,7 +49,7 @@ class Logic(Entity):
             # (ideally, sensors would offload most of this)
             put('curr move vec', logic.gm.events[:4])
             put('triggered actions', logic.gm.events[4:])
-            print '---'
+#            print '---'
 
 #        prev_inds = ap.logic.view('prev move vec')
 
@@ -60,9 +60,7 @@ class Logic(Entity):
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      logic.root_ap.find_viability()
 #-- Interface method        __ Implement __        Call after Deciding, for all
-    def Implement(logic):   
-        print '()() PDA:', logic._state.s_env['PDA'], 'choice', logic.view("mov choice")
-        logic.root_ap.implement()
+    def Implement(logic):   logic.root_ap.implement()
 
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
@@ -112,7 +110,6 @@ class Logic(Entity):
         s=logic.get_sensor(what_sensor)
         u=s.sense(agent_id)
         t=s.access()
-        print ' *** ', s,u, t, logic._state.s_env[logic._state.s_env['motion ap key']]
         return t
 
     def prime_sensor(logic, what_sensor, **args):
@@ -137,8 +134,8 @@ class Logic(Entity):
         for i in logic._state.s_env['PDA']:
             if not i.index==index: 
                 s.append(i)
-        if not logic._state.s_env['PDA'] == s:
-            print " ->> popping:",index
+#        if not logic._state.s_env['PDA'] == s:
+#            print " ->> popping:",index
         logic._state.s_env['PDA'] = s
 
     def push_PDA(logic, index): # CHECK
@@ -167,7 +164,7 @@ class Logic(Entity):
         try: 
             return logic._state.s_env['PDA'][0]
         except: 
-            print 'Exception',logic._state.s_env['PDA']
+#            print 'Exception',logic._state.s_env['PDA']
             logic.push_PDA(-1)
             return logic.belt.Actions['-']
 #    def append_PDA(logic, which_pda, element):

@@ -52,7 +52,6 @@ class Player(VisualStepAgent):
 
     ''' Methods: Game Manager to PlayerAgent '''
     def Reset(ego):         
-        print "RESET";
         ego._logic.Update()
     def PrepareAction(ego): ego._logic.Decide()
     def DoAction(ego):      ego._logic.Implement()

@@ -64,14 +64,24 @@ class GetTPosSensor(Sensor):
     def __init__(sensor, gm):
         Sensor.__init__(sensor, gm)
         sensor.access_name = 'tpos'
-    def sense(sensor, args):
+    def sense(sensor, agent_id):
+        if sensor.priming==EVAL_T: # a positive result has already been found:
+            return sensor._storage[sensor.access_name]
         sensor._sensor_check('sense')
-        agent_id = args['agent id']
         querystr = 'SELECT tx,ty FROM agent_locations WHERE uniq_id==?;'
-        try:
-            sensor._store(sensor.gm.db.execute(querystr, (agent_id,)).fetchone())
-            return PRIMED(sensor)
-        except: return NOTPRIMED(sensor)
+        sensor._store([agent_id, sensor.gm.db.execute(querystr, (agent_id,)).fetchone()])
+        return PRIMED(sensor) # todo: error hangle this a little better.
+
+    def access(sensor): 
+        #print 'sensor priming', sensor.priming
+        agent_id=sensor._storage[sensor.access_name][0]
+        if sensor.priming==EVAL_F: 
+            sensor.sense(agent_id)
+        if sensor.priming==EVAL_F:  # still:
+            raise Exception(sensor.priming)
+            return sensor.access(agent_id)
+        return sensor._storage[sensor.access_name][1]
+
 
 class GetPPosSensor(Sensor):
     def __init__(sensor, gm):
@@ -130,6 +140,7 @@ class TileObstrSensor(Sensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
+        print "sensing:",tid
         sensor._sensor_check('sense')
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck

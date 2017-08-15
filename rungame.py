@@ -128,7 +128,7 @@ class GameManager(object): # *
         gm._init_game()
         FRAME_COUNTER = 0
         for _ in range(max_num_epochs_test):
-            print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
+#            print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
             FRAME_COUNTER+=1
             gm._run_frame()
 
@@ -157,7 +157,7 @@ class GameManager(object): # *
     ''' Using the clock, determine the time that passed since last frame
         and calculate a multiplicative factor to smooth animation. '''
     def _punch_clock(gm):
-        print '$$$$ PUNCH CLOCK'
+#        print '$$$$ PUNCH CLOCK'
         gm.clock.tick(gm.fps)
         this_tick = pygame.time.get_ticks()
         dt = (this_tick - gm.last_tick)

@@ -16,6 +16,9 @@ class MotionAction(Action):
 
     def find_viability(action): # TODO : a likely place to resume work.
 #        print "FINDING ACTIONVIA"
+        print '(',action.logic.prime_sensor('tpos', agent_id=action.logic.agent.uniq_id),'), ',
+        print 'curr tpos:',action.logic.access_sensor('tpos')
+        print action.name
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
 
@@ -32,6 +35,7 @@ class MotionAction(Action):
             query_tpos = action.logic.pTOt(query_ppos)
 #            print 'curp,unit,queryp,queryt',cur_ppos, unit_step, \
 #                    query_ppos, query_tpos#, action.logic.view('tpos')
+
             if not action.logic.prime_sensor('tile obstr', tid=query_tpos, \
                     blck='plyr'): return action.VIABILITY_ERROR()
 #            print 'tile obstructed:', action.logic.access_sensor('tile obstr')

@@ -35,7 +35,7 @@ class Action(Entity):
     def reset(action): raise Exception("Must implement me!")
 
     # helpers:
-    def INVIABLE(action): action.viability=EVAL_F; print "inviable:", action; return EVAL_F
+    def INVIABLE(action): action.viability=EVAL_F; return EVAL_F
     def VIABLE(action): action.viability=EVAL_T; return EVAL_T
     def GETTRUTH(action, query): return (action.VIABLE() if query==True \
             else action.INVIABLE())
