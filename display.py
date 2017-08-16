@@ -44,10 +44,6 @@ class Display(Entity):
                 save_spnm = 'pkmn sprite '+str(i+1)+d
                 load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 disp.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
-#                disp.imgs[save_spnm+' half whitened'].blit(disp._get_whitened_img(\
-#                        disp.imgs[save_spnm].copy(), 0.5), (0,0))
-#                disp.imgs[save_spnm+' full whitened'].blit(disp._get_whitened_img(\
-#                        disp.imgs[save_spnm].copy(), 0.85), (0,0))
 
     def _init_process_images(disp):
         ''' >>> [processing tile-sized]:  '''
@@ -102,6 +98,7 @@ class Display(Entity):
 
 
     def queue_reset_tile(disp, pos, tpos_or_ppos='tpos'):
+        print 'Adding tile for reset:', pos
         if tpos_or_ppos=='tpos':    
             disp._tiles_to_reset.append(pos)
         elif tpos_or_ppos=='ppos':  
@@ -120,7 +117,7 @@ class Display(Entity):
 
         for ent_id, img, ploc in imgEffects + imgAgents:
             for i in [-1,0,1]:
-                for j in [-1,0,1,2]:
+                for j in [-1,0,1]:
                     tp = divvec(addvec(multvec((i,j), disp.gm.ts()), ploc), ts)
                     if not tp in reset_tiles and not disp.oob(tpos=tp): 
                         reset_tiles.append(tp)
@@ -129,6 +126,7 @@ class Display(Entity):
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         # Blit the background over the new image:
         for tile in reset_tiles:
+            if disp.oob(tile): continue
             tmp = disp.gm.db.execute(query, tile).fetchone()
             base,obstr = tmp
             ploc = multvec(tile, disp.gm.ts())

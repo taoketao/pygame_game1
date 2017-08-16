@@ -28,11 +28,11 @@ class Action(Entity):
     # Methods: get_viability(): T/F/U/..., find_viability() T/F, implement()
     def get_viability(action): return action.viability
     @abc.abstractmethod
-    def find_viability(action): raise Exception("Must implement me!")
+    def find_viability(action): raise Exception("Must implement me!",action)
     @abc.abstractmethod
-    def implement(action): raise Exception("Must implement me!")
+    def implement(action): raise Exception("Must implement me!",action)
     @abc.abstractmethod
-    def reset(action): raise Exception("Must implement me!")
+    def reset(action): raise Exception("Must implement me!",action)
 
     # helpers:
     def INVIABLE(action): action.viability=EVAL_F; return EVAL_F

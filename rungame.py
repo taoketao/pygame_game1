@@ -132,26 +132,16 @@ class GameManager(object): # *
             FRAME_COUNTER+=1
             gm._run_frame()
 
-    def active_entities(gm): return gm.Agents.values()
+    def active_entities(gm): return gm.Agents.values() + gm.Effects.values()
     def BroadcastAll(gm, fn_name): 
         return map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
-#        raw_input("Launch Next frame:")
-
-#        print 'Player tid:', gm.request_tpos(gm.Agents['Player'].uniq_id)
         gm._punch_clock()
         gm._get_events()
         gm.BroadcastAll('Reset')
-#        print "---- Preparing:"
         gm.BroadcastAll('PrepareAction')
-#        print "---- Doing:"
         gm.BroadcastAll('DoAction')
-#        for ae in gm.active_entities():   ae.Reset()
-#        for ae in gm.active_entities():   ae.PrepareAction()
-#        for ae in gm.active_entities():   ae.DoAction()
-#        map(PrepareAction,  gm.active_entities)
-#        map(DoAction,       gm.active_entities)
         gm.display.std_render()
 
 
@@ -210,11 +200,11 @@ class GameManager(object): # *
         gm.clock = pygame.time.Clock()  # clock object for frame smoothness
         gm.last_tick = 0            # clock counter field
 
-        gm.Agents = { 'Player': Player(gm, 'init') }
-        gm.Agents.update( {\
-                'Mouse': MouseTarget(gm), \
-                'player highlighter': PlayerHighlighter(gm)   \
-                } )
+        gm.Agents, gm.Effects = {},{}
+        gm.Agents.update(  { 'Player': Player(gm, 'init') })
+        gm.Effects.update( { 'Mouse': MouseTarget(gm) })
+        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
+        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,2), pokedex=1) } )
 
         gm._reset_events()
         gm.prev_e = gm.events[:]
@@ -279,12 +269,20 @@ class GameManager(object): # *
              WHERE uniq_id=?;''', (tx, ty, agent_id))
 #        print "--New DB:", gm.db.execute('SELECT * FROM tile_occupants').fetchall()
 
-    def notify_imgChange(gm, ref_who, img_name, where='not provided'):
+    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):
         if where=='not provided':
             where = gm.request_ppos(ref_who.uniq_id)
+        if not prior==None:
+            prev_where = {'ppos':prior[0], 'tpos':multvec(prior[0],gm.ts())}[prior[1]]
+            if where==prev_where:
+                pass
+
         where = sub_aFb(ref_who.default_img_offset, where)
+
+
         { True: gm.display.queue_A_img, False: gm.display.queue_E_img}[\
                 isinstance(ref_who, VisualStepAgent)](ref_who.uniq_id, img_name, where)
+        if prior: gm.display.queue_reset_tile(prior[0], prior[1])
 
     def request_tpos(gm, agent_id):
         if not type(agent_id)==int:
@@ -301,8 +299,16 @@ class GameManager(object): # *
         if mode=='ppos': return pygame.mouse.get_pos()
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
-
-
+    def send_message(gm, **arglist):
+        print "message to be routed:", arglist,
+        if arglist['message']=='redraw':
+            tid = arglist['tpos']
+            for _,ent_id,__ in gm.get_tile_occupants(tid):
+                ent = gm.entities[ent_id]
+                print '(sent to',ent.species,')',
+                if ent.has_logic:
+                    ent.logic.notify('redraw', tid)
+        print ''
 
 #----------#----------#----------#----------#----------#----------#----------
 #       End of fresh code * (stubs)

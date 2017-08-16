@@ -67,6 +67,7 @@ class Sensor(Entity):
     def sense(sensor, *what): raise Exception("Implement me please")
 
 
+''' TPOS tile position of a target entity '''
 class GetTPosSensor(Sensor):
     def __init__(sensor, gm, agent_id=None):
         Sensor.__init__(sensor, gm)
@@ -81,13 +82,14 @@ class GetTPosSensor(Sensor):
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
-
+''' PPOS pixel position of a target entity '''
 class GetPPosSensor(Sensor):
-    def __init__(sensor, gm):
+    def __init__(sensor, gm, agent_id=None):
         Sensor.__init__(sensor, gm)
         sensor.access_name = 'ppos'
-
-    def sense(sensor, agent_id):
+        if agent_id: sensor.agent_id = agent_id
+    def sense(sensor, agent_id=None):
+        if agent_id==None: agent_id = sensor.agent_id
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
@@ -95,17 +97,28 @@ class GetPPosSensor(Sensor):
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
+''' Mouse position '''
 class GetMouseTIDSensor(Sensor):
     def __init__(sensor, gm):
         Sensor.__init__(sensor, gm)
         sensor.access_name = 'mousepos'
-
     def sense(sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve()
         sensor.prime()
         sensor._store(sensor.gm.request_mousepos('tpos'))
         return sensor._retrieve()
+
+#''' User input indicating position '''
+#class GetMoveInputSensor(Sensor):
+#    def __init__(sensor, gm):
+#        Sensor.__init__(sensor, gm)
+#        sensor.access_name = 'curr move vec'
+#    def sense(sensor):
+#        if sensor.get_priming()==EVAL_T:
+#            sensor._store(sensor.gm.request_mousepos('tpos')) # Add any more queued
+#            return sensor._retrieve()
+#        sensor.prime()
 
 
 class GetFrameSmoothingSensor(Sensor):
@@ -168,11 +181,10 @@ class MultiSensor(Sensor):
             sensor._storage[k]=value[k]
 
     def _retrieve(sensor, *keys):
-#        print '\tretrieving @',sensor.access_name
         sensor._sensor_check()
         return sensor._storage[keys]
     
-    def rescan(sensor): 
+    def rescan(sensor):  # Prune memory here.
         sensor._sensor_check()
         for k in sensor._primings.keys(): sensor._primings[k]=EVAL_F
     @abc.abstractmethod
@@ -189,10 +201,8 @@ class TileObstrSensor(MultiSensor):
 #        print "sensing tile",tid,'. Primings:', sensor.get_primings()
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
-
         if sensor.query_priming(tid, blck)==EVAL_T:
             return sensor._retrieve(tid, blck)
-
         occups, tileinfo = sensor.gm.query_tile(tid, blck)
         if len([o for o in occups if o[0]==u'pkmn'])>0: 
             sensor._store({(tid, blck): False})
@@ -202,3 +212,23 @@ class TileObstrSensor(MultiSensor):
         blocked_res = [(u'true',)]==tileinfo
         sensor._store({(tid,blck): blocked_res})
         return blocked_res
+
+# Query a tile for the teams of its occupants 
+class TeamDetector(MultiSensor): 
+    def __init__(sensor, gm, radius=-1): 
+        MultiSensor.__init__(sensor, gm)
+        sensor.access_name = "team detector"
+
+    def sense(sensor, tid, pos=None):
+        if pos and dist(pos, tid)>radius: # for later.
+            sensor._store({tid: set()})
+            return []
+        if sensor.query_priming(tid)==EVAL_T:
+            return sensor._retrieve(tid)
+        occups = sensor.gm.get_tile_occupants(tid) # list of a_type,id,team
+        sensor._store({tid: set(o[2] for o in occups)})
+        return sensor._retrieve(tid)
+
+    def _retrieve(sensor, tid):
+        sensor._sensor_check()
+        return sorted(list(sensor._storage[tid]))

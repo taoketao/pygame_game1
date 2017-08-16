@@ -33,3 +33,4 @@ def index_to_ltr(i):
     return {0:'u',1:'l',2:'d',3:'r',-1:'-'}[i]
 
 index_to_ltr = {0:'u',1:'l',2:'d',3:'r',-1:'-'}
+MTNKEYS = ['l','d','r','u','-']

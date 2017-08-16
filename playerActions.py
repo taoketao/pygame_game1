@@ -25,7 +25,7 @@ class PickNewest(ActionPicker):
 
     def find_viability(ap):
         # Messy messy, but so is lateral non-hierarchical variable passing
-        curmove = ap.logic.view('curr move vec')[:] 
+        curmove = ap.logic.view('curr move vec') # Todo: receive GM messages for update!
         prev = ap.logic.get_PDA()
         # One: for consistent behavior, use old move if it's still valid.
         if curmove==ap.logic.view('prev move vec'): 
@@ -134,18 +134,14 @@ class PlayerMotion(ActionPicker):
                     PickNewest(logic),\
                     SetPlayerCycleImage(logic)
                   ])
-    #def find_viability(ap): return ap.Verify(ap.root)
     def find_viability(ap): 
         return ap.COPYEVAL(ap.root.find_viability())
-#        print '\t',s; return s
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
     def reset(ap): 
-#        print '<<   PlayerMotion beginning resetting [[['
         ap.viability = EVAL_U; 
         ap.root.reset()
-#        print '<<   PlayerMotion finished resetting ]]]'
 
 def ThrowPokeball(x,y): pass            
 
@@ -166,7 +162,9 @@ class BasicPlayerActionPicker(ActionPicker):
 #            PlayerMotion(g,l)))
 #        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
 #        ap.root = Try(logic, PlayerMotion(logic) )
-        ap.root = PlayerMotion(logic)
+        ap.root = Sequential(logic, [\
+                PlayerMotion(logic),
+                MessageNearbyRedraw(logic)])
         
 
     def reset(ap): 

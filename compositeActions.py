@@ -1,3 +1,4 @@
+import random
 from abstractActions import *
 
 #-------------#-------------#--------------#--------------#--------------
@@ -33,12 +34,13 @@ class Priority(ActionPicker): # AKA, DoOneRetOne in order
     def __init__(ap, logic, components):
         ActionPicker.__init__(ap, logic)
         ap.components = components
-        ap.easy_init('choice')
+        ap.easy_init('pchoice')
     def find_viability(ap):
-        for ci, c in enumerate(ap.components):
+        for ci in range(len(ap.components)):
+            c=ap.components[ci]
             if EVAL_T==c.find_viability(): 
                 ap.logic.update_ap(ap.key, ci, ap.uniq_id)
-                return ap.VIABILE()
+                return ap.VIABLE()
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
@@ -48,31 +50,28 @@ class Priority(ActionPicker): # AKA, DoOneRetOne in order
         for a in ap.components[:ap.logic.view_my(ap.key, ap.uniq_id)]: a.reset()
 
 # PickRand a.k.a. Random Priority: pick a viable element at random, if possible.
+# Very basic outline; customized overhauls are recommended.
 class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
     def __init__(ap, logic, components):
         ActionPicker.__init__(ap, logic)
-        ap.write_state_access = True
-        ap.logic.update_ap('choice', EVAL_INIT, ap.uniq_id)
-        ap.logic.update_ap('indices', EVAL_INIT, ap.uniq_id)
         ap.components = components
-
+        ap.easy_init('rchoice')
     def find_viability(ap):
         indices = list(range(len(ap.components)))
         random.shuffle(indices)
-        ap.logic.update_ap('indices', indices, ap.uniq_id) # For other reference
-        for ci in indices:
-            if EVAL_T==ap.components[ci].find_viability(): 
+        for i in indices:
+            c = ap.components[i]; ci = c.index
+            if EVAL_T==c.find_viability(): 
                 ap.logic.update_ap(ap.key, ci, ap.uniq_id)
                 return ap.VIABLE()
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
-        ap.components[ap.logic.view_my('choice', ap.uniq_id)].implement()
-    def reset(ap): 
-        ap.viability = EVAL_U; 
-        for c in ap.components: c.reset()
-        ap.logic.update_ap('indices', EVAL_U, ap.uniq_id)
-        ap.logic.update_ap('choice', EVAL_U, ap.uniq_id)
+        ap.components[ap.logic.view_my(ap.key, ap.uniq_id)].implement()
+    def reset(ap):
+        ap.viability = EVAL_U
+        for a in ap.components[:ap.logic.view_my(ap.key, ap.uniq_id)]: a.reset()
+
 
 
 # COND: basic conditional. Returns what <do> returns only when <cond>, else EVAL_T
@@ -120,3 +119,21 @@ class TryCatch(ActionPicker):
         if ap.ca: ap.ca.reset()
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
 def Try(logic, tr): return TryCatch(logic, tr, None)
+
+
+class MessageNearbyRedraw(ActionPicker):
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
+        ap.write_state_access=True
+        if ap.logic.agent.species=='plyr':
+            R = [(-1,0),(1,0),(-1,1),(0,1),(1,1),(-1,-1),(0,-1),(1,-1),(0,-2)]
+        else: R = [(-1,0),(1,0),(0,-1),(0,1)]
+        ap.logic.update_ap('range', R, ap.uniq_id)
+    def find_viability(ap): return ap.VIABLE()
+    def implement(ap):
+        print 'DEBUG',ap,ap.logic.agent,':',ap.logic._state.s_env
+        for (x,y) in ap.logic.view_my('range', ap.uniq_id):
+            targ_tid = addvec(ap.logic.view_sensor('tpos'),(x,y))
+            ap.logic.gm.send_message(tpos=targ_tid, \
+                                     message='redraw', \
+                                     notify_display=True)

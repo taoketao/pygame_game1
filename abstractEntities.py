@@ -23,6 +23,7 @@ class Entity(object):
         ent.uniq_id = gm.uniq_id_counter
         ent.gm = gm
         ent.species = 'Stub None you must override!! : Entity'
+        ent.has_logic=False
 
 #class GhostEntity(Entity):
 #    # 'half-subclass' that is an entity augmented with Sprite essentials like
@@ -139,8 +140,11 @@ class Entity(object):
 #
 #
 
+  
+
 class VisualStepAgent(Entity):
     def __init__(ta, gm, init_ppos=None, init_tpos=None, belt_init=None):
+        print ta, gm, init_ppos, init_tpos, belt_init
         Entity.__init__(ta, gm)
         if not init_tpos: init_tpos = divvec(init_ppos, ta.gm.ts())
 
@@ -205,5 +209,4 @@ class TileAgent(VisualStepAgent): # Standard agent that operates in increments o
                 init_ppos = multvec(init_tpos, gm.ts()), belt_init=belt_init)
         ta.species += '[Stub: TileAgent]'
     def get_pstep(ta): return ta.gm.ts()
-        
-
+      

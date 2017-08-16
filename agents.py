@@ -77,12 +77,46 @@ class Player(VisualStepAgent):
     def get_num_actions(ego): return len(ego._belt.Actions)
 
 
+class AIAgent(TileAgent):
+    def __init__(ai, gm, initloc, **options):
+        TileAgent.__init__(ai, gm, initloc)
+        ai.primary_delay = 0.3
+        ai.species = 'pkmn'
+        ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
+        ai._belt = Belt(gm, ai, 'wild pokemon', options=options)
+        ai._logic = Logic(gm, ai, ai._belt, options)
+        ai._logic.update_global('curtid',initloc)
+        ai.initialized = True
+        ai.pokedex = options['pokedex']
+        ai.default_img_offset = multvec(gm.ts(), (0.0,0.3))
+
+    def Reset(ai):         ai._logic.Update()
+    def PrepareAction(ai): ai._logic.Decide()
+    def DoAction(ai):      ai._logic.Implement()
+
+    def set_img(ai, which_img, reset=None): 
+        if (not type(which_img)==str) or not which_img in MTNKEYS: \
+                raise Exception(which_img, type(which_img))
+        s = 'pkmn sprite '+str(ai.pokedex)+which_img
+        if ai._logic.view('prevtid')==ai._logic.view('curtid') and not reset:
+            ai.gm.notify_imgChange(ai, s)
+        elif not reset:
+            ai.gm.notify_imgChange(ai, s, prior=(ai._logic.view("prevtid"), 'tpos'))
+        else:
+            ai.gm.notify_imgChange(ai, s, prior=(reset, 'tpos'))
+
+        h.redraw(prev_tpos)
+    def get_pstep(ai): return ai.gm.ts()
+
+
+
+
 class Highlighter(TileAgent):
     ''' An abstract highlighter class. Provide the <targeter> a sensor that
         returns a TPOS to put this highlighter on. '''
     def __init__(h, gm):
         TileAgent.__init__(h, gm, (0,0))
-        h.string_sub_class = 'target'
+        h.species='target'
         h.image = pygame.Surface(gm.tile_size).convert_alpha()
         h.prev_position = (0,0)
         h.targeter = None;
@@ -149,7 +183,8 @@ class MouseTarget(Highlighter):
         h.team = '--targets--'
         h.targeter = GetMouseTIDSensor(gm)
         h.targeter.set_state('stateless')
-#        h.color = (180,0,0,160)
+
+
 
 #
 #

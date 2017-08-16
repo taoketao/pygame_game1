@@ -37,26 +37,31 @@ class Logic(Entity):
 
         # Read and process messages:
         while len(logic.message_queue)>0:
-            print "processing message..."
+            print "processing message...",logic.message_queue[0]
             msg = logic.message_queue.pop(0)
-            logic._state.update_ext(msg[0],msg[1])
+            logic._state.update_global(msg[0],msg[1])
 
-        # Notify actions and ActionPickers that they can reset for next frame:
+        # Rescan sensors:
+        for snm,sensor in logic.belt.Sensors.items():
+            sensor.rescan()
+            if snm in ['tpos','ppos']: # Self-reference these.
+                logic.get_sensor(snm).agent_id = logic.agent.uniq_id
+
+        # Reset Actions and ActionPickers:
         logic.root_ap.reset()
+
+        # Update interlocking global fields:
         put = logic._state.update_env
         if logic.agent.species=='plyr': 
             # Update _state for new frame for PLAYER:
             # (ideally, sensors would offload most of this)
-
             put('prev move vec', logic.view('curr move vec'))   # do both these lines
             put('curr move vec', logic.gm.events[:4])           # with a Sensor
             put('triggered actions', logic.gm.events[4:])
-#            print '---'
-
-#        prev_inds = ap.logic.view('prev move vec')
-
-        for snm,sensor in logic.belt.Sensors.items():
-            sensor.rescan()
+        if logic.agent.species=='pkmn':
+            logic.update_global('delay',logic.view('delay')-logic.gm.fpms)
+            logic.update_global('prevtid', logic.view('curtid'))
+            logic.update_global('curtid', logic.view_sensor('tpos'))
 
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
@@ -72,24 +77,28 @@ class Logic(Entity):
     ''' ----------  Private methods  ---------- '''
 
     def __init__(logic, gm, agent, belt=None, init_belt=None, init_ppos=None):
+        print '^^',logic, gm, agent, belt
         Entity.__init__(logic, gm)
+        agent.has_logic=True
         logic._state = State(gm, belt)
         logic.agent = agent
         if belt: 
             logic.belt = belt
-            for action in belt.Actions.values(): action.logic=logic
+#            for action in belt.Actions.values(): action.logic=logic
         logic.message_queue = []
-        logic._state.setup_fields(agent.species, logic, ppos=init_ppos)
+        logic._state.setup_fields(agent.species, parent_logic=logic, ppos=init_ppos)
+        print 'agent.species', agent.species
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':
             logic.root_ap = MouseActionPicker(logic)
+        elif agent.species=='pkmn':
+            logic.root_ap = WildPkmnBehavior(logic)
         else:
             raise Exception('not impl yet')
         
         logic.root_ap.reset()
 
-    def get_sensor(logic, name): return logic.belt.Sensors.get(name, False)
 
     def view_my(logic, what, who): return logic._state.view_ap(what, who)
     def view(logic, what):  return logic._state.view_env(what)
@@ -99,9 +108,11 @@ class Logic(Entity):
     def get_resource(logic, database, which_resource):
         if database=='plyr img':
             return logic.gm.imgs['player sprite '+str(which_resource)]
+
+    def get_sensor(logic, name): return logic.belt.Sensors.get(name, False)
     def has_sensor(logic, what_sensor):
         return not logic.get_sensor(what_sensor)==False
-#
+
     def plyr_steps(logic, dvec): 
         if not logic.agent.species=='plyr': 
             raise Exception('notice: not plyr object')
@@ -122,37 +133,12 @@ class Logic(Entity):
         if not a in logic._state.s_env['PDA']:
             logic._state.s_env['PDA'].insert(0, a)
 
-#    def detect(logic, what_sensor, agent_id=None): 
-#        # specialty method that both primes and accesses
-#        s=logic.get_sensor(what_sensor)
-#        u=s.sense(agent_id)
-#        t=s.access()
-#        return t
-#
-#    def downgrade_PDA(logic, index):
-#        if not type(index)==int: index = index.index # hack city
-#        a = logic.belt.Actions[index_to_ltr(index)]
-#        if a in logic._state.s_env['PDA']:
-#            logic._state.s_env['PDA'].pop(a)
-#            logic._state.s_env['PDA'].append(a)
-#        else:
-##            logic._state.s_env['PDA'].remove(a)
-##            logic._state.s_env['PDA'].append(a)
-##            print " ->> downgrading:", a
-#            pass#logic._state.s_env['PDA'].append(a)
-#
-#    def clear_PDA(logic):
-#        logic._state.s_env['PDA'] = [logic.belt.Actions['-']]
     def get_PDA(logic):
         try: 
             return logic._state.s_env['PDA'][0]
         except: 
-#            print 'Exception',logic._state.s_env['PDA']
             logic.push_PDA(-1)
             return logic.belt.Actions['-']
-#    def append_PDA(logic, which_pda, element):
-#        if not element in logic._state.s_env[which_pda]:
-#            logic._state.s_env[which_pda].append(element)
 #
     def do_default(logic): return EVAL_T # semi-stub
 

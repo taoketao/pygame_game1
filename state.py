@@ -1,4 +1,7 @@
+import  sys
 from abstractEntities import Entity
+from motionActions import *
+from attackActions import *
 
 '''             State               '''
 
@@ -13,8 +16,9 @@ that are ActionPicker, the State maintains various information fields.'''
 
 
 class State(Entity): # i do not write, so no need to have logic
-    def __init__(st, gm, belt=None):
+    def __init__(st, gm, belt=None, options=None):
         Entity.__init__(st, gm)
+        st.init_options=options
         st.gm = gm
         st.s_env = {} # environment info and holistic internal state
         st.s_ap = {} # space reserved for ActionPickers to store exec data
@@ -28,27 +32,26 @@ class State(Entity): # i do not write, so no need to have logic
         if not st.s_ap.has_key(who):
             st.s_ap[who] = {}
         st.s_ap[who][key] = val
-    def view_ap(st, what, who):  return st.s_ap[who][what]
-
-    def update_env(st, key, val): 
-#        if not key in st.s_env.keys(): raise Exception(key, val, \
-#                "Global field was not initialized; please specify in setup or use Sensor.")
-        st.s_env[key] = val
-    def view_env(st, what):
-        return st.s_env[what]
+    def view_ap(st, what, who):     return st.s_ap[who][what]
+    def update_env(st, key, val):   st.s_env[key] = val
+    def view_env(st, what):         return st.s_env[what]
 
     # Initialize and define global fields. All globals must start here.
-    def setup_fields(st, genus, parent_logic, ppos=None):
+    def setup_fields(st, genus, parent_logic, ppos=None, tpos=None):
         st._init_sensors(parent_logic)
-        st._init_actions(parent_logic)
+        st._init_actions(parent_logic, genus)
 
         st.s_env['tilesize'] = st.gm.tile_size
+        st.s_env['redraw'] = EVAL_F
         if genus=='plyr':   st.setup_plyr_fields(parent_logic)
         if genus=='pkmn':   st.setup_basic_pkmn_fields(parent_logic)
-        if genus=='target': st.setup_mouse(parent_logic) 
+        if genus=='target': st.setup_target(parent_logic) 
         if ppos:
             st.s_env['tpos'] = divvec(ppos, st.gm.ts())
             st.s_env['ppos'] = ppos
+        elif tpos:
+            st.s_env['tpos'] = multvec(tpos, st.gm.ts())
+            st.s_env['ppos'] = tpos
 
 
     def _init_sensors(st, parent_logic):
@@ -56,9 +59,20 @@ class State(Entity): # i do not write, so no need to have logic
         for sensor in st.belt.Sensors.values():
             sensor.set_state(st)
 
-    def _init_actions(st, parent_logic):
+    def _init_actions(st, parent_logic, genus):
+#        if genus=='pkmn': return
+#            print '\t',st.belt.Actions, parent_logic
+#            for k in ['l','r','u','d','-']:
+#                print '--',k
+#                st.belt.Actions[k]=st.belt.Actions[k]( parent_logic)
+#            for k in ['l','r','u','d','-']:
+#                print '--',k
+#                st.belt.Actions[k]=st.belt.Actions[k](parent_logic)
+#            sys.exit()
+#        print ''
+#        if not genus=='pkmn':
+#            tmp = {k:v(parent_logic) for k,v in st.belt.Actions.items()}
         st.belt.Actions = {k:v(parent_logic) for k,v in st.belt.Actions.items()}
-        st.s_env['available motions'] = st.belt.Actions # todo! For now.
 
     def setup_plyr_fields(st, parent_logic):
         # Simple status fields, eg primitives or fixed-structure collections:
@@ -72,6 +86,7 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['isPlayerActionable'] = True
         if not st.belt: raise Exception('Need at least an empty belt.')
 
+        st.s_env['available motions'] = st.belt.Actions # todo! For now.
         st.s_env['PDA']             = [st.belt.Actions['d']]
         # Dynamic fields:
         st.s_env['player motion rand pda'] = [st.s_env['available motions']['-']]
@@ -80,10 +95,21 @@ class State(Entity): # i do not write, so no need to have logic
   
 
 
-    def setup_mouse(st, logic):
-        st.s_env['mouse ppos'] = NULL_POSITION
+    def setup_target(st, logic): pass
 
-    def setup_basic_pkmn_fields(st):
+    def setup_basic_pkmn_fields(st, logic):
+        st.s_env['unit step'] = logic.gm.ts()
+        st.s_env['delay'] = 0.0
+        st.s_env['root delay'] = logic.agent.primary_delay
         st.s_env['is being caught'] = False
-        st.s_env['available motions'] = [MotionUp(st.gm), MotionDown(st.gm), \
-                MotionLeft(st.gm), MotionRight(st.gm), MotionStatic(st.gm) ]
+        st.s_env['motions'] = {k:v for k,v in st.belt.Actions.items()\
+                if k in ['r','l','u','d','-']}
+        st.s_env['attacks'] = {k:v for k,v in st.belt.Actions.items()\
+                if k in ['A']}
+
+#        st.s_env['attacks'] = {'tackle':Tackle(logic)}
+#        st.s_env['motions']=[]
+#        for m in [MotionUp, MotionRight, MotionDown, MotionLeft, MotionStatic]:
+#            st.s_env['motions'].append(m)
+#            if isinstance(v, MotionAction): st.s_env['motions'].append(v)
+#            if k=='tackle': st.s_env['attacks'].append(v)
