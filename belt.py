@@ -5,6 +5,7 @@ from sensors import *
 from playerActions import *
 from pokemonActions import *
 from motionActions import *
+from attackActions import *
 
 
 '''             Belt               '''
@@ -30,7 +31,7 @@ from motionActions import *
 #-------------#-------------#--------------#--------------#--------------
 
 class Belt(Entity):
-    def __init__(belt, gm, whose_belt, sp_init=None, std_sensor_suite=True): 
+    def __init__(belt, gm, whose_belt, sp_init=None, std_sensor_suite=True, options=None): 
         Entity.__init__(belt, gm)
         if not isinstance(whose_belt, VisualStepAgent): 
             raise Exception(type(whose_belt))
@@ -57,9 +58,18 @@ class Belt(Entity):
         elif sp_init=='target':
             belt.Actions = {}
             belt.Sensors, belt.Pkmn, belt.Items = None, None, None
+        elif sp_init=='wild pokemon':
+            belt.Actions ={ 'u':MotionUp,     \
+                            'd':MotionDown,   \
+                            'l':MotionLeft,   \
+                            'r':MotionRight,  \
+                            '-':MotionStatic,  \
+                            'A':DoAttack\
+                            }
+            belt.Sensors.update({'tile obstr':TileObstrSensor, \
+                                 'team detector':TeamDetector})
+            belt.Pkmn, belt.Items = None, None
         else: raise Exception("an easy, nbd exception but please implement.")
-        if not False: # situation
-            belt.Sensors.update({}) # Todo: gm.smooth sensor, etc
 
     def add_pkmn(belt, pkmn):
         belt.Pkmn.append(stored_pkmn(belt.gm, pkmn))
