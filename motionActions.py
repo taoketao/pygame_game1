@@ -19,6 +19,7 @@ class MotionAction(Action):
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
         cur_ppos = action.logic.view_sensor('ppos', agent_id=action.agent.uniq_id)
         unit_step = action.logic.view('unit step')
+#        print 'cur_ppos, unit_step, action.name, action.agent',cur_ppos, unit_step, action.name, action.agent
 
         if EVAL_F in [cur_ppos, unit_step]:
             print "ERR?: cur_ppos & unit_step", cur_ppos, unit_step

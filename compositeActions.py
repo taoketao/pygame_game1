@@ -131,7 +131,6 @@ class MessageNearbyRedraw(ActionPicker):
         ap.logic.update_ap('range', R, ap.uniq_id)
     def find_viability(ap): return ap.VIABLE()
     def implement(ap):
-        print 'DEBUG',ap,ap.logic.agent,':',ap.logic._state.s_env
         for (x,y) in ap.logic.view_my('range', ap.uniq_id):
             targ_tid = addvec(ap.logic.view_sensor('tpos'),(x,y))
             ap.logic.gm.send_message(tpos=targ_tid, \

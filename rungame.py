@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 20
+DEFAULT_FPS = 2
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -64,13 +64,14 @@ class GameManager(object): # *
                                 base_move_2 TEXT,       base_move_3 TEXT,
                                 catch_threshold INT  );''')
 
-        _db.execute(''' CREATE TABLE tile_occupants (uniq_id INT NOT NULL,  
-                                tx INT, ty INT, agent_type TEXT, team TEXT);''')
+#        _db.execute(''' CREATE TABLE tile_occupants (uniq_id INT NOT NULL,  
+#                                tx INT, ty INT, agent_type TEXT, team TEXT);''')
 
-        _db.execute(''' CREATE TABLE agent_locations (
-                        uniq_id INT NOT NULL, 
-                        tx INT NOT NULL,    ty INT NOT NULL,
-                        px INT NOT NULL,    py INT NOT NULL   ); ''') 
+        _db.execute(''' CREATE TABLE agent_status (
+                        uniq_id INT NOT NULL,   img_str TEXT,
+                        tx INT NOT NULL,        ty INT NOT NULL,
+                        px INT NOT NULL,        py INT NOT NULL,
+                        agent_type TEXT,        team TEXT           ); ''') 
 
         
         cp = ConfigParser.ConfigParser()
@@ -132,16 +133,51 @@ class GameManager(object): # *
             FRAME_COUNTER+=1
             gm._run_frame()
 
+    def _init_game(gm, fps=DEFAULT_FPS):
+        gm.fps = float(fps)     # frames per second
+        gm.fpms = fps/1000.0    # frames per millisecond
+        gm.fps_itr = 0
+        gm.clock = pygame.time.Clock()  # clock object for frame smoothness
+        gm.last_tick = 0            # clock counter field
+        gm.update_queue = []
+
+        gm.Agents, gm.Effects = {},{}
+        gm.Agents.update(  { 'Player': Player(gm, 'init') })
+        gm.Effects.update( { 'Mouse': MouseTarget(gm) })
+        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
+        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,2), pokedex=1) } )
+
+        gm.process_update_queue() # after entities have been initialized...
+        gm._reset_events()
+        gm.prev_e = gm.events[:]
+        gm.buttonUp = { SP_ACTION: True }
+
+        if 'false'=='Pass this now via comment':
+            pkmn_id = '1' # stub
+            for team, pos in [ ('wild', (1,2)),  ('wild', (3,3))]:
+                optns = {'which_pkmn':pkmn_id, 'pos':pos}
+                optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
+                            gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
+                attrs = ['stepsize_x', 'stepsize_y', 'move_range', 'move_speed',\
+                        'base_health', 'catch_threshold'] 
+                for a in attrs:
+                    optns[a] = gm.db.execute( ' SELECT '+a+\
+                            ' FROM pkmn_prefabs WHERE pkmn_id=?;', \
+                            (pkmn_id,)).fetchone()[0]
+                gm.create_new_ai(team,'pkmn', optns)
+
     def active_entities(gm): return gm.Agents.values() + gm.Effects.values()
     def BroadcastAll(gm, fn_name): 
         return map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
+        print 'current agent_status db:', gm.db.execute('SELECT * FROM agent_status').fetchall()
         gm._punch_clock()
         gm._get_events()
         gm.BroadcastAll('Reset')
         gm.BroadcastAll('PrepareAction')
         gm.BroadcastAll('DoAction')
+        gm.process_update_queue()
         gm.display.std_render()
 
 
@@ -193,37 +229,6 @@ class GameManager(object): # *
 
 
 
-    def _init_game(gm, fps=DEFAULT_FPS):
-        gm.fps = float(fps)     # frames per second
-        gm.fpms = fps/1000.0    # frames per millisecond
-        gm.fps_itr = 0
-        gm.clock = pygame.time.Clock()  # clock object for frame smoothness
-        gm.last_tick = 0            # clock counter field
-
-        gm.Agents, gm.Effects = {},{}
-        gm.Agents.update(  { 'Player': Player(gm, 'init') })
-        gm.Effects.update( { 'Mouse': MouseTarget(gm) })
-        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
-        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,2), pokedex=1) } )
-
-        gm._reset_events()
-        gm.prev_e = gm.events[:]
-        gm.buttonUp = { SP_ACTION: True }
-
-        if 'false'=='Pass this now via comment':
-            pkmn_id = '1' # stub
-            for team, pos in [ ('wild', (1,2)),  ('wild', (3,3))]:
-                optns = {'which_pkmn':pkmn_id, 'pos':pos}
-                optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
-                            gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
-                attrs = ['stepsize_x', 'stepsize_y', 'move_range', 'move_speed',\
-                        'base_health', 'catch_threshold'] 
-                for a in attrs:
-                    optns[a] = gm.db.execute( ' SELECT '+a+\
-                            ' FROM pkmn_prefabs WHERE pkmn_id=?;', \
-                            (pkmn_id,)).fetchone()[0]
-                gm.create_new_ai(team,'pkmn', optns)
-
     
     ''' _reset_events: clear the active stored events '''
     def _reset_events(gm):
@@ -248,50 +253,81 @@ class GameManager(object): # *
 #       and use query/message when talking to other agents. *
 #----------#----------#----------#----------#----------#----------#----------
 
-    def notify_new_agent(gm, agent_ref, init_tpos):
-        init_ppos = multvec(init_tpos, gm.tile_size)
+    def process_update_queue(gm):
+        sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
+        gm.prev_agent_information = gm.db.execute(sql_get_tocc).fetchall()
+#        print gm.prev_agent_information
+        old_tposes = set(gm.prev_agent_information)
+        while(len(gm.update_queue)>0):
+            cmd, values = gm.update_queue.pop(0)
+#            print '\texecuting command:',cmd,values
+            gm.db.execute(cmd, values)
+        new_tposes = set(gm.db.execute(sql_get_tocc).fetchall());
+        for tx,ty,ent_type in old_tposes.union(new_tposes):
+            gm.display.queue_reset_tile((tx,ty), 'tpos')
+
+        sql_get_pposes = 'SELECT px,py,agent_type,img_str FROM agent_status;'
+        img_pposes = set(gm.db.execute(sql_get_pposes).fetchall());
+        for px,py,ent_type,img_str in img_pposes:
+            if ent_type in [u'target']:
+                gm.display.queue_E_img(img_str, (px,py))
+            if ent_type in [u'plyr', u'pkmn']:
+                gm.display.queue_A_img(img_str, (px,py))
+            
+    def notify_image_update(gm, agent_ref, img_str, new_image=None):
+        if not new_image==None: gm.display.imgs[img_str]=new_image
+        upd = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
+        gm.update_queue.append([upd, (img_str,agent_ref.uniq_id)])
+    
+    def notify_update_agent(gm, agent_ref, **args):
+        sql_upd = 'UPDATE agent_status SET '
+        Vals = []
+        for ak,av in args.items():
+            Vals.append( av )
+            sql_upd += ak+'=?,'
+        sql_upd = sql_upd[:-1]+' '
+        Vals.append(agent_ref.uniq_id)
+        sql_upd += 'WHERE uniq_id=?;'
+        gm.update_queue.append( [sql_upd, tuple(Vals)] )
+        
+    def notify_new_agent(gm, agent_ref, **args):
+        init_tpos = args['tpos']
+        init_ppos = multvec(args['tpos'], gm.tile_size)
         if not divvec(init_ppos, gm.tile_size)==init_tpos: \
                 raise Exception(divvec(init_ppos, gm.tile_size),init_tpos)
-        gm.db.execute('INSERT INTO agent_locations VALUES (?,?,?,?,?);',\
-                      ( agent_ref.uniq_id, \
-                        init_tpos[X], init_tpos[Y], \
-                        init_ppos[X], init_ppos[Y] ))
-        pass # Stub. This maintains a database that requires tpos 
-        # (for others' access) and can take optional ppos or locpos as well;
-        # ppos will always be inferred, and locpos can be used for other modes
-        # of interaction that are better handled as converted back-and-forth.
+        sql_ins = 'INSERT INTO agent_status VALUES (?,?,?,?,?,?,?,?);'
+        Vals = [agent_ref.uniq_id, args.get('img', '--no-img--'), \
+                init_tpos[X], init_tpos[Y], init_ppos[X], init_ppos[Y],\
+                args.get('agent_type', agent_ref.species), \
+                args.get('team','--no-team--') ]
+        gm.update_queue.append( [sql_ins, Vals] ) 
 
-    def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False, img=None):
+    def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False):
         tx, ty = divvec(ploc, gm.ts())
-        gm.db.execute('''UPDATE OR FAIL agent_locations SET tx=?, ty=?, px=?, py=?
-             WHERE uniq_id=?;''', (tx, ty, ploc[X], ploc[Y], agent_id))
-        gm.db.execute('''UPDATE OR FAIL tile_occupants SET tx=?, ty=?
-             WHERE uniq_id=?;''', (tx, ty, agent_id))
-#        print "--New DB:", gm.db.execute('SELECT * FROM tile_occupants').fetchall()
+        upd = 'UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? WHERE uniq_id=?;'
+        gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
 
-    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):
-        if where=='not provided':
-            where = gm.request_ppos(ref_who.uniq_id)
-        if not prior==None:
-            prev_where = {'ppos':prior[0], 'tpos':multvec(prior[0],gm.ts())}[prior[1]]
-            if where==prev_where:
-                pass
-
-        where = sub_aFb(ref_who.default_img_offset, where)
-
-
-        { True: gm.display.queue_A_img, False: gm.display.queue_E_img}[\
-                isinstance(ref_who, VisualStepAgent)](ref_who.uniq_id, img_name, where)
-        if prior: gm.display.queue_reset_tile(prior[0], prior[1])
+#    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):
+#        if where=='not provided':
+#            where = gm.request_ppos(ref_who.uniq_id)
+#        if not prior==None:
+#            prev_where = {'ppos':prior[0], 'tpos':multvec(prior[0],gm.ts())}[prior[1]]
+#            if where==prev_where:
+#                pass
+#
+#
+#        { True: gm.display.queue_A_img, False: gm.display.queue_E_img}[\
+#                isinstance(ref_who, VisualStepAgent)](ref_who.uniq_id, img_name, where)
+#        if prior: gm.display.queue_reset_tile(prior[0], prior[1])
 
     def request_tpos(gm, agent_id):
         if not type(agent_id)==int:
             agent_id = gm.Agents[agent_id].uniq_id
-        q = 'SELECT tx,ty FROM agent_locations WHERE uniq_id=?;'
+        q = 'SELECT tx,ty FROM agent_status WHERE uniq_id=?;'
         return gm.db.execute(q, (agent_id,)).fetchall()[0]
 
     def request_ppos(gm, agent_id): # return if possible, else NULL_POSITION.
-        q = 'SELECT px,py FROM agent_locations WHERE uniq_id=?;'
+        q = 'SELECT px,py FROM agent_status WHERE uniq_id=?;'
         return gm.db.execute(q, (agent_id,)).fetchall()[0]
 
     def request_mousepos(gm, mode):
@@ -300,15 +336,20 @@ class GameManager(object): # *
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
     def send_message(gm, **arglist):
+        return
+    '''
         print "message to be routed:", arglist,
         if arglist['message']=='redraw':
             tid = arglist['tpos']
+
+            gm.db.execute("SELECT uniq_id FROM agent_status;").fetchall()
             for _,ent_id,__ in gm.get_tile_occupants(tid):
                 ent = gm.entities[ent_id]
                 print '(sent to',ent.species,')',
                 if ent.has_logic:
                     ent.logic.notify('redraw', tid)
         print ''
+        '''
 
 #----------#----------#----------#----------#----------#----------#----------
 #       End of fresh code * (stubs)
@@ -352,14 +393,24 @@ class GameManager(object): # *
                 " FROM tilemap WHERE tx=? AND ty=?;", tid).fetchall()
         return gm.get_tile_occupants(tid), ret
 
+    def query_tile_for_blck(gm, tid, what='*'): 
+        if type(what)==list: what = ','.join(what)
+        if gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
+                tid).fetchone() == (u'true', ):
+            return True
+        n_agents = gm.db.execute("""SELECT count(*) FROM agent_status 
+            WHERE tx=? AND ty=? AND NOT agent_type=?;""",\
+                    (tid[X],tid[Y], u'target') )
+        return n_agents>0
+
     # Returns: select or full list of tuples [agent_type, uniq_id, team].
     def get_tile_occupants(gm, tid=None):
         if tid==None:
             return gm.db.execute(\
-                    """SELECT tx,ty,agent_type FROM tile_occupants;""")\
+                    """SELECT tx,ty,agent_type FROM agent_status;""")\
                     .fetchall()
         return gm.db.execute(\
-                """SELECT agent_type,uniq_id,team FROM tile_occupants 
+                """SELECT agent_type,uniq_id,team FROM agent_status 
                     WHERE tx=? AND ty=?;""", tid).fetchall()
 
     

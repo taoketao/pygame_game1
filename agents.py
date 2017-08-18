@@ -39,13 +39,19 @@ MOUSE_GRAD = (180,160,60)
 
 class Player(VisualStepAgent):
     def __init__(ego, gm, belt):
-        VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos =\
-                                 divvec(gm.map_num_tiles,3) )
+        init_tpos = divvec(gm.map_num_tiles,3) 
+        init_ppos=multvec(init_tpos,gm.ts())
+        VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos=init_tpos)
         ego.species='plyr'
+        ego.team = '--plyr--'
         ego.stepsize_x, ego.stepsize_y = \
                 ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
         ego._belt = (Belt(gm, ego, 'basic player') if belt=='init' else belt)
         ego._logic = Logic(gm, ego, ego._belt)
+        ego.gm.notify_update_agent(ego, img_str='player sprite 7', team=ego.team,\
+                            agent_type=ego.species)
+        ego.gm.notify_update_agent(ego, tx=init_tpos[X], ty=init_tpos[Y],\
+                            px=init_ppos[X], py=init_ppos[Y])
         ego.initialized = True
 
     ''' Methods: Game Manager to PlayerAgent '''
@@ -63,9 +69,10 @@ class Player(VisualStepAgent):
 
     ''' Methods: fulfill inheritance. '''
     def set_img(ego, which_img): 
+#        print '\tego setting img',which_img
         if (not type(which_img)==int) or not which_img in range(12): \
                 raise Exception(which_img, type(which_img))
-        ego.gm.notify_imgChange(ego, 'player sprite '+str(which_img+1))
+        ego.gm.notify_image_update(ego, 'player sprite '+str(which_img+1))
     def get_pstep(ego): return multvec(ego.stepsize, ego.gm.smoothing())
 
     ''' Methods: available to many for read.  ( No need to overwrite 
@@ -82,6 +89,7 @@ class AIAgent(TileAgent):
         TileAgent.__init__(ai, gm, initloc)
         ai.primary_delay = 0.3
         ai.species = 'pkmn'
+        ai.team = '--wild--'
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         ai._belt = Belt(gm, ai, 'wild pokemon', options=options)
         ai._logic = Logic(gm, ai, ai._belt, options)
@@ -89,12 +97,20 @@ class AIAgent(TileAgent):
         ai.initialized = True
         ai.pokedex = options['pokedex']
         ai.default_img_offset = multvec(gm.ts(), (0.0,0.3))
+        ai.gm.notify_update_agent(ai, img_str='pkmn sprite '+str(ai.pokedex)+'d',
+                    team=ai.team, agent_type=ai.species)
+#        ai.gm.notify_update_agent(ai, tx=init_tpos[X], ty=init_tpos[Y],\
+#                            px=init_ppos[X], py=init_ppos[Y])
+
 
     def Reset(ai):         ai._logic.Update()
     def PrepareAction(ai): ai._logic.Decide()
     def DoAction(ai):      ai._logic.Implement()
 
     def set_img(ai, which_img, reset=None): 
+#        print '\tai setting img',which_img
+        ai.gm.notify_image_update(ai, 'pkmn sprite '+str(ai.pokedex)+which_img)
+        return
         if (not type(which_img)==str) or not which_img in MTNKEYS: \
                 raise Exception(which_img, type(which_img))
         s = 'pkmn sprite '+str(ai.pokedex)+which_img
@@ -105,7 +121,7 @@ class AIAgent(TileAgent):
         else:
             ai.gm.notify_imgChange(ai, s, prior=(reset, 'tpos'))
 
-        h.redraw(prev_tpos)
+        #h.redraw(prev_tpos)
     def get_pstep(ai): return ai.gm.ts()
 
 
@@ -116,23 +132,27 @@ class Highlighter(TileAgent):
         returns a TPOS to put this highlighter on. '''
     def __init__(h, gm):
         TileAgent.__init__(h, gm, (0,0))
+        h.default_color = (0,0,0,255)
         h.species='target'
+        h.team = '--targets--'
         h.image = pygame.Surface(gm.tile_size).convert_alpha()
         h.prev_position = (0,0)
         h.targeter = None;
+        h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
+                    team=h.team, agent_type=h.species)
 
     def update_position_and_image(h): 
         prev_tpos = h.prev_position
         new_tpos = h.targeter.sense()
         h.draw_highlight(new_tpos)
-        h.redraw(prev_tpos)
+#        h.redraw(prev_tpos)
         h.prev_position = new_tpos
 
     def draw_highlight(h, tile_location):
         try:
             r,g,b,a = h.color
         except:
-            r,g,b,a = (0,0,0,255)
+            r,g,b,a = h.default_color
         image = pygame.Surface(h.gm.ts()).convert_alpha()
         image.fill((0,0,0,0))
         tx,ty = h.gm.tile_size
@@ -158,10 +178,11 @@ class Highlighter(TileAgent):
                     s.fill( (r,g,b, MOUSE_GRAD[-1]) )
                 image.blit( s, location )
         h.display_parameters = (-1, image, addvec((1,1),multvec(tile_location,h.gm.ts())))
+        return image
 
-    def redraw(h, former): 
-        h.gm.display.queue_E_img( *h.display_parameters )
-        h.gm.display.queue_reset_tile(former)
+#    def redraw(h, former): 
+#        h.gm.display.queue_E_img( *h.display_parameters )
+#        h.gm.display.queue_reset_tile(former)
 
     def Reset(h): pass
     def PrepareAction(h): h.targeter.rescan()
@@ -171,18 +192,21 @@ class Highlighter(TileAgent):
 class PlayerHighlighter(Highlighter):
     def __init__(h, gm): 
         Highlighter.__init__(h, gm)
-        h.team = '--targets--'
         h.targeter = GetTPosSensor(gm, agent_id = h.gm.Agents['Player'].uniq_id)
         h.targeter.set_state('stateless')
         h.color = (60,120,180,60)
+        h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
+        h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
 
 
 class MouseTarget(Highlighter):
     def __init__(h, gm): 
         Highlighter.__init__(h, gm)
-        h.team = '--targets--'
         h.targeter = GetMouseTIDSensor(gm)
         h.targeter.set_state('stateless')
+        h.color=h.default_color
+        h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
+        h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
 
 
 

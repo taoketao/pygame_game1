@@ -13,15 +13,19 @@ class WildPkmnBehavior(ActionPicker):
         ActionPicker.__init__(ap, logic)
         ap.agent = logic.agent
         ap.write_state_access = True
-        ap.root = \
-            Sequential(logic, \
-                # wasCaughtProcessing(ap.logic) ,\
-                # is being caught,
-                [Priority(ap.logic, [ \
+        ap.root = Priority(ap.logic, [ \
                     Delay(ap.logic), \
                     # use attack move (a big AP itself),
-                    Wander(ap.logic), ] ),\
-                Redraw(ap.logic)])
+                    Wander(ap.logic) ] )
+#            Sequential(logic, \
+#                # wasCaughtProcessing(ap.logic) ,\
+#                # is being caught,
+#                [Priority(ap.logic, [ \
+#                    Delay(ap.logic), \
+#                    # use attack move (a big AP itself),
+#                    Wander(ap.logic) ] ),\
+#                #Redraw(ap.logic)\
+#                ])
     def find_viability(ap): 
         return ap.GETVIA(ap.root)
     def implement(ap): 
@@ -34,30 +38,31 @@ class PickRandMove(ActionPicker):
         ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
         ap.logic.update_ap('mov choice', 'd', ap.uniq_id)
-        ap.logic.update_ap('img choice', 'd', ap.uniq_id)
+        ap.logic.update_global('img choice', 'd')
         ap.components = components
-        ap.redraw = Redraw(logic)
+#        ap.Redraw = Redraw(logic)
 
     def find_viability(ap):
         indices = list(range(len(ap.components)))
         random.shuffle(indices)
         for ci in indices:
             a = ap.components[ci]
-            print '\t',a.name,  WHICH_EVAL[a.find_viability__tile()]
+#            print '\t',a.name,  WHICH_EVAL[a.find_viability__tile()]
             if EVAL_T==a.find_viability__tile(): 
                 ap.logic.update_ap('mov choice', a.name, ap.uniq_id)
                 ap.logic.update_global('img choice', a.name)
                 return ap.VIABLE()
         ap.logic.update_ap('mov choice', '-', ap.uniq_id)
-        ap.Verify(ap.redraw)
+#        ap.Verify(ap.Redraw)
         return ap.Verify(ap.logic.belt.Actions['-'])
     def implement(ap):
         assert(ap.viability==EVAL_T)
         ap.logic.update_global('delay', ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
+        ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
         #ap.redraw.implement_arg(prevtloc)
-        ap.redraw.implement(prevtloc)
+#        ap.Redraw.implement(prevtloc)
 
     def reset(ap): 
         ap.viability = EVAL_U; 
@@ -87,18 +92,18 @@ class Wander(ActionPicker):
         ap.chooser.implement()
     def reset(ap): ap.viability = EVAL_U; ap.chooser.reset()
 
-class Redraw(ActionPicker):
-    def __init__(ap, logic):
-        ActionPicker.__init__(ap, logic)
-    def find_viability(ap): return ap.VIABLE()
-#    def implement_arg(ap, prevtloc=None):
-    def implement(ap, prevtloc=None):
-        if prevtloc: 
-            ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
-        if not ap.logic.view('redraw')==ap.logic.view_sensor('tpos'):
-            ap.logic.agent.set_img(ap.logic.view('img choice'), ap.logic.view('redraw'))
-
-
+#class Redraw(ActionPicker):
+#    def __init__(ap, logic):
+#        ActionPicker.__init__(ap, logic)
+#    def find_viability(ap): return ap.VIABLE()
+##    def implement_arg(ap, prevtloc=None):
+#    def implement(ap, prevtloc=None):
+#        if prevtloc: 
+#            ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
+#        if not ap.logic.view('redraw')==ap.logic.view_sensor('tpos'):
+#            ap.logic.agent.set_img(ap.logic.view('img choice'), ap.logic.view('redraw'))
+#
+#
 
 
 

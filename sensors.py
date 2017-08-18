@@ -78,7 +78,7 @@ class GetTPosSensor(Sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
-        querystr = 'SELECT tx,ty FROM agent_locations WHERE uniq_id==?;'
+        querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
@@ -93,7 +93,8 @@ class GetPPosSensor(Sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
-        querystr = 'SELECT px,py FROM agent_locations WHERE uniq_id==?;'
+        querystr = 'SELECT px,py FROM agent_status WHERE uniq_id==?;'
+#        print 'db >>',sensor.gm.db.execute('SELECT * FROM agent_status').fetchall()
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
@@ -203,15 +204,23 @@ class TileObstrSensor(MultiSensor):
         except: blck = 'block_'+blck
         if sensor.query_priming(tid, blck)==EVAL_T:
             return sensor._retrieve(tid, blck)
-        occups, tileinfo = sensor.gm.query_tile(tid, blck)
-        if len([o for o in occups if o[0]==u'pkmn'])>0: 
-            sensor._store({(tid, blck): False})
-            return sensor.sense(tid, blck)
-        if not len(tileinfo)==1: 
-            raise Exception((tileinfo, tid))
-        blocked_res = [(u'true',)]==tileinfo
-        sensor._store({(tid,blck): blocked_res})
-        return blocked_res
+        block_res = sensor.gm.query_tile_for_blck(tid, blck)
+        sensor._store({(tid, blck): block_res})
+        return block_res
+##        occups, tileinfo = sensor.gm.query_tile(tid, blck)
+#        occups = sensor.gm.query_tile_for_blck(tid, blck_what)
+##        tileinfo = sensor.gm.query_tile(tid, blck)
+#        print '\n\n',occups,tileinfo 
+#        import sys; sys.exit()
+#
+#        if len([o for o in occups if o[0]==u'pkmn'])>0: 
+#            sensor._store({(tid, blck): False})
+#            return sensor.sense(tid, blck)
+#        if not len(tileinfo)==1: 
+#            raise Exception((tileinfo, tid))
+#        blocked_res = [(u'true',)]==tileinfo
+#        sensor._store({(tid,blck): blocked_res})
+#        return blocked_res
 
 # Query a tile for the teams of its occupants 
 class TeamDetector(MultiSensor): 

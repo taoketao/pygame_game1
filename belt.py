@@ -40,6 +40,7 @@ class Belt(Entity):
 
         belt.Sensors = {True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
                                 'smoothing':GetFrameSmoothingSensor ,\
+                                'tile obstr':TileObstrSensor, \
                                 'unit step':GetCurUnitStepSensor }, \
                         False: {} }[std_sensor_suite==True]
         
@@ -51,7 +52,7 @@ class Belt(Entity):
                             'l':MotionLeft,   \
                             'r':MotionRight,  \
                             '-':MotionStatic  }
-            belt.Sensors.update({'tile obstr':TileObstrSensor })
+            belt.Sensors.update({ })
         elif sp_init=='pokeball catch':
             belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}
             belt.Sensors = [WildEntSensor]
@@ -66,8 +67,7 @@ class Belt(Entity):
                             '-':MotionStatic,  \
                             'A':DoAttack\
                             }
-            belt.Sensors.update({'tile obstr':TileObstrSensor, \
-                                 'team detector':TeamDetector})
+            belt.Sensors.update({ })
             belt.Pkmn, belt.Items = None, None
         else: raise Exception("an easy, nbd exception but please implement.")
 

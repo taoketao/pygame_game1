@@ -98,17 +98,33 @@ class Display(Entity):
 
 
     def queue_reset_tile(disp, pos, tpos_or_ppos='tpos'):
-        print 'Adding tile for reset:', pos
         if tpos_or_ppos=='tpos':    
             disp._tiles_to_reset.append(pos)
         elif tpos_or_ppos=='ppos':  
             disp._tiles_to_reset.append(divvec(pos, disp.gm.ts()))
-    def queue_A_img(disp, Id, img, ppos):
-        disp._agent_update_tups.insert(0, (Id, img, ppos))
-    def queue_E_img(disp, Id, img, ppos):
-        disp._effect_update_tups.append( (Id, img, ppos) )
+    def queue_A_img(disp, img, ppos):
+        disp._agent_update_tups.insert(0, (img, ppos) )
+    def queue_E_img(disp, img, ppos):
+        disp._effect_update_tups.append( (img, ppos) )
 
     def std_render(disp):
+        print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset
+        query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
+        for tile in disp._tiles_to_reset:
+            tmp = disp.gm.db.execute(query, tile).fetchone()
+            base,obstr = tmp
+            ploc = multvec(tile, disp.gm.ts())
+            disp.screen.blit(disp.imgs[base], ploc)
+            if not obstr=='-':
+                disp.screen.blit(disp.imgs[obstr], ploc)
+        for img_str,ploc in disp._effect_update_tups + disp._agent_update_tups:
+            img = disp.imgs[img_str]
+            disp.screen.blit(img, ploc)
+        pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in disp._tiles_to_reset])
+        disp._wipe_queues()
+
+
+    def foo(disp):
         imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
         imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
         reset_tiles = disp._tiles_to_reset[:]
