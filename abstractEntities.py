@@ -32,7 +32,8 @@ class VisualStepAgent(Entity):
         if not init_tpos: init_tpos = divvec(init_ppos, ta.gm.ts())
         ta.species = 'Stub: VisualStepAgent'
         ta.initialized=False
-        ta.default_img_offset = multvec(gm.ts(), (0.4,0.9))
+        ta.image_offset = DEFAULT_IMAGE_OFFSET # Please change manually elsewhere for now.
+#        ta.img_offset = multvec(gm.ts(), (0.4,0.9))
         gm.notify_new_agent(ta, tpos=init_tpos)
 
     ''' set_img and get_pstep: these are the two core functionalities that 

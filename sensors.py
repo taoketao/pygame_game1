@@ -199,13 +199,13 @@ class TileObstrSensor(MultiSensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-        print "sensing tile",tid,'. Primings:', [(k,WHICH_EVAL[v]) for k,v in sensor.get_primings().items()]
+#        print "sensing tile",tid,'. Primings:', [(k,WHICH_EVAL[v]) for k,v in sensor.get_primings().items()]
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
         if sensor.query_priming(tid, blck)==EVAL_T: # premature optimization !!!
             pass#return sensor._retrieve(tid, blck)
         block_res = sensor.gm.query_tile_for_blck(tid, blck)
-        print 'Sensor returning',block_res
+#        print '...Sensor returning',block_res,'...'
 #        sensor._store({(tid, blck): block_res})
         return block_res
 

@@ -44,6 +44,7 @@ class Player(VisualStepAgent):
         VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos=init_tpos)
         ego.species='plyr'
         ego.team = '--plyr--'
+        ego.image_offset = multvec(gm.ts(), (0.4,0.9))
         ego.stepsize_x, ego.stepsize_y = \
                 ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
         ego._belt = (Belt(gm, ego, 'basic player') if belt=='init' else belt)
@@ -96,7 +97,8 @@ class AIAgent(TileAgent):
         ai._logic.update_global('curtid',initloc)
         ai.initialized = True
         ai.pokedex = options['pokedex']
-        ai.default_img_offset = multvec(gm.ts(), (0.0,0.3))
+#        ai.default_img_offset = multvec(gm.ts(), (0.0,0.3))
+#        ai.default_img_offset = multvec(gm.ts(), (-0.4,-0.9))
         ai.gm.notify_update_agent(ai, img_str='pkmn sprite '+str(ai.pokedex)+'d',
                     team=ai.team, agent_type=ai.species)
 #        ai.gm.notify_update_agent(ai, tx=init_tpos[X], ty=init_tpos[Y],\

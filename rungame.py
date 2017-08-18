@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 30
+DEFAULT_FPS = 12
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -145,7 +145,8 @@ class GameManager(object): # *
         gm.Agents.update(  { 'Player': Player(gm, 'init') })
         gm.Effects.update( { 'Mouse': MouseTarget(gm) })
         gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
-        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,2), pokedex=1) } )
+        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,3), pokedex=1) } )
+#        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (3,3), pokedex=1) } )
 
         gm.process_update_queue() # after entities have been initialized...
         gm._reset_events()
@@ -171,7 +172,7 @@ class GameManager(object): # *
         return map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
-#        print 'current agent_status db:', gm.db.execute('SELECT * FROM agent_status').fetchall()
+#        print 'current agent_status db:', [x for x in gm.db.execute('SELECT * FROM agent_status').fetchall() if not x[-1]==u'--targets--']
         gm._punch_clock()
         gm._get_events()
         gm.BroadcastAll('Reset')
@@ -267,21 +268,27 @@ class GameManager(object): # *
         for tx,ty,ent_type in old_tposes.union(new_tposes):
             gm.display.queue_reset_tile((tx,ty), 'tpos')
 
-        sql_get_pposes = 'SELECT px,py,agent_type,img_str FROM agent_status;'
+        sql_get_pposes = '''SELECT tx,ty,px,py,agent_type,img_str,uniq_id 
+                            FROM agent_status;'''
         img_pposes = set(gm.db.execute(sql_get_pposes).fetchall());
-        for px,py,ent_type,img_str in img_pposes:
+        for tx,ty,px,py,ent_type,img_str,uniq_id in img_pposes:
             if ent_type in [u'target']:
                 gm.display.queue_E_img(img_str, (px,py))
             if ent_type in [u'plyr', u'pkmn']:
-                gm.display.queue_A_img(img_str, (px,py))
+                offset = gm.entities[uniq_id].image_offset
+                gm.display.queue_A_img(img_str, sub_aFb(offset, (px,py)))
+            if ent_type ==u'plyr':
+                for i in [-1,0,1]: 
+                    for j in [-1,0,1]: 
+                        gm.display.queue_reset_tile((tx+i,ty+j), 'tpos')
             
     def _make_db_consistent_ppos_tpos(gm, cmd, values):
         try:
             set_what = cmd[cmd.index('SET')+4 : cmd.index('WHERE')]
             if not 'tx' in set_what: return
-            print cmd, values, '>>',set_what
+#            print cmd, values, '>>',set_what
         except:
-            print cmd,'!!!!!!!!!!!!!!'
+            pass#print cmd,'!!!!!!!!!!!!!!'
         gm._make_db_consistent(aus='ppos',at='tpos',where=None)
     def _make_db_consistent(gm, aus='ppos',at='tpos',where=None): pass
     def notify_image_update(gm, agent_ref, img_str, new_image=None):
@@ -313,6 +320,8 @@ class GameManager(object): # *
         gm.update_queue.append( [sql_ins, Vals] ) 
 
     def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False):
+#        ploc = sub_aFb(gm.entities[agent_id].image_offset, ploc)
+#        ploc = sub_aFb(ploc, gm.entities[agent_id].image_offset)
         tx, ty = divvec(ploc, gm.ts())
         upd = 'UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? WHERE uniq_id=?;'
         gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
@@ -403,16 +412,18 @@ class GameManager(object): # *
                 " FROM tilemap WHERE tx=? AND ty=?;", tid).fetchall()
         return gm.get_tile_occupants(tid), ret
 
+    # returns BLOCK=T, FREE=F
     def query_tile_for_blck(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)
-        print '---------',gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;",tid).fetchall(),
+#        print '---------',gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;",tid).fetchall()
         if gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
                 tid).fetchone() == (u'true',):
             return True
         n_agents = gm.db.execute("""SELECT count(*) FROM agent_status 
             WHERE tx=? AND ty=? AND NOT agent_type=?;""",\
                     (tid[X],tid[Y], u'target') ).fetchone()[0]
-        return n_agents>0
+        if n_agents==0: return False
+
 
     # Returns: select or full list of tuples [agent_type, uniq_id, team].
     def get_tile_occupants(gm, tid=None):

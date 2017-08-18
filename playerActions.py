@@ -44,6 +44,7 @@ class PickNewest(ActionPicker):
         # Three: filter attempted moves for viability
         for act in ap.components.values():
             av = act.find_viability()
+#            print '\tRESULT %-%-%-%-% :', act.name,     WHICH_EVAL[av]
             if av==EVAL_F:
                 ap.logic.pop_PDA(act.index)
         allowed_top_move = ap.logic.get_PDA()
@@ -65,7 +66,9 @@ class PickNewest(ActionPicker):
 
     def reset(ap):
         ap.viability=EVAL_U
-        for a in ap.components.values(): a.reset()
+        for a in ap.components.values(): 
+            a.reset()
+#        ap.logic.belt.Actions['-'].reset()
         
 
 # Actually carry out a picked action once ready:

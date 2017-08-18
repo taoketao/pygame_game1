@@ -34,3 +34,5 @@ def index_to_ltr(i):
 
 index_to_ltr = {0:'u',1:'l',2:'d',3:'r',-1:'-'}
 MTNKEYS = ['l','d','r','u','-']
+
+DEFAULT_IMAGE_OFFSET = (0.0,0.0)

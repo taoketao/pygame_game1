@@ -117,7 +117,10 @@ class Display(Entity):
             disp.screen.blit(disp.imgs[base], ploc)
             if not obstr=='-':
                 disp.screen.blit(disp.imgs[obstr], ploc)
-        for img_str,ploc in disp._effect_update_tups + disp._agent_update_tups:
+
+        upd_ents = disp._effect_update_tups + disp._agent_update_tups
+        upd_ents.sort(key=lambda x: x[1][1])
+        for img_str,ploc in upd_ents:
             img = disp.imgs[img_str]
             disp.screen.blit(img, ploc)
         pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in disp._tiles_to_reset])
