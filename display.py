@@ -108,7 +108,7 @@ class Display(Entity):
         disp._effect_update_tups.append( (img, ppos) )
 
     def std_render(disp):
-        print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset
+        #print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         for tile in disp._tiles_to_reset:
             tmp = disp.gm.db.execute(query, tile).fetchone()

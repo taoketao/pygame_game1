@@ -1,4 +1,5 @@
 import  sys
+import  numpy as np
 from abstractEntities import Entity
 from motionActions import *
 from attackActions import *
@@ -99,8 +100,8 @@ class State(Entity): # i do not write, so no need to have logic
 
     def setup_basic_pkmn_fields(st, logic):
         st.s_env['unit step'] = logic.gm.ts()
-        st.s_env['delay'] = 0.0
         st.s_env['root delay'] = logic.agent.primary_delay
+        st.s_env['delay'] = np.random.uniform(0.0, st.s_env['root delay'])
         st.s_env['is being caught'] = False
         st.s_env['motions'] = {k:v for k,v in st.belt.Actions.items()\
                 if k in ['r','l','u','d','-']}

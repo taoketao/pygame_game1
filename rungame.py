@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 2
+DEFAULT_FPS = 30
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -171,7 +171,7 @@ class GameManager(object): # *
         return map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
-        print 'current agent_status db:', gm.db.execute('SELECT * FROM agent_status').fetchall()
+#        print 'current agent_status db:', gm.db.execute('SELECT * FROM agent_status').fetchall()
         gm._punch_clock()
         gm._get_events()
         gm.BroadcastAll('Reset')
@@ -262,6 +262,7 @@ class GameManager(object): # *
             cmd, values = gm.update_queue.pop(0)
 #            print '\texecuting command:',cmd,values
             gm.db.execute(cmd, values)
+            gm._make_db_consistent_ppos_tpos(cmd, values)
         new_tposes = set(gm.db.execute(sql_get_tocc).fetchall());
         for tx,ty,ent_type in old_tposes.union(new_tposes):
             gm.display.queue_reset_tile((tx,ty), 'tpos')
@@ -274,6 +275,15 @@ class GameManager(object): # *
             if ent_type in [u'plyr', u'pkmn']:
                 gm.display.queue_A_img(img_str, (px,py))
             
+    def _make_db_consistent_ppos_tpos(gm, cmd, values):
+        try:
+            set_what = cmd[cmd.index('SET')+4 : cmd.index('WHERE')]
+            if not 'tx' in set_what: return
+            print cmd, values, '>>',set_what
+        except:
+            print cmd,'!!!!!!!!!!!!!!'
+        gm._make_db_consistent(aus='ppos',at='tpos',where=None)
+    def _make_db_consistent(gm, aus='ppos',at='tpos',where=None): pass
     def notify_image_update(gm, agent_ref, img_str, new_image=None):
         if not new_image==None: gm.display.imgs[img_str]=new_image
         upd = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
@@ -395,12 +405,13 @@ class GameManager(object): # *
 
     def query_tile_for_blck(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)
+        print '---------',gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;",tid).fetchall(),
         if gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
-                tid).fetchone() == (u'true', ):
+                tid).fetchone() == (u'true',):
             return True
         n_agents = gm.db.execute("""SELECT count(*) FROM agent_status 
             WHERE tx=? AND ty=? AND NOT agent_type=?;""",\
-                    (tid[X],tid[Y], u'target') )
+                    (tid[X],tid[Y], u'target') ).fetchone()[0]
         return n_agents>0
 
     # Returns: select or full list of tuples [agent_type, uniq_id, team].

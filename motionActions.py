@@ -25,7 +25,12 @@ class MotionAction(Action):
             print "ERR?: cur_ppos & unit_step", cur_ppos, unit_step
             return action.INVIABLE()
         query_ppos = addvec(multvec(action.posvec, unit_step), cur_ppos)
+        query_tpos = action.logic.pTOt(query_ppos)
+#        print query_tpos,divvec(query_ppos,action.gm.ts()),'\t\t<-'
 
+        # 8/18 TODO: this currently does not recognize *agent* collisions.
+        # further update:   ...or any collisions for that matter. But at least
+        # indeed updates are happening to the database.  Error located to sensor.
         if action.logic.agent.species in ['plyr', 'pkmn']:
             query_tpos = action.logic.pTOt(query_ppos)
             return action.GETTRUTH(action.logic.view_sensor('tile obstr', \
@@ -36,12 +41,13 @@ class MotionAction(Action):
         assert(isinstance(action.agent, TileAgent))
         assert(action.gm.ts() == action.logic.view('unit step'))
         assert(action.agent.species in ['pkmn'] )
-        if action.name=='-': return action.VIABLE()
+        if action.name=='-': 
+            print 'found -';return True
         #if action.viability in [EVAL_T, EVAL_F]: return action.viability
         cur_t = action.logic.view_sensor('tpos', agent_id=action.agent.uniq_id)
         query_t = addvec(action.posvec, cur_t)
         print "At", cur_t, "querying", query_t
-        return action.GETTRUTH(not action.logic.view_sensor('tile obstr', tid=query_t, blck='pkmn'))
+        return action.GETTRUTH(action.logic.view_sensor('tile obstr', tid=query_t, blck='pkmn'))
 
 
 

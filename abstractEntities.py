@@ -56,9 +56,9 @@ class VisualStepAgent(Entity):
         ta._logic = Logic(gm, ta, ta._belt)
    
     # Internal (gateway) motion function.
-    def _set_new_ppos(ta, ppos): 
+    def _set_new_ppos(ta, ppos, sp=None): 
         print 'MOVING'
-        if not ta.initialized: raise Exception("Not initialized")
+        if not (ta.initialized or sp=='initializing'): raise Exception("Not initialized")
         if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
 #        if ta._logic.view("ppos")==loc: return # optimization?
         ta.gm.notify_pmove(ta.uniq_id, ppos)
@@ -88,8 +88,11 @@ class PixelAgent(VisualStepAgent):
 
 class TileAgent(VisualStepAgent): # Standard agent that operates in increments of TILES.
     def __init__(ta, gm, init_tpos, belt_init=None):
-        VisualStepAgent.__init__(ta, gm, init_tpos=init_tpos, \
-                init_ppos = multvec(init_tpos, gm.ts()), belt_init=belt_init)
+        VisualStepAgent.__init__(ta, gm, init_tpos=(0,0), init_ppos=(0,0), \
+                                                         belt_init=belt_init)
+        ta._set_new_ppos(multvec(init_tpos, ta.gm.ts()), sp="initializing")
+#        VisualStepAgent.__init__(ta, gm, init_tpos=init_tpos, \
+#                init_ppos = multvec(init_tpos, gm.ts()), belt_init=belt_init)
         ta.species += '[Stub: TileAgent]'
     def get_pstep(ta): return ta.gm.ts()
       

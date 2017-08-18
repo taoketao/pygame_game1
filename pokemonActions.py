@@ -31,7 +31,9 @@ class WildPkmnBehavior(ActionPicker):
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
-    def reset(ap): ap.viability = EVAL_U; ap.root.reset()
+    def reset(ap): 
+        print 'RESETTING PKMN CORE BEHAVIOR'
+        ap.viability = EVAL_U; ap.root.reset()
 
 class PickRandMove(ActionPicker):
     def __init__(ap, logic, components):
@@ -44,11 +46,14 @@ class PickRandMove(ActionPicker):
 
     def find_viability(ap):
         indices = list(range(len(ap.components)))
-        random.shuffle(indices)
+#        random.shuffle(indices)
         for ci in indices:
             a = ap.components[ci]
 #            print '\t',a.name,  WHICH_EVAL[a.find_viability__tile()]
-            if EVAL_T==a.find_viability__tile(): 
+#            if EVAL_T==a.find_viability__tile(): 
+#            if EVAL_T==a.find_viability(): 
+#            print WHICH_EVAL[x], WHICH_EVAL[y], a.name, ap.logic.view_sensor('tpos'), ap.logic.view_sensor('ppos'), ap.logic.view('unit step'), a.posvec
+            if EVAL_T==a.find_viability(): 
                 ap.logic.update_ap('mov choice', a.name, ap.uniq_id)
                 ap.logic.update_global('img choice', a.name)
                 return ap.VIABLE()
@@ -60,6 +65,7 @@ class PickRandMove(ActionPicker):
         ap.logic.update_global('delay', ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
+        print '\t>> implemented',ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].name
         ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
         #ap.redraw.implement_arg(prevtloc)
 #        ap.Redraw.implement(prevtloc)

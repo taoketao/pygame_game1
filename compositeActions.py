@@ -47,7 +47,7 @@ class Priority(ActionPicker): # AKA, DoOneRetOne in order
         ap.components[ap.logic.view_my(ap.key, ap.uniq_id)].implement()
     def reset(ap):
         ap.viability = EVAL_U
-        for a in ap.components[:ap.logic.view_my(ap.key, ap.uniq_id)]: a.reset()
+        for a in ap.components: a.reset()
 
 # PickRand a.k.a. Random Priority: pick a viable element at random, if possible.
 # Very basic outline; customized overhauls are recommended.

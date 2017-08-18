@@ -57,7 +57,6 @@ class Logic(Entity):
             # (ideally, sensors would offload most of this)
             put('prev move vec', logic.view('curr move vec'))   # do both these lines
             put('curr move vec', logic.gm.events[:4])           # with a Sensor
-            print logic.view('curr move vec'), logic.view('prev move vec')
             put('triggered actions', logic.gm.events[4:])
         if logic.agent.species=='pkmn':
             logic.update_global('delay',logic.view('delay')-logic.gm.fpms)

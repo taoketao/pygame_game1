@@ -199,28 +199,15 @@ class TileObstrSensor(MultiSensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-#        print "sensing tile",tid,'. Primings:', sensor.get_primings()
+        print "sensing tile",tid,'. Primings:', [(k,WHICH_EVAL[v]) for k,v in sensor.get_primings().items()]
         try: assert(blck[:6]=='block_')
         except: blck = 'block_'+blck
-        if sensor.query_priming(tid, blck)==EVAL_T:
-            return sensor._retrieve(tid, blck)
+        if sensor.query_priming(tid, blck)==EVAL_T: # premature optimization !!!
+            pass#return sensor._retrieve(tid, blck)
         block_res = sensor.gm.query_tile_for_blck(tid, blck)
-        sensor._store({(tid, blck): block_res})
+        print 'Sensor returning',block_res
+#        sensor._store({(tid, blck): block_res})
         return block_res
-##        occups, tileinfo = sensor.gm.query_tile(tid, blck)
-#        occups = sensor.gm.query_tile_for_blck(tid, blck_what)
-##        tileinfo = sensor.gm.query_tile(tid, blck)
-#        print '\n\n',occups,tileinfo 
-#        import sys; sys.exit()
-#
-#        if len([o for o in occups if o[0]==u'pkmn'])>0: 
-#            sensor._store({(tid, blck): False})
-#            return sensor.sense(tid, blck)
-#        if not len(tileinfo)==1: 
-#            raise Exception((tileinfo, tid))
-#        blocked_res = [(u'true',)]==tileinfo
-#        sensor._store({(tid,blck): blocked_res})
-#        return blocked_res
 
 # Query a tile for the teams of its occupants 
 class TeamDetector(MultiSensor): 
