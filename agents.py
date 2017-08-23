@@ -20,7 +20,7 @@ from sensors import GetTPosSensor
 # latencies for Player:
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
-DEFAULT_STEPSIZE = 0.20
+DEFAULT_STEPSIZE = 0.29 # a prime?
 PLYR_CATCH_DIST = 0.5
 PLYR_COLL_BUF = 1+PLYR_COLL_WIDTH
 
@@ -40,7 +40,8 @@ MOUSE_GRAD = (180,160,60)
 class Player(VisualStepAgent):
     def __init__(ego, gm, belt):
         init_tpos = divvec(gm.map_num_tiles,3) 
-        init_ppos=multvec(init_tpos,gm.ts())
+        init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
+                range(1, min(gm.ts())), 2)))
         VisualStepAgent.__init__(ego, gm, belt_init = belt, init_tpos=init_tpos)
         ego.species='plyr'
         ego.team = '--plyr--'
@@ -83,26 +84,26 @@ class Player(VisualStepAgent):
         dy = (dirs[DDIR]-dirs[UDIR]) * ego.gm.smoothing() * ego.stepsize[Y]
         return (dx,dy)
     def get_num_actions(ego): return len(ego._belt.Actions)
+    def alias_sensor(ego, what_sensor): return ego._logic.get_sensor(what_sensor)
 
 
 class AIAgent(TileAgent):
-    def __init__(ai, gm, initloc, **options):
-        TileAgent.__init__(ai, gm, initloc)
+    def __init__(ai, gm, init_tloc, **options):
+        TileAgent.__init__(ai, gm, init_tloc)
         ai.primary_delay = 0.3
         ai.species = 'pkmn'
         ai.team = '--wild--'
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         ai._belt = Belt(gm, ai, 'wild pokemon', options=options)
         ai._logic = Logic(gm, ai, ai._belt, options)
-        ai._logic.update_global('curtid',initloc)
+        ai._logic.update_global('curtid',init_tloc)
         ai.initialized = True
         ai.pokedex = options['pokedex']
-#        ai.default_img_offset = multvec(gm.ts(), (0.0,0.3))
-#        ai.default_img_offset = multvec(gm.ts(), (-0.4,-0.9))
         ai.gm.notify_update_agent(ai, img_str='pkmn sprite '+str(ai.pokedex)+'d',
                     team=ai.team, agent_type=ai.species)
-#        ai.gm.notify_update_agent(ai, tx=init_tpos[X], ty=init_tpos[Y],\
-#                            px=init_ppos[X], py=init_ppos[Y])
+        px,py = gm._t_to_p(init_tloc)
+        ai.gm.notify_update_agent(ai, tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
+#        ai.gm.notify_tmove(ai.uniq_id, initloc)
 
 
     def Reset(ai):         ai._logic.Update()
@@ -140,13 +141,18 @@ class Highlighter(TileAgent):
         h.image = pygame.Surface(gm.tile_size).convert_alpha()
         h.prev_position = (0,0)
         h.targeter = None;
+        h.image_offset = (-2,-2)
         h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
                     team=h.team, agent_type=h.species)
 
     def update_position_and_image(h): 
         prev_tpos = h.prev_position
         new_tpos = h.targeter.sense()
+#        print 'me',h, prev_tpos, new_tpos, 
+        px,py=multvec(h.gm.ts(), new_tpos)
         h.draw_highlight(new_tpos)
+#        h.gm.notify_pmove(h.uniq_id, ploc=[px,py], opt_dont_update_tpoc=False)
+        h.gm.notify_pmove(h.uniq_id, multvec(h.gm.ts(), new_tpos))
 #        h.redraw(prev_tpos)
         h.prev_position = new_tpos
 
@@ -194,11 +200,16 @@ class Highlighter(TileAgent):
 class PlayerHighlighter(Highlighter):
     def __init__(h, gm): 
         Highlighter.__init__(h, gm)
-        h.targeter = GetTPosSensor(gm, agent_id = h.gm.Agents['Player'].uniq_id)
+        #h.targeter = GetTPosSensor(gm, agent_id = h.gm.Agents['Player'].uniq_id)
+        plyr = h.gm.Agents['Player']
+        h.targeter = plyr.alias_sensor('tpos')#gm, agent_id = uniq_id)
         h.targeter.set_state('stateless')
         h.color = (60,120,180,60)
+#        plyr_pos = h.gm.request_tpos(plyr.uniq_id)
+        # HACK: shouldn't be able to view agent's pos without sensor.
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
+        h.gm.reserved_tiles[(0,0)] = NULL_RESERVATION
 
 
 class MouseTarget(Highlighter):

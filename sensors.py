@@ -216,11 +216,10 @@ class TeamDetector(MultiSensor):
         sensor.access_name = "team detector"
 
     def sense(sensor, tid, pos=None):
-        if pos and dist(pos, tid)>radius: # for later.
+        if pos and dist(pos, tid, 'eucl')>radius: # for later impl
             sensor._store({tid: set()})
             return []
-        if sensor.query_priming(tid)==EVAL_T:
-            return sensor._retrieve(tid)
+        if sensor.query_priming(tid)==EVAL_T: return sensor._retrieve(tid)
         occups = sensor.gm.get_tile_occupants(tid) # list of a_type,id,team
         sensor._store({tid: set(o[2] for o in occups)})
         return sensor._retrieve(tid)

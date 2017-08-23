@@ -58,7 +58,7 @@ class VisualStepAgent(Entity):
    
     # Internal (gateway) motion function.
     def _set_new_ppos(ta, ppos, sp=None): 
-        print 'MOVING'
+#        print 'MOVING'
         if not (ta.initialized or sp=='initializing'): raise Exception("Not initialized")
         if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
 #        if ta._logic.view("ppos")==loc: return # optimization?

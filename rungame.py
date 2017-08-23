@@ -16,7 +16,7 @@ from display import Display
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (64,56);
 TILE_SIZE = (40,40);
-TILE_SIZE = (25,25);
+TILE_SIZE = (40,35);
 HUD_SIZE = TILE_SIZE[Y] # one tile
 X = 0;  Y = 1
 
@@ -103,6 +103,8 @@ class GameManager(object): # *
     def _init_global_fields(gm): # *
         gm.uniq_id_counter = 100
         gm.entities = {}
+        gm.reserved_tiles = {}
+        gm._frame_iter = 0
         gm._smoothing = 1.0          # animation smoothing factor
         (gm.num_x_tiles, gm.num_y_tiles) = gm.map_num_tiles
         gm.map_pix_size = (gm.map_x, gm.map_y) = \
@@ -140,6 +142,7 @@ class GameManager(object): # *
         gm.clock = pygame.time.Clock()  # clock object for frame smoothness
         gm.last_tick = 0            # clock counter field
         gm.update_queue = []
+        gm.prev_agent_information = []
 
         gm.Agents, gm.Effects = {},{}
         gm.Agents.update(  { 'Player': Player(gm, 'init') })
@@ -173,6 +176,8 @@ class GameManager(object): # *
 
     def _run_frame(gm):
 #        print 'current agent_status db:', [x for x in gm.db.execute('SELECT * FROM agent_status').fetchall() if not x[-1]==u'--targets--']
+        gm._frame_iter += 1
+        gm._prepare_new_frame()
         gm._punch_clock()
         gm._get_events()
         gm.BroadcastAll('Reset')
@@ -181,6 +186,10 @@ class GameManager(object): # *
         gm.process_update_queue()
         gm.display.std_render()
 
+    def _prepare_new_frame(gm):
+        gm.reserved_tiles = {}
+        sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
+        gm.prev_agent_information = gm.db.execute(sql_get_tocc).fetchall()
 
     ''' Using the clock, determine the time that passed since last frame
         and calculate a multiplicative factor to smooth animation. '''
@@ -256,18 +265,19 @@ class GameManager(object): # *
 
     def process_update_queue(gm):
         sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
-        gm.prev_agent_information = gm.db.execute(sql_get_tocc).fetchall()
+        #print 'gm.process_update_queue: print whole db.', gm.db.execute('SELECT img_str,tx,ty FROM agent_status;').fetchall()
 #        print gm.prev_agent_information
         old_tposes = set(gm.prev_agent_information)
         while(len(gm.update_queue)>0):
-            cmd, values = gm.update_queue.pop(0)
+#            for x in gm.update_queue[0]:
+#                print '----',x
+            cmd, values, what_kind = gm.update_queue.pop(0)
 #            print '\texecuting command:',cmd,values
             gm.db.execute(cmd, values)
-            gm._make_db_consistent_ppos_tpos(cmd, values)
         new_tposes = set(gm.db.execute(sql_get_tocc).fetchall());
+        if gm._frame_iter<=1: gm.display.queue_reset_tile((0,0), 'tpos')
         for tx,ty,ent_type in old_tposes.union(new_tposes):
             gm.display.queue_reset_tile((tx,ty), 'tpos')
-
         sql_get_pposes = '''SELECT tx,ty,px,py,agent_type,img_str,uniq_id 
                             FROM agent_status;'''
         img_pposes = set(gm.db.execute(sql_get_pposes).fetchall());
@@ -279,22 +289,13 @@ class GameManager(object): # *
                 gm.display.queue_A_img(img_str, sub_aFb(offset, (px,py)))
             if ent_type ==u'plyr':
                 for i in [-1,0,1]: 
-                    for j in [-1,0,1]: 
+                    for j in [-2,-1,0,1]: 
                         gm.display.queue_reset_tile((tx+i,ty+j), 'tpos')
-            
-    def _make_db_consistent_ppos_tpos(gm, cmd, values):
-        try:
-            set_what = cmd[cmd.index('SET')+4 : cmd.index('WHERE')]
-            if not 'tx' in set_what: return
-#            print cmd, values, '>>',set_what
-        except:
-            pass#print cmd,'!!!!!!!!!!!!!!'
-        gm._make_db_consistent(aus='ppos',at='tpos',where=None)
-    def _make_db_consistent(gm, aus='ppos',at='tpos',where=None): pass
+
     def notify_image_update(gm, agent_ref, img_str, new_image=None):
         if not new_image==None: gm.display.imgs[img_str]=new_image
         upd = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
-        gm.update_queue.append([upd, (img_str,agent_ref.uniq_id)])
+        gm.update_queue.append([upd, (img_str,agent_ref.uniq_id), 'img update'])
     
     def notify_update_agent(gm, agent_ref, **args):
         sql_upd = 'UPDATE agent_status SET '
@@ -305,7 +306,7 @@ class GameManager(object): # *
         sql_upd = sql_upd[:-1]+' '
         Vals.append(agent_ref.uniq_id)
         sql_upd += 'WHERE uniq_id=?;'
-        gm.update_queue.append( [sql_upd, tuple(Vals)] )
+        gm.update_queue.append( [sql_upd, tuple(Vals), 'agent status update'] )
         
     def notify_new_agent(gm, agent_ref, **args):
         init_tpos = args['tpos']
@@ -317,14 +318,25 @@ class GameManager(object): # *
                 init_tpos[X], init_tpos[Y], init_ppos[X], init_ppos[Y],\
                 args.get('agent_type', agent_ref.species), \
                 args.get('team','--no-team--') ]
-        gm.update_queue.append( [sql_ins, Vals] ) 
+        gm.update_queue.append( [sql_ins, Vals, 'new agent'] ) 
 
-    def notify_pmove(gm, agent_id, ploc, opt_dont_update_tpoc=False):
-#        ploc = sub_aFb(gm.entities[agent_id].image_offset, ploc)
-#        ploc = sub_aFb(ploc, gm.entities[agent_id].image_offset)
-        tx, ty = divvec(ploc, gm.ts())
+    def notify_tmove(gm, a_id, tloc): gm.notify_pmove(a_id, gm._p_to_t(tloc))
+    # Notify pmove:
+    def notify_pmove(gm, agent_id, ploc):
+        if not type(agent_id)==int: agent_id = agent_id.uniq_id
+        tx, ty = tpos = divvec(ploc, gm.ts())
+        if (gm.entities[agent_id].species in RESERVABLE_SPECIES)        \
+                and (tpos in gm.reserved_tiles.keys())                  \
+                and (not tpos in [(0,0),(-1,-1)])                       \
+                and (not gm.reserved_tiles[tpos]==agent_id)             \
+                and (not gm.reserved_tiles[tpos]==NULL_RESERVATION):
+            print ("notify_pmove: tpos already reserved:",tpos, (tx,ty), \
+                    gm.entities[gm.reserved_tiles[tpos]], gm.entities[agent_id])
+            return
+        gm.reserved_tiles[tpos] = agent_id
         upd = 'UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? WHERE uniq_id=?;'
-        gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
+        gm.db.execute(upd, (tx, ty, ploc[X], ploc[Y], agent_id))
+        #gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
 
 #    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):
 #        if where=='not provided':
@@ -369,6 +381,21 @@ class GameManager(object): # *
                     ent.logic.notify('redraw', tid)
         print ''
         '''
+
+            
+#    def _make_db_consistent_ppos_tpos(gm, cmd, values, what_kind):
+#        def _substrs_in_str(X): return all(map(lambda x: x in cmd, X))
+#        if what_kind=='img update': # situation: no update needed.
+#            return
+#        elif what_kind=='agent status update':
+#        try:
+#            set_what = cmd[cmd.index('SET')+4 : cmd.index('WHERE')]
+#            if not 'tx' in set_what: return
+##            print cmd, values, '>>',set_what
+#        except:
+#            pass#print cmd,'!!!!!!!!!!!!!!'
+#        gm._make_db_consistent(aus='ppos',at='tpos',where=None)
+#    def _make_db_consistent(gm, aus='ppos',at='tpos',where=None): pass
 
 #----------#----------#----------#----------#----------#----------#----------
 #       End of fresh code * (stubs)

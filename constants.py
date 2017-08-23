@@ -36,3 +36,6 @@ index_to_ltr = {0:'u',1:'l',2:'d',3:'r',-1:'-'}
 MTNKEYS = ['l','d','r','u','-']
 
 DEFAULT_IMAGE_OFFSET = (0.0,0.0)
+
+RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
+NULL_RESERVATION=-2342
