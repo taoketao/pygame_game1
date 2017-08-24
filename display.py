@@ -106,21 +106,26 @@ class Display(Entity):
         disp._agent_update_tups.insert(0, (img, ppos) )
     def queue_E_img(disp, img, ppos):
         disp._effect_update_tups.append( (img, ppos) )
+        print "--------------------Queueing effect:",img,ppos
 
     def std_render(disp):
         #print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
 #        print sorted(set(disp._tiles_to_reset))
-        for tile in disp._tiles_to_reset:
+        for tile in disp._tiles_to_reset+[(0,0)]:
             tmp = disp.gm.db.execute(query, tile).fetchone()
+            if tmp==None: continue
             base,obstr = tmp
             ploc = multvec(tile, disp.gm.ts())
             disp.screen.blit(disp.imgs[base], ploc)
             if not obstr=='-':
                 disp.screen.blit(disp.imgs[obstr], ploc)
 
-        upd_ents = disp._effect_update_tups + disp._agent_update_tups
+#        upd_ents = disp._effect_update_tups + disp._agent_update_tups
+#        upd_ents.sort(key=lambda x: x[1][1])
+        upd_ents = disp._agent_update_tups
         upd_ents.sort(key=lambda x: x[1][1])
+        upd_ents = disp._effect_update_tups+upd_ents
         for img_str,ploc in upd_ents:
             img = disp.imgs[img_str]
             disp.screen.blit(img, ploc)

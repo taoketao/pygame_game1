@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 12
+DEFAULT_FPS = 20
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -146,10 +146,25 @@ class GameManager(object): # *
 
         gm.Agents, gm.Effects = {},{}
         gm.Agents.update(  { 'Player': Player(gm, 'init') })
-        gm.Effects.update( { 'Mouse': MouseTarget(gm) })
+        gm.Effects.update( { 'mouse highlighter': MouseTarget(gm) })
         gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
-        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (2,3), pokedex=1) } )
-#        gm.Agents.update(  { 'TestAIAgent': AIAgent(gm, (3,3), pokedex=1) } )
+#        for i in range(1,3)+range(8,10):
+#            for j in range(1,3):
+        for i in range(1,2):
+            for j in range(1,2):
+                s = 'Enemy'+str(i)+str(j)
+                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, \
+                        team='wild', pokedex=1, health=random.choice(range(10,30)))})
+                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
+#            for j in range(8,10):
+            for j in range(2,3):
+                s = 'Ally'+str(i)+str(j)
+                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, \
+                        team='plyr', pokedex=1, health=20)})
+                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
+#                        
+#        gm.Agents.update(  { 'Enemy': AIAgent(gm, (2,3), pokedex=1) } )
+#        gm.Agents.update(  { 'Friendly': AIAgent(gm, (3,3), pokedex=1) } )
 
         gm.process_update_queue() # after entities have been initialized...
         gm._reset_events()
@@ -282,11 +297,13 @@ class GameManager(object): # *
                             FROM agent_status;'''
         img_pposes = set(gm.db.execute(sql_get_pposes).fetchall());
         for tx,ty,px,py,ent_type,img_str,uniq_id in img_pposes:
-            if ent_type in [u'target']:
+            if ent_type in [u'target',u'bar']:
                 gm.display.queue_E_img(img_str, (px,py))
-            if ent_type in [u'plyr', u'pkmn']:
+            elif ent_type in [u'plyr', u'pkmn']:
                 offset = gm.entities[uniq_id].image_offset
                 gm.display.queue_A_img(img_str, sub_aFb(offset, (px,py)))
+            else: raise Exception()
+
             if ent_type ==u'plyr':
                 for i in [-1,0,1]: 
                     for j in [-2,-1,0,1]: 

@@ -39,3 +39,5 @@ DEFAULT_IMAGE_OFFSET = (0.0,0.0)
 
 RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
 NULL_RESERVATION=-2342
+
+sql_all_AS = 'SELECT * FROM agent_status;'

@@ -34,7 +34,12 @@ class State(Entity): # i do not write, so no need to have logic
             st.s_ap[who] = {}
         st.s_ap[who][key] = val
     def view_ap(st, what, who):     return st.s_ap[who][what]
-    def update_env(st, key, val):   st.s_env[key] = val
+    def update_env(st, key, val, field_type=None):   
+        if field_type==None:    st.s_env[key] = val
+        elif field_type==list:    
+            try:                st.s_env[key].append(val)
+            except:             st.s_env[key] = [val]
+        else: raise Exception(key, val, st, field_type, st.init_options)
     def view_env(st, what):         return st.s_env[what]
 
     # Initialize and define global fields. All globals must start here.

@@ -77,7 +77,7 @@ class Logic(Entity):
     ''' ----------  Private methods  ---------- '''
 
     def __init__(logic, gm, agent, belt=None, init_belt=None, init_ppos=None):
-        print '^^',logic, gm, agent, belt
+#        print '^^',logic, gm, agent, belt
         Entity.__init__(logic, gm)
         agent.has_logic=True
         logic._state = State(gm, belt)
@@ -87,7 +87,7 @@ class Logic(Entity):
 #            for action in belt.Actions.values(): action.logic=logic
         logic.message_queue = []
         logic._state.setup_fields(agent.species, parent_logic=logic, ppos=init_ppos)
-        print 'agent.species', agent.species
+#        print 'agent.species', agent.species
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':
@@ -152,8 +152,8 @@ class Logic(Entity):
     
     def update_ap(logic, key, value, who):
         logic._state.update_ap(key, value, who)
-    def update_global(logic, key, value): # for internal use only!
-        logic._state.update_env(key, value)
+    def update_global(logic, key, value, field_type=None):
+        logic._state.update_env(key, value, field_type)
 
 
 

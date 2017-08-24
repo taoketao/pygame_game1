@@ -34,7 +34,8 @@ DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'}
 MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60)
 #INIT_POS = (100,100)
-
+# Health bar: 
+BAR_WIDTH = 3
 
 
 class Player(VisualStepAgent):
@@ -97,18 +98,27 @@ class AIAgent(TileAgent):
         ai._belt = Belt(gm, ai, 'wild pokemon', options=options)
         ai._logic = Logic(gm, ai, ai._belt, options)
         ai._logic.update_global('curtid',init_tloc)
+        ai._logic.update_global('max health',options['health'])
+        ai._logic.update_global('cur health',options['health']) # default
+        ai._logic.update_global('uniq_name',options['uniq_name'])
         ai.initialized = True
         ai.pokedex = options['pokedex']
         ai.gm.notify_update_agent(ai, img_str='pkmn sprite '+str(ai.pokedex)+'d',
                     team=ai.team, agent_type=ai.species)
         px,py = gm._t_to_p(init_tloc)
         ai.gm.notify_update_agent(ai, tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
+
+        ai.health_bar = StatusBar(gm, ai, 'health')
+        ai._logic.update_global('render_dependents',ai.health_bar, field_type=list)
+        ai.gm.Effects.update({options['uniq_name']+'_health': ai.health_bar})
 #        ai.gm.notify_tmove(ai.uniq_id, initloc)
 
 
     def Reset(ai):         ai._logic.Update()
     def PrepareAction(ai): ai._logic.Decide()
-    def DoAction(ai):      ai._logic.Implement()
+    def DoAction(ai):      
+        ai._logic.Implement()
+        ai.health_bar.update_position_and_image()
 
     def set_img(ai, which_img, reset=None): 
 #        print '\tai setting img',which_img
@@ -126,34 +136,32 @@ class AIAgent(TileAgent):
 
         #h.redraw(prev_tpos)
     def get_pstep(ai): return ai.gm.ts()
-
+    def alias_sensor(ai, what_sensor): return ai._logic.get_sensor(what_sensor)
+    def view_field(ai, what_field): return ai._logic.view(what_field)
 
 
 
 class Highlighter(TileAgent):
     ''' An abstract highlighter class. Provide the <targeter> a sensor that
-        returns a TPOS to put this highlighter on. '''
+        returns a TPOS to put this highlighter on. TODO: move this to abstractEntities.'''
     def __init__(h, gm):
         TileAgent.__init__(h, gm, (0,0))
         h.default_color = (0,0,0,255)
         h.species='target'
         h.team = '--targets--'
-        h.image = pygame.Surface(gm.tile_size).convert_alpha()
+#        h.image = pygame.Surface(gm.tile_size).convert_alpha()
         h.prev_position = (0,0)
         h.targeter = None;
         h.image_offset = (-2,-2)
         h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
                     team=h.team, agent_type=h.species)
+        h.gm.reserved_tiles[(0,0)] = NULL_RESERVATION
 
     def update_position_and_image(h): 
         prev_tpos = h.prev_position
         new_tpos = h.targeter.sense()
-#        print 'me',h, prev_tpos, new_tpos, 
         px,py=multvec(h.gm.ts(), new_tpos)
-        h.draw_highlight(new_tpos)
-#        h.gm.notify_pmove(h.uniq_id, ploc=[px,py], opt_dont_update_tpoc=False)
         h.gm.notify_pmove(h.uniq_id, multvec(h.gm.ts(), new_tpos))
-#        h.redraw(prev_tpos)
         h.prev_position = new_tpos
 
     def draw_highlight(h, tile_location):
@@ -203,23 +211,89 @@ class PlayerHighlighter(Highlighter):
         #h.targeter = GetTPosSensor(gm, agent_id = h.gm.Agents['Player'].uniq_id)
         plyr = h.gm.Agents['Player']
         h.targeter = plyr.alias_sensor('tpos')#gm, agent_id = uniq_id)
-        h.targeter.set_state('stateless')
+#        h.targeter.set_state('stateless')
         h.color = (60,120,180,60)
 #        plyr_pos = h.gm.request_tpos(plyr.uniq_id)
         # HACK: shouldn't be able to view agent's pos without sensor.
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
-        h.gm.reserved_tiles[(0,0)] = NULL_RESERVATION
 
 
 class MouseTarget(Highlighter):
     def __init__(h, gm): 
         Highlighter.__init__(h, gm)
         h.targeter = GetMouseTIDSensor(gm)
-        h.targeter.set_state('stateless')
+#        h.targeter.set_state('stateless')
         h.color=h.default_color
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
+
+class StatusBar(TileAgent):
+    ''' An abstract status bar class that pokemon can take on.
+        TODO: move this to abstractEntities once completed'''
+    def __init__(sb, gm, owner, metric='health'):
+        TileAgent.__init__(sb, gm, (0,0))
+        sb.species='bar'
+        sb.team = owner.team
+        sb.color = {'health': (255,0,0,255)}[metric]
+        sb.agent = owner
+        sb.metric = metric
+        sb.bg_color = (0,0,0,255)
+        sb.prev_position = (0,0)
+        sb.offset = 0.1 # move the bar away from edge (ie, if have numerous bars)
+        sb.shift = 0.1 # shape the bar ( adjust width for aesthetics )
+        sb.cur_metric = sb.init_metric = owner.view_field('max health')
+
+        sb.bar_shape = default_shape = (int(sb.gm.ts()[X]*(1-2*sb.shift)), BAR_WIDTH)
+        sb.orientation = 'horiz' # vs vertic
+#        try:        sb.init_metric = 
+#        except:     sb.init_metric = -1; print "agents bar: ERROR"
+        sb.targeter = owner.alias_sensor('tpos')
+        sb.gm.notify_update_agent(sb, tx=0,ty=0,px=0,py=0, team=sb.team, \
+                agent_type=sb.species, img_str = 'bar '+str(sb.color))
+        sb.gm.notify_image_update(sb, 'bar '+str(sb.color), sb.draw_statusbar((0,0)))
+
+    def update_position_and_image(sb): 
+        prev_tpos = sb.prev_position
+        new_tpos = sb.targeter.sense() # check...
+        px,py=multvec(sb.gm.ts(), new_tpos)
+        sb.draw_statusbar(new_tpos)
+        sb.gm.notify_pmove(sb.uniq_id, (px,py))
+        #sb.gm.notify_update_agent(sb, img_str = 'bar '+str(sb.color))
+        sb.prev_position = new_tpos
+        for x in sb.gm.db.execute(sql_all_AS).fetchall():
+            pass# print '\tsb upd',x
+
+    def update_metric(sb, amount, delta_or_flat='delta'):
+        if delta_or_flat=='delta': amount = sb.cur_metric+amount
+        elif not delta_or_flat=='flat': raise Exception()
+        sb.cur_metric = min(sb.init_metric, max(0, amount))
+
+    def draw_statusbar(sb, new_tpos):
+        if sb.orientation=='horiz':
+            scaling = (float(sb.cur_metric)/sb.init_metric, 1)
+            loc = multvec(sb.gm.ts(), (sb.shift, sb.offset))
+        elif sb.orientation=='vertic':
+            scaling = (1, float(sb.cur_metric)/sb.init_metric)
+            loc = multvec(sb.gm.ts(), (sb.offset, 1-sb.shift))
+        print '>>>',loc, scaling
+        image = pygame.Surface(sb.gm.ts()).convert_alpha()
+        image.fill((0,0,0,0))
+        s_full = pygame.Surface( addvec(sb.bar_shape,2) ).convert_alpha()
+#        s_curr = pygame.Surface( multvec(sb.bar_shape, scaling, int) ).convert_alpha()
+        s_curr = pygame.Surface( sb.bar_shape ).convert_alpha()
+        s_full.fill(sb.bg_color)
+        s_curr.fill(sb.color)
+        ppos = multvec(sb.gm.ts(), new_tpos)
+        image.blit(s_full, addvec(ppos,loc))
+        image.blit(s_curr, addvec(ppos, addvec(loc, 1)))
+        print "Status bar image:", loc, sb.bar_shape
+        return image
+
+
+    def Reset(sb): pass
+    def PrepareAction(sb): sb.targeter.rescan()
+    def DoAction(sb): sb.update_position_and_image()
 
 
 
