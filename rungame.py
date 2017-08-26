@@ -23,7 +23,7 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 20
+DEFAULT_FPS = 5
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -145,23 +145,23 @@ class GameManager(object): # *
         gm.prev_agent_information = []
 
         gm.Agents, gm.Effects = {},{}
-        gm.Agents.update(  { 'Player': Player(gm, 'init') })
+        gm.Agents.update(  { 'Player': Player(gm) })
         gm.Effects.update( { 'mouse highlighter': MouseTarget(gm) })
         gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
 #        for i in range(1,3)+range(8,10):
 #            for j in range(1,3):
-        for i in range(1,2):
+        for i in range(1,4):
             for j in range(1,2):
                 s = 'Enemy'+str(i)+str(j)
-                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, \
+                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, hbcolor='b',\
                         team='wild', pokedex=1, health=random.choice(range(10,30)))})
-                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
+#                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
 #            for j in range(8,10):
             for j in range(2,3):
                 s = 'Ally'+str(i)+str(j)
-                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, \
+                gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s,\
                         team='plyr', pokedex=1, health=20)})
-                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
+#                gm.Effects.update({s+'bar': StatusBar(gm,gm.Agents[s],'health')})
 #                        
 #        gm.Agents.update(  { 'Enemy': AIAgent(gm, (2,3), pokedex=1) } )
 #        gm.Agents.update(  { 'Friendly': AIAgent(gm, (3,3), pokedex=1) } )

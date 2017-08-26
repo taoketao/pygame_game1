@@ -105,6 +105,7 @@ class State(Entity): # i do not write, so no need to have logic
 
     def setup_basic_pkmn_fields(st, logic):
         st.s_env['unit step'] = logic.gm.ts()
+        st.s_env['most recently reserved'] = NULL_POSITION
         st.s_env['root delay'] = logic.agent.primary_delay
         st.s_env['delay'] = np.random.uniform(0.0, st.s_env['root delay'])
         st.s_env['is being caught'] = False

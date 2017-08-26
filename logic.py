@@ -61,8 +61,8 @@ class Logic(Entity):
         if logic.agent.species=='pkmn':
             logic.update_global('delay',logic.view('delay')-logic.gm.fpms)
             logic.update_global('prevtid', logic.view('curtid'))
+            logic.update_global('most recently reserved', logic.view_sensor('tpos'))
             logic.update_global('curtid', logic.view_sensor('tpos'))
-
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      logic.root_ap.find_viability()
@@ -76,17 +76,16 @@ class Logic(Entity):
 
     ''' ----------  Private methods  ---------- '''
 
-    def __init__(logic, gm, agent, belt=None, init_belt=None, init_ppos=None):
+    def __init__(logic, gm, agent, **options):
 #        print '^^',logic, gm, agent, belt
         Entity.__init__(logic, gm)
         agent.has_logic=True
-        logic._state = State(gm, belt)
         logic.agent = agent
-        if belt: 
-            logic.belt = belt
-#            for action in belt.Actions.values(): action.logic=logic
+        logic.belt = Belt(gm, agent, **options)
+        logic._state = State(gm, logic.belt)
+        logic._state.setup_fields(agent.species, parent_logic=logic, 
+                            ppos=options['init_ppos'])
         logic.message_queue = []
-        logic._state.setup_fields(agent.species, parent_logic=logic, ppos=init_ppos)
 #        print 'agent.species', agent.species
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
@@ -94,6 +93,11 @@ class Logic(Entity):
             logic.root_ap = MouseActionPicker(logic)
         elif agent.species=='pkmn':
             logic.root_ap = WildPkmnBehavior(logic)
+#            for dk,dv in logic.belt.Dependents.items():
+#                if dk=='health' and logic.agent.team=='--plyr--': 
+#                    dv = dv(logic.gm, team=logic.agent.team, agent=logic.agent, metric=dk, color='b', init_value=)
+#                if dk=='health' and logic.agent.team=='--plyr--': 
+#                    dv = dv(logic.gm, team=logic.agent.team, agent=logic.agent, metric=dk, color='r')
         else:
             raise Exception('not impl yet')
         

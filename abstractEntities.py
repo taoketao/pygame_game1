@@ -32,7 +32,8 @@ class VisualStepAgent(Entity):
         if not init_tpos: init_tpos = divvec(init_ppos, ta.gm.ts())
         ta.species = 'Stub: VisualStepAgent'
         ta.initialized=False
-        ta.image_offset = DEFAULT_IMAGE_OFFSET # Please change manually elsewhere for now.
+        ta.store_reservations=False
+        ta.image_offset = DEFAULT_IMAGE_OFFSET # Please change manually per subclass for now.
 #        ta.img_offset = multvec(gm.ts(), (0.4,0.9))
         gm.notify_new_agent(ta, tpos=init_tpos)
 
@@ -62,6 +63,8 @@ class VisualStepAgent(Entity):
         if not (ta.initialized or sp=='initializing'): raise Exception("Not initialized")
         if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
 #        if ta._logic.view("ppos")==loc: return # optimization?
+        if ta.store_reservations: 
+            ta._logic.update_global('most recently reserved', divvec(ppos,ta.gm.ts()))
         ta.gm.notify_pmove(ta.uniq_id, ppos)
     
     # Public access function: move in Delta(X,Y) *local units*. Call by Logic.
