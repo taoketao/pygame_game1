@@ -60,9 +60,19 @@ class Belt(Entity):
         elif which_init=='--wild-- pkmn': belt._init_pkmn(options);
         elif which_init=='--plyr-- pkmn': belt._init_pkmn(options);
         else: raise Exception("an easy, nbd exception but please implement.",options)
+        belt.which_init=which_init
 
     def _init_basic_player(belt):
         belt.Items.update({i:'pokeball-lvl-1' for i in range(4)})
+
+    def setup_belt(belt, class_type, **options):
+        if class_type==agents_module.Player:        \
+            belt.Dependents.update(                 \
+                    {'highlighter': agents_module.PlayerHighlighter(belt.gm)} )
+        elif class_type==agents_module.AIAgent:     \
+            belt.Dependents.update(                 \
+                    {'health': agents_module.StatusBar(belt.gm, belt.agent, \
+                    metric='health', **options)} )
 
 #    elif options.get('sp_init')=='pokeball catch':
 #        belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}

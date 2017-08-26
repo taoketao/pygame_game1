@@ -1,10 +1,15 @@
 '''
 agents.py:
 Implementations of various kinds of agents:
-- Player represents a human controllable player
-- AIAgent represents a pokemon AI whose actions are independently, 
-    internally motivated.
-- MouseAgent defines aspects that enable interactive mouse control
+    Core Agents:
+- Player represents a human controllable player.
+- AIAgent is a pokemon AI whose actions are independently, internally motivated.
+    Supers:
+- Highlighter is a TileAgent that draws generic targets over tiles.
+- StatusBar is a generic bar that indicates some metric for another agent.
+    Dependent Agents:
+- PlayerHighlighter is a Highlighter that highlights the player's current tile.
+- MouseTarget is a Highlighter that makes mouse indications.
 '''
 
 
@@ -24,11 +29,12 @@ PLYR_IMG_SHIFT_INIT = 0.125
 DEFAULT_STEPSIZE = 0.29 # a prime?
 PLYR_CATCH_DIST = 0.5
 PLYR_COLL_BUF = 1+PLYR_COLL_WIDTH
+PLYR_STEP_DELAY = 0.0031
 
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
-
+PKMN_WANDER_DELAY = 0.1
 DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
 
 # (color) options for Mouse:
@@ -40,6 +46,7 @@ BAR_WIDTH = 3
 
 
 class Player(VisualStepAgent):
+    ''' Player class: the human player representation as an agent (step, img) '''
     def __init__(ego, gm):
         init_tpos = divvec(gm.map_num_tiles,3) 
         init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
@@ -47,11 +54,11 @@ class Player(VisualStepAgent):
         VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
         ego.species='plyr'
         ego.team = '--plyr--'
+        ego.primary_delay = PLYR_STEP_DELAY * gm.fps # ie, without smoothing
         ego.store_reservations=True
         ego.image_offset = multvec(gm.ts(), (0.4,0.9))
         ego.stepsize_x, ego.stepsize_y = \
                 ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
-        #ego._belt = belt_module.Belt(gm, ego, sp_init='basic player')
         ego._logic = logic_module.Logic(gm, ego, init_ppos=init_ppos)
         ego._belt = ego._logic.belt
         ego.gm.notify_update_agent(ego, img_str='player sprite 7', team=ego.team,\
@@ -65,21 +72,21 @@ class Player(VisualStepAgent):
     def PrepareAction(ego): ego._logic.Decide()
     def DoAction(ego):      ego._logic.Implement()
 
-    ''' Method: other Agents to PlayerAgent '''
     def message(ego, header, msg):
+        ''' Method: other Agents to PlayerAgent '''
         if header=="Someone has caught me":
             ego._belt.add_pkmn(msg)
         etc
         ego.logic.notify('isPlayerActionable', True)
         ego.logic.notify(header, msg)
 
-    ''' Methods: fulfill inheritance. '''
     def set_img(ego, which_img): 
-#        print '\tego setting img',which_img
+        ''' Methods: fulfill inheritance. '''
         if (not type(which_img)==int) or not which_img in range(12): \
                 raise Exception(which_img, type(which_img))
         ego.gm.notify_image_update(ego, 'player sprite '+str(which_img+1))
-    def get_pstep(ego): return multvec(ego.stepsize, ego.gm.smoothing())
+    def get_pstep(ego): return multvec(ego.stepsize, ego.gm.smoothing()/ego.gm.fps+STD_FPS)
+    #def get_pstep(ego): return ego.stepsize
 
     ''' Methods: available to many for read.  ( No need to overwrite 
             move_in_direction for Player(VisualStepAgent)  ) '''
@@ -87,22 +94,23 @@ class Player(VisualStepAgent):
         dx = (dirs[RDIR]-dirs[LDIR]) * ego.gm.smoothing() * ego.stepsize[X]
         dy = (dirs[DDIR]-dirs[UDIR]) * ego.gm.smoothing() * ego.stepsize[Y]
         return (dx,dy)
+        return multvec((dx,dy), ego.gm.fps)
     def get_num_actions(ego): return len(ego._belt.Actions)
     def alias_sensor(ego, what_sensor): return ego._logic.get_sensor(what_sensor)
+    def view_field(ego, what_field): return ego._logic.view(what_field)
 
 
 class AIAgent(TileAgent):
+    ''' AIAgent class: basic pokemon unit.'''
     def __init__(ai, gm, init_tloc, **options):
         TileAgent.__init__(ai, gm, init_tloc)
-        ai.primary_delay = 0.3
+        ai.primary_delay = PKMN_WANDER_DELAY * gm.fps # ie, without smoothing
         ai.species = 'pkmn'
         ai.team = '--'+options.get('team')+'--'
         ai.store_reservations=True
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         px,py = gm._t_to_p(init_tloc)
-        #ai._belt = Belt(gm, ai, 'wild pokemon', options=options)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
-        #ai._belt = ai._logic.belt
         ai._logic.update_global('curtid',init_tloc)
         ai._logic.update_global('max health',options['health'])
         ai._logic.update_global('cur health',options['health']) # default
@@ -113,18 +121,11 @@ class AIAgent(TileAgent):
                     team=ai.team, agent_type=ai.species)
         ai.gm.notify_update_agent(ai, tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
 
-#        ai.health_bar = StatusBar(gm, ai, 'health')
-#        ai._logic.update_global('render_dependents',ai.health_bar, field_type=list)
-#        ai.gm.Effects.update({options['uniq_name']+'_health': ai.health_bar})
-##        ai.gm.notify_tmove(ai.uniq_id, initloc)
-
-
     def Reset(ai):         ai._logic.Update()
     def PrepareAction(ai): ai._logic.Decide()
     def DoAction(ai):      ai._logic.Implement()
 
     def set_img(ai, which_img, reset=None): 
-#        print '\tai setting img',which_img
         ai.gm.notify_image_update(ai, 'pkmn sprite '+str(ai.pokedex)+which_img)
         return
         if (not type(which_img)==str) or not which_img in MTNKEYS: \
@@ -137,7 +138,6 @@ class AIAgent(TileAgent):
         else:
             ai.gm.notify_imgChange(ai, s, prior=(reset, 'tpos'))
 
-        #h.redraw(prev_tpos)
     def get_pstep(ai): return ai.gm.ts()
     def alias_sensor(ai, what_sensor): return ai._logic.get_sensor(what_sensor)
     def view_field(ai, what_field): return ai._logic.view(what_field)
@@ -152,7 +152,6 @@ class Highlighter(TileAgent):
         h.default_color = (0,0,0,255)
         h.species='target'
         h.team = '--targets--'
-#        h.image = pygame.Surface(gm.tile_size).convert_alpha()
         h.prev_position = (0,0)
         h.targeter = None;
         h.image_offset = (-2,-2)
@@ -161,6 +160,7 @@ class Highlighter(TileAgent):
         h.gm.reserved_tiles[(0,0)] = NULL_RESERVATION
 
     def update_position_and_image(h): 
+        ''' update_position_and_image: call every frame to update. '''
         prev_tpos = h.prev_position
         new_tpos = h.targeter.sense()
         px,py=multvec(h.gm.ts(), new_tpos)
@@ -168,6 +168,7 @@ class Highlighter(TileAgent):
         h.prev_position = new_tpos
 
     def draw_highlight(h, tile_location):
+        '''  Draw a target on specified tile. '''
         try:
             r,g,b,a = h.color
         except:
@@ -177,7 +178,6 @@ class Highlighter(TileAgent):
         tx,ty = h.gm.tile_size
         tx = tx-2; ty=ty-2
         M = MOUSE_CURSOR_DISPL = 1; # stub!
-#        for i in [1,2,3]:
         for i in [1,3,4,5]:
             for d in DIRECTIONS:
                 rect_size = { UDIR: (tx-2*(i+1)*M, M),  
@@ -199,33 +199,32 @@ class Highlighter(TileAgent):
         h.display_parameters = (-1, image, addvec((1,1),multvec(tile_location,h.gm.ts())))
         return image
 
-#    def redraw(h, former): 
-#        h.gm.display.queue_E_img( *h.display_parameters )
-#        h.gm.display.queue_reset_tile(former)
-
     def Reset(h): pass
     def PrepareAction(h): h.targeter.rescan()
     def DoAction(h): h.update_position_and_image()
 
 
 class PlayerHighlighter(Highlighter):
-    def __init__(h, gm): 
+    ''' Follow the player & indicate current tile. '''
+    def __init__(h, gm, who='Player'): 
         Highlighter.__init__(h, gm)
-        plyr = h.gm.Agents['Player']
-        h.targeter = plyr.alias_sensor('tpos')#gm, agent_id = uniq_id)
-#        h.targeter.set_state('stateless')
+#        plyr = h.gm.Agents['Player']
+#        h.targeter = plyr.alias_sensor('tpos')
+#        h.targeter = sensor
+        h.targeter = sensors_module.GetNextReservation(gm, gm.Agents[who].uniq_id)
+        h.targeter.set_state('stateless')
+        #h.targeter = h.gm.Agents['Player'].view_field('most recently reserved')
         h.color = (60,120,180,60)
-#        plyr_pos = h.gm.request_tpos(plyr.uniq_id)
-        # HACK: shouldn't be able to view agent's pos without sensor.
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
 
 
+
 class MouseTarget(Highlighter):
+    ''' Follow the mouse & indicate current tile. '''
     def __init__(h, gm): 
         Highlighter.__init__(h, gm)
         h.targeter = sensors_module.GetMouseTIDSensor(gm)
-#        h.targeter.set_state('stateless')
         h.color=h.default_color
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
@@ -243,33 +242,25 @@ class StatusBar(TileAgent):
         sb.bg_color = (0,0,0,255)
         sb.prev_position = (0,0)
         sb.offset = 0.1 # move the bar away from edge (ie, if have numerous bars)
-        sb.shift = 0.1 # shape the bar ( adjust width for aesthetics )
+        sb.shift = 0.15 # shape the bar ( adjust width for aesthetics ). 0.2-0.1 solid.
 
         sb.cur_metric = sb.init_metric = -1
-        sb.targeter = None#owner.alias_sensor('tpos')
-
-        sb.bar_shape = default_shape = (int(sb.gm.ts()[X]*(1-2*sb.shift)), BAR_WIDTH)
-        sb.orientation = 'horiz' # vs vertic
-#        try:        sb.init_metric = 
-#        except:     sb.init_metric = -1; print "agents bar: ERROR"
+        sb.orientation = options.get('orientation', 'horiz') # vs vertic
+        sb.bar_shape = { 'horiz': (int(sb.gm.ts()[X]*(1-2*sb.shift)), BAR_WIDTH), \
+                 'vertic': (BAR_WIDTH, int(sb.gm.ts()[X]*(1-2*sb.shift)))}[sb.orientation]
         sb.gm.notify_update_agent(sb, tx=0,ty=0,px=0,py=0, team=sb.team, \
                 agent_type=sb.species, img_str = 'bar '+str(sb.color))
         sb.gm.notify_image_update(sb, 'bar '+str(sb.color), sb.draw_statusbar((0,0)))
 
     def update_position_and_image(sb): 
         prev_tpos = sb.prev_position
-        if sb.cur_metric<0: sb.cur_metric = sb.init_metric = sb.owner.view_field('max health')
-#        if sb.targeter==None: sb.targeter = sb.owner.view_field('most recently reserved')
-#        print '$$',sb.targeter
-#        new_tpos = sb.targeter.sense() 
+        if sb.cur_metric<0: sb.cur_metric = sb.init_metric = \
+                            sb.owner.view_field('max health')
         new_tpos = sb.owner.view_field('most recently reserved')
         px,py=multvec(sb.gm.ts(), new_tpos)
         sb.draw_statusbar(new_tpos)
         sb.gm.notify_pmove(sb.uniq_id, (px,py))
-        #sb.gm.notify_update_agent(sb, img_str = 'bar '+str(sb.color))
         sb.prev_position = new_tpos
-        for x in sb.gm.db.execute(sql_all_AS).fetchall():
-            pass# print '\tsb upd',x
 
     def update_metric(sb, amount, delta_or_flat='delta'):
         if delta_or_flat=='delta': amount = sb.cur_metric+amount
@@ -282,369 +273,22 @@ class StatusBar(TileAgent):
             loc = multvec(sb.gm.ts(), (sb.shift, sb.offset))
         elif sb.orientation=='vertic':
             scaling = (1, float(sb.cur_metric)/sb.init_metric)
-            loc = multvec(sb.gm.ts(), (sb.offset, 1-sb.shift))
-#        print '>>>',loc, scaling
+            loc = multvec(sb.gm.ts(), (sb.offset, sb.shift))
         image = pygame.Surface(sb.gm.ts()).convert_alpha()
         image.fill((0,0,0,0))
         s_full = pygame.Surface( addvec(sb.bar_shape,2) ).convert_alpha()
-#        s_curr = pygame.Surface( multvec(sb.bar_shape, scaling, int) ).convert_alpha()
         s_curr = pygame.Surface( sb.bar_shape ).convert_alpha()
         s_full.fill(sb.bg_color)
         s_curr.fill(sb.color)
         ppos = multvec(sb.gm.ts(), new_tpos)
         image.blit(s_full, addvec(ppos,loc))
         image.blit(s_curr, addvec(ppos, addvec(loc, 1)))
-#        print "Status bar image:", loc, sb.bar_shape
         return image
 
 
-    def Reset(sb): pass
-    def PrepareAction(sb): 
-        if not sb.targeter==None: sb.targeter.rescan()
+    def Reset(sb): pass # All StatusBar fields are reset by the logic.
+    def PrepareAction(sb): pass # StatusBar should not reset anything.
     def DoAction(sb): sb.update_position_and_image()
-
-
-
-#
-#
-#
-#
-#
-#
-#
-#class AIAgent(Agent):
-#    ''' AI class: a type of Agent that represents any(?) AI NPC with 
-#        dynamic behavior. Currently this is intended to be specifically & only
-#        for PKMN, either friendly or not, with extension to NPC 'players'
-#        pending necessity, at which point hopefully the design options 
-#        will be more clear. '''
-#    def __init__(ai, gm, team, options): 
-#        Agent.__init__(ai, gm, team)
-#
-#        which_pkmn    = options['which_pkmn']
-#        init_pos      = options['pos']
-#        ai.stepsize_x = options['stepsize_x']
-#        ai.stepsize_y = options['stepsize_y']
-#        ai.mv_range   = options['move_range'].split('_')
-#        ai.move_speed = options['move_speed']
-#        ai.init_shift = options['init_shift']
-#        ai.catch_threshold = options['catch_threshold']
-#        ai.max_health = int(options['base_health'] * (1 if team=='plyr' else 0.8))
-#        ai.cur_health = ai.max_health
-#
-#        ai.string_sub_class = 'pkmn'
-#        ai.pkmn_id = -1
-#        ai.snooze=0.0
-#        ai.pkmn_id = int(which_pkmn)
-#        ai.coll_check_range = (ai.mv_range[0], float(ai.mv_range[1]))
-#        ai.set_pkmn_img('d')
-#        ai.set_tpos(init_pos)
-#        ai.move_ppos(ai.init_shift)
-#
-#        ai.gm.notify_new(ai)
-#        ai.gm.notify_move(ai, ai.get_position())
-#
-#        ai.catch_counter = 0
-#        ai.is_being_caught = False
-#        ai.was_caught = False
-#        ai.needs_updating = False
-#        ai.free_to_act = False
-#        ai.avoided_catch = False
-#        ai.flags = [ai.catch_counter, ai.is_being_caught, ai.was_caught,  ai.needs_updating,\
-#                ai.free_to_act, ai.avoided_catch]
-#
-#
-#    def set_pkmn_img(ai, _dir, whitened=None):
-#        if ai.pkmn_id<0: raise Exception('internal: id not set')
-#        if type(_dir)==list: _dir = _dir.index(1)
-#        if type(_dir)==int:
-#            _dir = {UDIR:'u', LDIR:'l', DDIR:'d', RDIR:'r'}[_dir]
-#        if ai.img_id==_dir and whitened==None: return
-#        basename = 'pkmn sprite '+str(ai.pkmn_id)+_dir
-#        if whitened == None:
-#            ai.spr.image = ai.gm.imgs[basename]
-#        if whitened == 'half whitened':
-#            ai.spr.image = ai.gm.imgs[basename+' half whitened']
-#        if whitened == 'full whitened':
-#            ai.spr.image = ai.gm.imgs[basename+' full whitened']
-#        ai.img_id = _dir
-#        ai.spr.dirty=1
-#        ai.last_taken_action = _dir
-#
-#
-#    ''' _choose_action: a core element of the AI system. Chooses which action to
-#        take based on any factors. '''
-#    def _choose_action(ai):
-#        return 'wander2'
-#        if ai.team == ai.gm.Plyr.team and \
-#            dist(ai.gm.Plyr.get_tile_under(), ai.get_tile_under(),2)>2.5:
-#            return 'move_towards_player'
-#        else:
-#            return 'wander'
-#
-#    ''' Agent workflow: After an act, and the frame finishes, other entities may
-#        need to do something to/with this agent. So, a messaging service is 
-#        implemented to facilitate that. Then, before this agent is free to alter
-#        the world in any way with act, it must go though all its messsages. This 
-#        system is maintained by flags. '''
-#
-#    ''' Interface: Public method for changing this pkmn's state and behavior. '''
-#    def send_message(ai, msg, from_who=None):
-#        ai.needs_updating = True
-#        print '<>',msg
-#        if msg=='getting caught':
-#            if ai.avoided_catch:
-#                ai.is_being_caught = False
-#                ai.free_to_act=True
-#                ai.caught_by_what = None
-#            elif ai.catch_counter==0:
-#                ai.is_being_caught = True
-#                ai.free_to_act=False
-#                ai.caught_by_what = from_who
-#                ai.avoided_catch = False
-#        else: 
-#            ai.is_being_caught = False
-#        if msg=='initialized as free':
-#            ai.free_to_act=True
-#
-#    ''' Interface: Call update_state before acting, else failure. '''
-#    def update_state(ai):
-#        if ai.was_caught: # This pkmn is no longer interactive
-#            pass
-#        elif ai.avoided_catch:
-#            ai.set_pkmn_img(ai.last_taken_action, whitened='Not whitened')
-#            ai.is_being_caught = False
-#            ai.avoided_catch = False  
-#        elif ai.is_being_caught:
-#            #print ai.catch_counter, ai.catch_threshold
-#            if ai.caught_by_what.how_open() > 1 or (ai.free_to_act and \
-#                            not ai.needs_updating):
-#                ai.avoided_catch = True  
-#                ai.is_being_caught = False  
-#                ai.catch_counter = 0
-#            else:
-#                ai.catch_counter += 1
-#                ai.set_pkmn_img(ai.last_taken_action, 'half whitened')
-#            # Set up getting-caught system.
-#    
-#    def _act_accordingly(ai):
-#        if ai.is_being_caught and not ai.avoided_catch \
-#                    and ai.catch_counter >= ai.catch_threshold:
-#            print '\t\tfoo'
-#            ai.is_being_caught = False
-#            ai.was_caught = True
-#            ai.set_pkmn_img(ai.last_taken_action, 'full whitened')
-#            ai.snooze = ai.move_speed
-#        elif ai.was_caught: # pause while getting stored 
-#            ai.gm.Plyr.send_message("Someone has caught me", ai)
-#            ai.kill_this_pkmn()
-#        else:
-#            ai.free_to_act=True
-#
-#
-#    ''' Interface: Call this when the entity is presumably ready to perform. '''
-#    def act(ai, debug=False): 
-#        if debug: 
-#            ai.flags = [ai.catch_counter, ai.is_being_caught, ai.was_caught,\
-#                        ai.needs_updating, ai.free_to_act, ai.avoided_catch]
-#            if np.random.rand()<0.1:
-#                print 'catch_counter // is_being_caught // was_caught // ',
-#                print 'needs_updating // free_to_act // avoided_catch'
-#            print ai.flags
-#
-#        # First, check if updating is needed.
-#        if not ai.needs_updating: ai.update_state()
-#        ai.needs_updating = False
-#
-#        # Next, if the AI has its agency, first pause for sake of frames/etc.
-#        if ai.snooze>=0: 
-#            ai.snooze -= 1
-#            return False
-#        ai.snooze=0.0 # normalize 
-#
-#        # Next, if this AI's agency is restricted, do as such:
-#        ai._act_accordingly()
-#        if not ai.free_to_act: return False
-#
-#        # Finally, nothing is in the way of letting this agent act freely:
-#        decision = ai._choose_action()
-#        if decision=='wander': return ai._take_action_Wander()
-#        if decision=='wander2': return ai._take_action_Wander_2()
-#        if decision=='move_towards_player': 
-#            return ai._take_action_Movetowards(ai.gm.Plyr)
-#
-#    def _take_action_Movetowards(ai, target_Agent):
-#        goal_vec = _sub_aFb(ai.get_tile_under(), ai.gm.Plyr.get_tile_under())
-#        ideal = []; not_ideal = []
-#        if goal_vec[X]>=0: ideal.append(RDIR)
-#        if goal_vec[X]<=0: ideal.append(LDIR)
-#        if goal_vec[Y]<=0: ideal.append(UDIR)
-#        if goal_vec[Y]>=0: ideal.append(DDIR)
-#        random.shuffle(ideal); random.shuffle(not_ideal);
-#        moved_yet = False
-#        for vid in ideal:
-#            vec = [0]*len(DIRECTIONS); vec[vid]=1
-#            if (not moved_yet) and sum(ai.validate_move(vec))>0:
-#                ai.move_tpos(ai.moveparams_to_steps(vec))
-#                raise Exception('section todo')
-#                ai.set_pkmn_img(vec)
-#                ai.last_taken_action = vec
-#                moved_yet = True
-#
-#        random_snooze = np.random.uniform(PKMN_MOVE_LOW, PKMN_MOVE_HIGH)
-#        ai.snooze = ai.snooze + ai.move_speed*random_snooze
-#        return moved_yet
-#        # For now, if not ideal, don't move at all.
-#
-#    def _take_action_Wander_2(ai):
-#        poss_actions = [addvec(ai.get_position(), d) for d in DIR_TILE_VECS]
-#        valid_pos = ai.gm.get_multitiles(poss_actions, 'block_pkmn')
-#        if len(valid_pos)==0: return False
-#        choice = random.choice(valid_pos)
-#        #ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, tpos)])
-#        ai.set_pkmn_img(DIRVECS_TO_STR[sub_aFb(choice, ai.get_position())])
-#        ai.set_ppos( addvec(multvec(choice, ai.gm.tile_size), ai.init_shift))
-#        ai.gm.notify_move(ai, ai.get_position())
-#        ai.snooze += ai.move_speed*np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
-#        return True
-#        
-#
-#    def _take_action_Wander(ai):
-#        poss_actions = [1,1,1,1]
-#        valid_actions =ai.validate_move(poss_actions) # restrict if invalid
-#        optns = list(range(len(poss_actions)))
-#        random.shuffle(optns)
-#        did_i_move = False
-#        for i in optns:
-#            if valid_actions[i]==0: continue
-#            vec = [0]*len(valid_actions)
-#            vec[i]=1
-#            ai.move_tpos(ai.moveparams_to_steps(vec), no_log=True)
-#            ai.gm.notify_move(ai, ai._ppos_to_tpos(ai.get_ppos_rect().midbottom))
-#            #ai.set_pkmn_img(vec, 'whitened')
-#            ai.set_pkmn_img(vec)
-#            did_i_move=True
-#            ai.last_taken_action=vec
-##            print "Pkmn's tile under:", ai.get_tpos()
-#                        
-#            break
-#        random_snooze = np.random.uniform(PKMN_WANDER_LOW, PKMN_WANDER_HIGH)
-#        ai.snooze = ai.snooze + ai.move_speed*random_snooze
-#        return did_i_move
-#
-#    def moveparams_to_steps(ai, dirs): 
-#        dx = (dirs[RDIR]-dirs[LDIR]) * ai.gm.smoothing * ai.stepsize_x
-#        dy = (dirs[DDIR]-dirs[UDIR]) * ai.gm.smoothing * ai.stepsize_y
-#        return (dx,dy)
-#
-#    def kill_this_pkmn(ai):
-#        ai.gm.ai_entities.remove(ai)
-#        ai.gm.agent_entities.remove(ai)
-#        if ai.team=='enemy1':
-#            ai.gm.enemy_team_1.remove(ai)
-#        #ai.gm.notify_move(ai.get_tpos(), NULL_POSITION, ai.uniq_id)
-#        ai.gm.notify_kill(ai)
-#
-#        # TODO: If I am on a team, remove me from that team's master agent...
-#        del ai
-#
-#class MouseAgent(GhostEntity):
-#    ''' Mouse: a GhostEntity full with position and image but that should
-#        not interact directly with any other Agents.
-#        While still under design, the initial idea is that the mouse will
-#        indirectly signal other entities by updating the game manager's 
-#        databases and queues.    '''
-#    def __init__(mouse, gm):
-#        GhostEntity.__init__(mouse, gm)
-#        mouse.string_sub_class = 'mouse target'
-#        mouse.gm.agent_entities.append(mouse)
-#        mouse.team = '--mouse--'
-#        mouse.spr.image = pygame.Surface(gm.tile_size).convert_alpha()
-#        mouse.update_position(mouse.gm.world_pcenter)
-#        mouse.gm.notify_new(mouse)
-#        mouse.gm.move_effects.append(mouse)
-#
-#        mouse._logic = Logic(gm, mouse)
-#
-#
-#               
-#    def update_position(mouse, targ_ppos, cursor='default'):
-#        #targ_pos = mouse.get_tile_under((targ_ppos[X]+1,targ_ppos[Y]+1))
-#        #mouse._notify_gm_move(prev_pos)
-##        mouse.gm.notify_move(mouse.get_ppos(), targ_ppos, mouse.uniq_id, mouse.team, \
-##                mouse.string_sub_class)
-#        prev_pos = mouse.get_tpos()
-#        targ_pos = mouse.get_tpos((targ_ppos[X]+1,targ_ppos[Y]+1))
-#        mouse._set_tpos(targ_pos)
-#        mouse.set_cursor(cursor)
-#        if not prev_pos==targ_pos:
-#            mouse.gm.update_hud()
-#    def update_move(mouse): mouse._logic.root_ap.implement()
-#
-#    def set_cursor(mouse, mode):
-#        # puts the desired cursor mode sprite at the current pos
-#        try:
-#            targ_color = {
-#                    'default':      (140,40,240), 
-#                    'hud action':   (200,200,255), \
-#                    'bad action':   (255,60,0), \
-#                    'good action':  (60,155,0) }[mode]
-#        except: print "Mouse mode not recognized:", mode
-#
-##       mouse.spr.image.fill((140,100,240,180))
-#        mouse.draw_target( targ_color )
-##       mouse.spr.image = pygame.image.load('./resources/cursor1.png')
-#        mouse.spr.image.convert_alpha()
-#        mouse.spr.dirty=1
-#
-#    def draw_target(mouse, (r,g,b) ):
-#        mouse.spr.image.fill((0,0,0,0))
-#        tx,ty = mouse.gm.tile_size
-#        tx = tx-2; ty=ty-2
-#        M = MOUSE_CURSOR_DISPL
-##        for i in [1,2,3]:
-#        for i in [1,3,4,5]:
-#            for d in DIRECTIONS:
-#                rect_size = { UDIR: (tx-2*(i+1)*M, M),   DDIR: (tx-2*(i+1)*M, M),
-#                              LDIR: (M, ty-2*(i+1)*M),   RDIR: (M, ty-2*(i+1)*M) }[d]
-#                location = {
-#                    UDIR: ((i+1)*M, i*M),        DDIR: ((i+1)*M, ty-(i+1)*M), 
-#                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
-##                print i, DIRNAMES[d], 'size/loc:',rect_size, location
-#                if rect_size[X]<=0 or rect_size[Y]<=0: continue
-#                s = pygame.Surface( rect_size ).convert_alpha()
-#                try:
-#                    s.fill( (r,g,b, MOUSE_GRAD[i-1]) )
-#                except:
-#                    s.fill( (r,g,b, MOUSE_GRAD[-1]) )
-#                mouse.spr.image.blit(s, location)
-#        s = pygame.Surface( (4,4) ).convert_alpha()
-#        s.fill( (r,g,b, 255) )
-#        mouse.spr.image.blit(s, (tx/2-2,ty/2-2) )
-#
-#
-#
-#
-#
-#
-#
-#
-
-
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-################################################################################################
-
-
-# 8/13: everthing below the WALL has been checked and verified for new paradigm.
 
 
 

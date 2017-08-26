@@ -24,7 +24,8 @@ class Sensor(Entity):
         sensor.state = None
 
     def _sensor_check(sensor, what):
-        assert(sensor.priming in [EVAL_T,EVAL_F])
+        try: assert(sensor.priming in [EVAL_T,EVAL_F])
+        except: print sensor, what
         if what=='access':
             if sensor.priming == EVAL_F: 
                 return EVAL_F
@@ -96,6 +97,27 @@ class GetPPosSensor(Sensor):
         querystr = 'SELECT px,py FROM agent_status WHERE uniq_id==?;'
 #        print 'db >>',sensor.gm.db.execute('SELECT * FROM agent_status').fetchall()
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
+        return sensor.sense(agent_id)
+
+
+''' Like TPOS sensor but first queries reservations for next tile. For frame lag.'''
+class GetNextReservation(Sensor):
+    def __init__(sensor, gm, agent_id=None):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'next reservation'
+        if agent_id: sensor.agent_id = agent_id
+    def sense(sensor, agent_id=None):
+        if agent_id==None: agent_id = sensor.agent_id
+        if sensor.get_priming()==EVAL_T:
+            return sensor._retrieve(agent_id)
+        sensor.prime()
+        res = sensor.gm.revreserved_tiles.get(agent_id, False)
+        if not res: 
+            querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
+            res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
+        sensor._store({agent_id:res})
+#        print sensor._store
+#        import sys; sys.exit()
         return sensor.sense(agent_id)
 
 ''' Mouse position '''

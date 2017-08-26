@@ -33,7 +33,7 @@ class MotionAction(Action):
         # further update:   ...or any collisions for that matter. But at least
         # indeed updates are happening to the database.  Error located to sensor.
         # Error solved: not everything was getting updated.
-        if action.logic.agent.species in ['plyr', 'pkmn']:
+        if action.logic.agent.species in BLOCKING_SPECIES:
             query_tpos = action.logic.pTOt(query_ppos)
 #            if action.logic.agent.species == 'plyr': 
 #                print action.name,cur_ppos,'->',query_ppos,'=?',query_tpos,\

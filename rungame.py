@@ -1,3 +1,4 @@
+DEFAULT_FPS = 5
 
 # 8/13: for the current rewrite, a (*) marks objects that have been checked
 # and passed for the next iteration.
@@ -23,7 +24,6 @@ X = 0;  Y = 1
 SP_ACTION = 4;
 ACTIONS = [SP_ACTION]
 
-DEFAULT_FPS = 5
 
 
 ''' GameManager: Whole wrapper class for a organizing a game level. '''
@@ -104,14 +104,15 @@ class GameManager(object): # *
         gm.uniq_id_counter = 100
         gm.entities = {}
         gm.reserved_tiles = {}
+        gm.revreserved_tiles = {}
         gm._frame_iter = 0
-        gm._smoothing = 1.0          # animation smoothing factor
+        gm._smoothing = 1.0      # animation smoothing factor
         (gm.num_x_tiles, gm.num_y_tiles) = gm.map_num_tiles
         gm.map_pix_size = (gm.map_x, gm.map_y) = \
                             multpos(gm.map_num_tiles, gm.tile_size)
 
     def ts(gm): return gm.tile_size # *
-    def smoothing(gm): return gm._smoothing # *
+    def smoothing(gm): return gm._smoothing
 
     ''' _init_display:  set up the Display.'''
     def _init_display(gm): # *
@@ -145,9 +146,13 @@ class GameManager(object): # *
         gm.prev_agent_information = []
 
         gm.Agents, gm.Effects = {},{}
-        gm.Agents.update(  { 'Player': Player(gm) })
-        gm.Effects.update( { 'mouse highlighter': MouseTarget(gm) })
-        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
+        gm.addNew('Agents', 'Player', Player )
+        gm.addNew('Effects', 'mouse highlighter', MouseTarget )
+
+#        gm.Agents.update(  )
+#        gm.Agents['Player'].setup_belt()
+#        gm.Effects.update( { 'mouse highlighter': MouseTarget(gm) })
+#        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
 #        for i in range(1,3)+range(8,10):
 #            for j in range(1,3):
         for i in range(1,4):
@@ -171,19 +176,12 @@ class GameManager(object): # *
         gm.prev_e = gm.events[:]
         gm.buttonUp = { SP_ACTION: True }
 
-        if 'false'=='Pass this now via comment':
-            pkmn_id = '1' # stub
-            for team, pos in [ ('wild', (1,2)),  ('wild', (3,3))]:
-                optns = {'which_pkmn':pkmn_id, 'pos':pos}
-                optns['init_shift'] = (0, -int( (gm.tile_y_size * float(\
-                            gm.cp.get('pkmn'+pkmn_id, 'img_shift')))//1))
-                attrs = ['stepsize_x', 'stepsize_y', 'move_range', 'move_speed',\
-                        'base_health', 'catch_threshold'] 
-                for a in attrs:
-                    optns[a] = gm.db.execute( ' SELECT '+a+\
-                            ' FROM pkmn_prefabs WHERE pkmn_id=?;', \
-                            (pkmn_id,)).fetchone()[0]
-                gm.create_new_ai(team,'pkmn', optns)
+    def addNew(gm, store_where, key, class_val, **options):
+        init = class_val(gm, **options)
+        d={key: init}
+        {'Agents': gm.Agents, 'Effects':gm.Effects}[store_where].update(d)
+        if store_where=='Agents': init._belt.setup_belt(class_val, **options)
+
 
     def active_entities(gm): return gm.Agents.values() + gm.Effects.values()
     def BroadcastAll(gm, fn_name): 
@@ -203,6 +201,7 @@ class GameManager(object): # *
 
     def _prepare_new_frame(gm):
         gm.reserved_tiles = {}
+        gm.revreserved_tiles = {}
         sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
         gm.prev_agent_information = gm.db.execute(sql_get_tocc).fetchall()
 
@@ -213,6 +212,7 @@ class GameManager(object): # *
         gm.clock.tick(gm.fps)
         this_tick = pygame.time.get_ticks()
         dt = (this_tick - gm.last_tick)
+        gm.dt = dt
         cur_true_fps = gm.clock.get_fps()
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
@@ -299,7 +299,7 @@ class GameManager(object): # *
         for tx,ty,px,py,ent_type,img_str,uniq_id in img_pposes:
             if ent_type in [u'target',u'bar']:
                 gm.display.queue_E_img(img_str, (px,py))
-            elif ent_type in [u'plyr', u'pkmn']:
+            elif ent_type in BLOCKING_SPECIES:
                 offset = gm.entities[uniq_id].image_offset
                 gm.display.queue_A_img(img_str, sub_aFb(offset, (px,py)))
             else: raise Exception()
@@ -350,9 +350,11 @@ class GameManager(object): # *
             print ("notify_pmove: tpos already reserved:",tpos, (tx,ty), \
                     gm.entities[gm.reserved_tiles[tpos]], gm.entities[agent_id])
             return
-        gm.reserved_tiles[tpos] = agent_id
         upd = 'UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? WHERE uniq_id=?;'
         gm.db.execute(upd, (tx, ty, ploc[X], ploc[Y], agent_id))
+        if not gm.entities[agent_id].species in BLOCKING_SPECIES: return
+        gm.reserved_tiles[tpos] = agent_id
+        gm.revreserved_tiles[agent_id] = tpos
         #gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
 
 #    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):

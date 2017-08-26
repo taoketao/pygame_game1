@@ -52,22 +52,28 @@ class Logic(Entity):
 
         # Update interlocking global fields:
         put = logic._state.update_env
+        put('most recently reserved', logic.view_sensor('tpos'))
+        put('delay',logic.view('delay')-logic.gm.dt/1000.0)
+#        print logic.gm.dt, logic.gm.fpms, logic.gm.dt*logic.gm.fpms
         if logic.agent.species=='plyr': 
-            # Update _state for new frame for PLAYER:
-            # (ideally, sensors would offload most of this)
-            put('prev move vec', logic.view('curr move vec'))   # do both these lines
-            put('curr move vec', logic.gm.events[:4])           # with a Sensor
-            put('triggered actions', logic.gm.events[4:])
+            pass
+#            put('prev move vec', logic.view('curr move vec'))   # do both these lines
+#            put('curr move vec', logic.gm.events[:4])           # with a Sensor
+#            put('triggered actions', logic.gm.events[4:])
         if logic.agent.species=='pkmn':
-            logic.update_global('delay',logic.view('delay')-logic.gm.fpms)
-            logic.update_global('prevtid', logic.view('curtid'))
-            logic.update_global('most recently reserved', logic.view_sensor('tpos'))
-            logic.update_global('curtid', logic.view_sensor('tpos'))
+#            put('prevtid', logic.view('curtid'))
+            pass#put('curtid', logic.view_sensor('tpos'))
+
+        for dep in logic.belt.Dependents.values(): dep.Reset()
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
-    def Decide(logic):      logic.root_ap.find_viability()
+    def Decide(logic):      
+        logic.root_ap.find_viability()
+        for dep in logic.belt.Dependents.values(): dep.PrepareAction()
 #-- Interface method        __ Implement __        Call after Deciding, for all
-    def Implement(logic):   logic.root_ap.implement()
+    def Implement(logic):   
+        logic.root_ap.implement()
+        for dep in logic.belt.Dependents.values(): dep.DoAction()
 
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
@@ -83,7 +89,7 @@ class Logic(Entity):
         logic.agent = agent
         logic.belt = Belt(gm, agent, **options)
         logic._state = State(gm, logic.belt)
-        logic._state.setup_fields(agent.species, parent_logic=logic, 
+        logic._state.setup_fields(agent.species, logic=logic, 
                             ppos=options['init_ppos'])
         logic.message_queue = []
 #        print 'agent.species', agent.species

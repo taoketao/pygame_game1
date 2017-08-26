@@ -68,16 +68,7 @@ class PickRandMove(ActionPicker):
     def reset(ap): 
         ap.viability = EVAL_U; 
         for c in ap.logic.belt.Actions.values(): c.reset()
-        ap.logic.update_ap('mov choice', EVAL_U, ap.uniq_id)
-            
-class Delay(ActionPicker): 
-    # As used in Priority, returns EVAL_T to block if delay has not finished.
-    def __init__(ap, logic):
-        ActionPicker.__init__(ap, logic)
-    def find_viability(ap):
-        return (ap.VIABLE() if ap.logic.view('delay')>=0 else ap.INVIABLE())
-    def implement(ap): assert(ap.viability==EVAL_T)
-    def reset(ap): ap.viability=EVAL_U
+        ap.logic.update_ap('mov choice', EVAL_U, ap.uniq_id) 
 
 # wander: pick a random valid direction and move there.
 class Wander(ActionPicker):

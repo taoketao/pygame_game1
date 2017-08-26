@@ -137,10 +137,14 @@ class PlayerMotion(ActionPicker):
                     PickNewest(logic),\
                     SetPlayerCycleImage(logic)
                   ])
-    def find_viability(ap): 
+    def find_viability(ap):  
+        ap.logic.update_global('prev move vec', ap.logic.view('curr move vec'))
+        ap.logic.update_global('curr move vec', ap.gm.events[:4])
         return ap.COPYEVAL(ap.root.find_viability())
     def implement(ap): 
         assert(ap.viability==EVAL_T)
+        ap.logic.update_global('delay', ap.logic.view('root delay'))
+        ap.logic.update_global('prev move vec', ap.logic.view('curr move vec'))
         ap.root.implement()
     def reset(ap): 
         ap.viability = EVAL_U; 
@@ -165,9 +169,9 @@ class BasicPlayerActionPicker(ActionPicker):
 #            PlayerMotion(g,l)))
 #        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
 #        ap.root = Try(logic, PlayerMotion(logic) )
-        ap.root = Sequential(logic, [\
-                PlayerMotion(logic),
-                MessageNearbyRedraw(logic)])
+        ap.root = Priority(logic, [\
+                Delay(logic),
+                PlayerMotion(logic)])
         
 
     def reset(ap): 

@@ -41,3 +41,6 @@ RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
 NULL_RESERVATION=-2342
 
 sql_all_AS = 'SELECT * FROM agent_status;'
+
+BLOCKING_SPECIES = [u'plyr', u'pkmn']
+STD_FPS=1.0
