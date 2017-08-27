@@ -50,7 +50,6 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['redraw'] = EVAL_F
         if genus in ['pkmn','plyr']:
             st.s_env['root delay'] = logic.agent.primary_delay
-            st.s_env['delay'] = np.random.uniform(0.0, st.s_env['root delay'])
         if genus=='plyr':   st.setup_plyr_fields(logic)
         if genus=='pkmn':   st.setup_basic_pkmn_fields(logic)
         if genus=='target': st.setup_target(logic) 
@@ -83,6 +82,7 @@ class State(Entity): # i do not write, so no need to have logic
         st.belt.Actions = {k:v(logic) for k,v in st.belt.Actions.items()}
 
     def setup_plyr_fields(st, logic):
+        st.s_env['delay'] = 0.001
         # Simple status fields, eg primitives or fixed-structure collections:
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['available']       = True
@@ -107,6 +107,7 @@ class State(Entity): # i do not write, so no need to have logic
     def setup_target(st, logic): pass
 
     def setup_basic_pkmn_fields(st, logic):
+        st.s_env['delay'] = np.random.uniform(0.0, st.s_env['root delay'])
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['unit step'] = logic.gm.ts()
         st.s_env['is being caught'] = False

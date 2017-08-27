@@ -1,4 +1,4 @@
-DEFAULT_FPS = 5
+DEFAULT_FPS = 10 # should be a cap: lower than expected max FPS
 
 # 8/13: for the current rewrite, a (*) marks objects that have been checked
 # and passed for the next iteration.
@@ -216,7 +216,8 @@ class GameManager(object): # *
         cur_true_fps = gm.clock.get_fps()
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
-        gm._smoothing = {True:dt * gm.fpms, False:1}[gm.last_tick>0]
+        gm._smoothing = {True:dt * cur_true_fps / 1000.0, False:1}[gm.last_tick>0 and cur_true_fps>0]
+        print dt, gm.fpms, cur_true_fps, cur_true_fps*dt
         gm.last_tick = this_tick
         gm.fps_itr = (gm.fps_itr+1)%10
 

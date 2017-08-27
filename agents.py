@@ -26,15 +26,16 @@ import logic as logic_module
 # latencies for Player:
 PLYR_COLL_WIDTH, PLYR_COLL_SHIFT = 0.4, 0.2
 PLYR_IMG_SHIFT_INIT = 0.125
-DEFAULT_STEPSIZE = 0.29 # a prime?
+DEFAULT_STEPSIZE = 3.7 # a prime?
 PLYR_CATCH_DIST = 0.5
 PLYR_COLL_BUF = 1+PLYR_COLL_WIDTH
-PLYR_STEP_DELAY = 0.0031
+#PLYR_STEP_DELAY = 0.03+np.random.uniform(0.0,0.01)
+PLYR_STEP_DELAY = 81
 
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
-PKMN_WANDER_DELAY = 0.1
+PKMN_WANDER_DELAY = 800
 DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
 
 # (color) options for Mouse:
@@ -54,11 +55,12 @@ class Player(VisualStepAgent):
         VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
         ego.species='plyr'
         ego.team = '--plyr--'
-        ego.primary_delay = PLYR_STEP_DELAY * gm.fps # ie, without smoothing
+        ego.primary_delay = PLYR_STEP_DELAY #* gm.fps # ie, without smoothing
+        print 'ego.primary_delay', ego.primary_delay
         ego.store_reservations=True
         ego.image_offset = multvec(gm.ts(), (0.4,0.9))
         ego.stepsize_x, ego.stepsize_y = \
-                ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE,int)
+                ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE/(10+gm.fps**0.5),int)
         ego._logic = logic_module.Logic(gm, ego, init_ppos=init_ppos)
         ego._belt = ego._logic.belt
         ego.gm.notify_update_agent(ego, img_str='player sprite 7', team=ego.team,\
@@ -85,7 +87,8 @@ class Player(VisualStepAgent):
         if (not type(which_img)==int) or not which_img in range(12): \
                 raise Exception(which_img, type(which_img))
         ego.gm.notify_image_update(ego, 'player sprite '+str(which_img+1))
-    def get_pstep(ego): return multvec(ego.stepsize, ego.gm.smoothing()/ego.gm.fps+STD_FPS)
+    def get_pstep(ego): return divvec(ego.stepsize, ego.gm.smoothing())
+    #def get_pstep(ego): return divvec(ego.stepsize, ego.gm.smoothing())
     #def get_pstep(ego): return ego.stepsize
 
     ''' Methods: available to many for read.  ( No need to overwrite 
@@ -104,7 +107,7 @@ class AIAgent(TileAgent):
     ''' AIAgent class: basic pokemon unit.'''
     def __init__(ai, gm, init_tloc, **options):
         TileAgent.__init__(ai, gm, init_tloc)
-        ai.primary_delay = PKMN_WANDER_DELAY * gm.fps # ie, without smoothing
+        ai.primary_delay = PKMN_WANDER_DELAY #* gm.fps # ie, without smoothing
         ai.species = 'pkmn'
         ai.team = '--'+options.get('team')+'--'
         ai.store_reservations=True

@@ -53,7 +53,9 @@ class Logic(Entity):
         # Update interlocking global fields:
         put = logic._state.update_env
         put('most recently reserved', logic.view_sensor('tpos'))
-        put('delay',logic.view('delay')-logic.gm.dt/1000.0)
+        #put('delay',logic.view('delay')-logic.gm.dt**-1)
+        put('delay',logic.view('delay')-logic.gm.dt) # check...
+#        print "Decrease delay :", logic.gm.dt/1000.0, logic.gm.fps, logic.gm.dt**-1
 #        print logic.gm.dt, logic.gm.fpms, logic.gm.dt*logic.gm.fpms
         if logic.agent.species=='plyr': 
             pass
