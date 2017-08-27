@@ -55,9 +55,9 @@ class VisualStepAgent(Entity):
         ''' _set_new_ppos: Internal motion function for motion. Developer: please use THIS. '''
         if not (ta.initialized or sp=='initializing'): raise Exception("Not initialized")
         if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
-        if ta.store_reservations: 
+        if ta.store_reservations and ta.gm.notify_pmove(ta.uniq_id, ppos): 
             ta._logic.update_global('most recently reserved', divvec(ppos,ta.gm.ts()))
-        ta.gm.notify_pmove(ta.uniq_id, ppos)
+        
     
     def move_in_direction(ta, delta_xy):
         ''' move_in_direction: user-facing function meant to take, specifically, Motion 

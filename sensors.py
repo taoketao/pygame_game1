@@ -104,7 +104,7 @@ class GetPPosSensor(Sensor):
 class GetNextReservation(Sensor):
     def __init__(sensor, gm, agent_id=None):
         Sensor.__init__(sensor, gm)
-        sensor.access_name = 'next reservation'
+        sensor.access_name = 'next reserved'
         if agent_id: sensor.agent_id = agent_id
     def sense(sensor, agent_id=None):
         if agent_id==None: agent_id = sensor.agent_id
@@ -119,7 +119,7 @@ class GetNextReservation(Sensor):
 #        print sensor._store
 #        import sys; sys.exit()
         return sensor.sense(agent_id)
-
+#
 ''' Mouse position '''
 class GetMouseTIDSensor(Sensor):
     def __init__(sensor, gm):

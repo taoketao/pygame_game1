@@ -46,6 +46,7 @@ class Belt(Entity):
 
         belt.Sensors.update({True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
                                 'smoothing':GetFrameSmoothingSensor ,\
+                                'next reserved':GetFrameSmoothingSensor ,\
                                 'tile obstr':TileObstrSensor, \
                                 'unit step':GetCurUnitStepSensor }, \
                             False: {} }[options.get('std_sensors',True)] )
@@ -69,10 +70,10 @@ class Belt(Entity):
         if class_type==agents_module.Player:        \
             belt.Dependents.update(                 \
                     {'highlighter': agents_module.PlayerHighlighter(belt.gm)} )
-        elif class_type==agents_module.AIAgent:     \
-            belt.Dependents.update(                 \
-                    {'health': agents_module.StatusBar(belt.gm, belt.agent, \
-                    metric='health', **options)} )
+#        elif class_type==agents_module.AIAgent:     \
+#            belt.Dependents.update(                 \
+#                    {'health': agents_module.StatusBar(belt.gm, belt.agent, \
+#                    metric='health', **options)} )
 
 #    elif options.get('sp_init')=='pokeball catch':
 #        belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}

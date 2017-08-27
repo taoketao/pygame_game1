@@ -106,7 +106,7 @@ class Display(Entity):
         disp._agent_update_tups.insert(0, (img, ppos) )
     def queue_E_img(disp, img, ppos):
         disp._effect_update_tups.append( (img, ppos) )
-        print "--------------------Queueing effect:",img,ppos
+#        print "--------------------Queueing effect:",img,ppos
 
     def std_render(disp):
         #print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset

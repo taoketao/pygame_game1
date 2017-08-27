@@ -1,4 +1,4 @@
-DEFAULT_FPS = 10 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 1 # should be a cap: lower than expected max FPS
 
 # 8/13: for the current rewrite, a (*) marks objects that have been checked
 # and passed for the next iteration.
@@ -15,6 +15,7 @@ from display import Display
                     
 ''' Map Options '''
 MAP_LEVEL_CONFIG = './config7.ini'
+MAP_LEVEL_CONFIG = './config_collision.ini'
 TILE_SIZE = (64,56);
 TILE_SIZE = (40,40);
 TILE_SIZE = (40,35);
@@ -129,12 +130,14 @@ class GameManager(object): # *
 
     """ PUBLIC FUNCTION run_game: launch a game and loop it  """
     def run_game(gm, max_num_epochs_test=10000):
+        gm.TEMPORARY_VARIABLE_DEBUG = True
         gm._init_game()
         FRAME_COUNTER = 0
         for _ in range(max_num_epochs_test):
 #            print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
             FRAME_COUNTER+=1
             gm._run_frame()
+#            print "\t Status:", gm.db.execute(sql_tile_locs).fetchall()
 
     def _init_game(gm, fps=DEFAULT_FPS):
         gm.fps = float(fps)     # frames per second
@@ -148,6 +151,17 @@ class GameManager(object): # *
         gm.Agents, gm.Effects = {},{}
         gm.addNew('Agents', 'Player', Player )
         gm.addNew('Effects', 'mouse highlighter', MouseTarget )
+        for i in range(1,4):
+            for j in range(1,3):
+                s=str(i)+','+str(j)
+                if gm.TEMPORARY_VARIABLE_DEBUG:
+                    gm.addNew('Agents', 'PkmnPlyr'+s, AIAgent, init_tloc=(i,j), uniq_name=\
+                            'PkmnPlyr'+s, hbcolor='b', team='plyr', pokedex=1, health=20)
+                    gm.TEMPORARY_VARIABLE_DEBUG=False
+                else:
+                    gm.addNew('Agents', 'PkmnWild'+s, AIAgent, init_tloc=(i,j), uniq_name=\
+                            'PkmnWild'+s, hbcolor='r', team='wild', pokedex=1, 
+                            health=np.random.choice(range(25,35)))
 
 #        gm.Agents.update(  )
 #        gm.Agents['Player'].setup_belt()
@@ -155,7 +169,8 @@ class GameManager(object): # *
 #        gm.Effects.update( { 'player highlighter': PlayerHighlighter(gm)})
 #        for i in range(1,3)+range(8,10):
 #            for j in range(1,3):
-        for i in range(1,4):
+        if False:
+         for i in range(1,4):
             for j in range(1,2):
                 s = 'Enemy'+str(i)+str(j)
                 gm.Agents.update({s: AIAgent(gm, (i,j), uniq_name=s, hbcolor='b',\
@@ -198,10 +213,14 @@ class GameManager(object): # *
         gm.BroadcastAll('DoAction')
         gm.process_update_queue()
         gm.display.std_render()
+        print '\n\t',gm.revreserved_tiles, '\n\t',gm.db.execute(sql_tile_locs).fetchall(),'\n\tnewframe'
 
     def _prepare_new_frame(gm):
         gm.reserved_tiles = {}
         gm.revreserved_tiles = {}
+        for tx,ty,_,aid in gm.db.execute(sql_tile_locs):
+            gm.reserved_tiles.update({aid:(tx,ty)})
+            gm.revreserved_tiles.update({(tx,ty):aid})
         sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
         gm.prev_agent_information = gm.db.execute(sql_get_tocc).fetchall()
 
@@ -217,7 +236,7 @@ class GameManager(object): # *
         if cur_true_fps<gm.fps-1 and gm.fps_itr==0:
             print 'fps:', cur_true_fps
         gm._smoothing = {True:dt * cur_true_fps / 1000.0, False:1}[gm.last_tick>0 and cur_true_fps>0]
-        print dt, gm.fpms, cur_true_fps, cur_true_fps*dt
+#        print dt, gm.fpms, cur_true_fps, cur_true_fps*dt
         gm.last_tick = this_tick
         gm.fps_itr = (gm.fps_itr+1)%10
 
@@ -238,6 +257,7 @@ class GameManager(object): # *
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_SPACE]: gm.events[SP_ACTION]=True
         if down[pygame.K_q]:     sys.exit()
+        if down[pygame.K_p]:     raw_input()
         if (not gm.buttonUp[SP_ACTION]) and (not down[pygame.K_SPACE]):
             gm.buttonUp[SP_ACTION] = True 
         pygame.event.clear()
@@ -280,7 +300,6 @@ class GameManager(object): # *
 #----------#----------#----------#----------#----------#----------#----------
 
     def process_update_queue(gm):
-        sql_get_tocc = 'SELECT tx,ty,agent_type FROM agent_status;'
         #print 'gm.process_update_queue: print whole db.', gm.db.execute('SELECT img_str,tx,ty FROM agent_status;').fetchall()
 #        print gm.prev_agent_information
         old_tposes = set(gm.prev_agent_information)
@@ -291,14 +310,12 @@ class GameManager(object): # *
 #            print '\texecuting command:',cmd,values
             gm.db.execute(cmd, values)
         new_tposes = set(gm.db.execute(sql_get_tocc).fetchall());
-        if gm._frame_iter<=1: gm.display.queue_reset_tile((0,0), 'tpos')
+        if gm._frame_iter<=1: gm.display.queue_reset_tile((0,0), 'tpos') # hack
         for tx,ty,ent_type in old_tposes.union(new_tposes):
             gm.display.queue_reset_tile((tx,ty), 'tpos')
-        sql_get_pposes = '''SELECT tx,ty,px,py,agent_type,img_str,uniq_id 
-                            FROM agent_status;'''
         img_pposes = set(gm.db.execute(sql_get_pposes).fetchall());
         for tx,ty,px,py,ent_type,img_str,uniq_id in img_pposes:
-            if ent_type in [u'target',u'bar']:
+            if not ent_type in BLOCKING_SPECIES: #[u'target',u'bar']:
                 gm.display.queue_E_img(img_str, (px,py))
             elif ent_type in BLOCKING_SPECIES:
                 offset = gm.entities[uniq_id].image_offset
@@ -339,7 +356,7 @@ class GameManager(object): # *
         gm.update_queue.append( [sql_ins, Vals, 'new agent'] ) 
 
     def notify_tmove(gm, a_id, tloc): gm.notify_pmove(a_id, gm._p_to_t(tloc))
-    # Notify pmove:
+    # Notify pmove: returns whether the move was successful @ making reservation:
     def notify_pmove(gm, agent_id, ploc):
         if not type(agent_id)==int: agent_id = agent_id.uniq_id
         tx, ty = tpos = divvec(ploc, gm.ts())
@@ -348,15 +365,24 @@ class GameManager(object): # *
                 and (not tpos in [(0,0),(-1,-1)])                       \
                 and (not gm.reserved_tiles[tpos]==agent_id)             \
                 and (not gm.reserved_tiles[tpos]==NULL_RESERVATION):
-            print ("notify_pmove: tpos already reserved:",tpos, (tx,ty), \
-                    gm.entities[gm.reserved_tiles[tpos]], gm.entities[agent_id])
-            return
-        upd = 'UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? WHERE uniq_id=?;'
-        gm.db.execute(upd, (tx, ty, ploc[X], ploc[Y], agent_id))
-        if not gm.entities[agent_id].species in BLOCKING_SPECIES: return
-        gm.reserved_tiles[tpos] = agent_id
-        gm.revreserved_tiles[agent_id] = tpos
-        #gm.update_queue.append([upd, (tx, ty, ploc[X], ploc[Y], agent_id)])
+            X1,X2 = gm.entities[gm.reserved_tiles[tpos]], gm.entities[agent_id]
+            print "---------notify_pmove: tpos already reserved:",tpos, (tx,ty), \
+                    X1,X1.uniq_id,gm.reserved_tiles[X1.uniq_id],X1.view_field('tpos'),\
+                    X2,X2.uniq_id,gm.reserved_tiles[X2.uniq_id],X2.view_field('tpos')
+#                    , gm.reserved_tiles, gm.revreserved_tiles
+#            ag = gm.entities[agent_id]
+#            old_tx,old_ty = ag.view_field('tpos')
+#            old_px,old_py = ag.view_field('ppos')
+#            gm.db.execute(sql_update_pos, (old_tx, old_ty, old_px, old_py, agent_id))
+            return False
+#        elif not (gm.entities[agent_id].species in RESERVABLE_SPECIES):
+#        print '- pmove notify: by',agent_id,'frame',gm._frame_iter, gm.reserved_tiles, gm.revreserved_tiles,tx,ty
+#        gm.db.execute(sql_update_pos, (tx, ty, ploc[X], ploc[Y], agent_id))
+        if gm.entities[agent_id].species in BLOCKING_SPECIES:
+            gm.reserved_tiles[tpos] = agent_id
+            gm.revreserved_tiles[agent_id] = tpos
+        gm.update_queue.append([sql_update_pos, (tx, ty, ploc[X], ploc[Y], agent_id), 'new pos'])
+        return True
 
 #    def notify_imgChange(gm, ref_who, img_name, where='not provided', prior=None):
 #        if where=='not provided':

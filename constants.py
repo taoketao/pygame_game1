@@ -38,9 +38,16 @@ MTNKEYS = ['l','d','r','u','-']
 DEFAULT_IMAGE_OFFSET = (0.0,0.0)
 
 RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
+
 NULL_RESERVATION=-2342
 
-sql_all_AS = 'SELECT * FROM agent_status;'
+sql_all_AS='SELECT * FROM agent_status;'
+sql_tile_locs='SELECT tx,ty,img_str,uniq_id FROM agent_status;'
+sql_get_pposes='SELECT tx,ty,px,py,agent_type,img_str,uniq_id FROM agent_status;'
+sql_get_tocc='SELECT tx,ty,agent_type FROM agent_status;'
+sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? 
+                    WHERE uniq_id=?; '''
+
 
 BLOCKING_SPECIES = [u'plyr', u'pkmn']
 STD_FPS=1.0

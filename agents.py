@@ -35,7 +35,7 @@ PLYR_STEP_DELAY = 81
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
-PKMN_WANDER_DELAY = 800
+PKMN_WANDER_DELAY = 000
 DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
 
 # (color) options for Mouse:
@@ -49,7 +49,7 @@ BAR_WIDTH = 3
 class Player(VisualStepAgent):
     ''' Player class: the human player representation as an agent (step, img) '''
     def __init__(ego, gm):
-        init_tpos = divvec(gm.map_num_tiles,3) 
+        init_tpos = divvec(gm.map_num_tiles,1.5) 
         init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
                 range(1, min(gm.ts())), 2)))
         VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
@@ -105,8 +105,9 @@ class Player(VisualStepAgent):
 
 class AIAgent(TileAgent):
     ''' AIAgent class: basic pokemon unit.'''
-    def __init__(ai, gm, init_tloc, **options):
-        TileAgent.__init__(ai, gm, init_tloc)
+    def __init__(ai, gm, **options):
+        TileAgent.__init__(ai, gm, options['init_tloc'])
+        init_tloc = options['init_tloc']
         ai.primary_delay = PKMN_WANDER_DELAY #* gm.fps # ie, without smoothing
         ai.species = 'pkmn'
         ai.team = '--'+options.get('team')+'--'
@@ -118,6 +119,7 @@ class AIAgent(TileAgent):
         ai._logic.update_global('max health',options['health'])
         ai._logic.update_global('cur health',options['health']) # default
         ai._logic.update_global('uniq_name',options['uniq_name'])
+        ai._belt = ai._logic.belt
         ai.initialized = True
         ai.pokedex = options['pokedex']
         ai.gm.notify_update_agent(ai, img_str='pkmn sprite '+str(ai.pokedex)+'d',
