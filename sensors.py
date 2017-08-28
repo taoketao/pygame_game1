@@ -111,10 +111,11 @@ class GetNextReservation(Sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
-        res = sensor.gm.revreserved_tiles.get(agent_id, False)
+        res = sensor.gm.reserved_tiles.get(agent_id, False)
         if not res: 
             querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
             res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
+        print agent_id,"found reservation:",res
         sensor._store({agent_id:res})
 #        print sensor._store
 #        import sys; sys.exit()

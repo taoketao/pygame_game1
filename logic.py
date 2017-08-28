@@ -34,7 +34,7 @@ class Logic(Entity):
 #-- Interface method        __ Update __        Call before choosing actions 
     def Update(logic):
         # Wipe sensors and prime them
-
+        logic.viability = EVAL_F
         # Read and process messages:
         while len(logic.message_queue)>0:
             print "processing message...",logic.message_queue[0]
@@ -55,6 +55,7 @@ class Logic(Entity):
         put('next reserved', logic.view_sensor('tpos'))
         #put('delay',logic.view('delay')-logic.gm.dt**-1)
         put('delay',logic.view('delay')-logic.gm.dt) # check...
+        #print logic.agent.uniq_id,logic.view('delay'), logic.view('root delay'), logic.gm.dt
 #        print "Decrease delay :", logic.gm.dt/1000.0, logic.gm.fps, logic.gm.dt**-1
 #        print logic.gm.dt, logic.gm.fpms, logic.gm.dt*logic.gm.fpms
         if logic.agent.species=='plyr': 
@@ -70,12 +71,14 @@ class Logic(Entity):
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      
-        logic.root_ap.find_viability()
+        logic.viability = logic.root_ap.find_viability()
         for dep in logic.belt.Dependents.values(): dep.PrepareAction()
 #-- Interface method        __ Implement __        Call after Deciding, for all
     def Implement(logic):   
-        logic.root_ap.implement()
-        for dep in logic.belt.Dependents.values(): dep.DoAction()
+        if logic.gm.frame_iter>1: logic.root_ap.implement()
+        for dep in logic.belt.Dependents.values(): 
+            print 'dep dowing actino'
+            dep.DoAction()
 
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
@@ -85,7 +88,6 @@ class Logic(Entity):
     ''' ----------  Private methods  ---------- '''
 
     def __init__(logic, gm, agent, **options):
-#        print '^^',logic, gm, agent, belt
         Entity.__init__(logic, gm)
         agent.has_logic=True
         logic.agent = agent
@@ -94,7 +96,6 @@ class Logic(Entity):
         logic._state.setup_fields(agent.species, logic=logic, 
                             ppos=options['init_ppos'])
         logic.message_queue = []
-#        print 'agent.species', agent.species
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':

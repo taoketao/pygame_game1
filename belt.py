@@ -54,7 +54,6 @@ class Belt(Entity):
                                     'l':MotionLeft,     'r':MotionRight,  \
                                     '-':MotionStatic }, False:{}  \
                             } [options.get('std_motions',True)])
-        print 'test'
         which_init = options.get('sp_init', agent.team+' '+agent.species)
         if   which_init=='--plyr-- plyr': belt._init_basic_player()
         elif which_init=='target': pass
@@ -70,45 +69,10 @@ class Belt(Entity):
         if class_type==agents_module.Player:        \
             belt.Dependents.update(                 \
                     {'highlighter': agents_module.PlayerHighlighter(belt.gm)} )
-#        elif class_type==agents_module.AIAgent:     \
-#            belt.Dependents.update(                 \
-#                    {'health': agents_module.StatusBar(belt.gm, belt.agent, \
-#                    metric='health', **options)} )
 
-#    elif options.get('sp_init')=='pokeball catch':
-#        belt.Actions = {'anim':AnimLinear, 'c':TryToCatch, 'add':AddPkmn}
-#        belt.Sensors = [WildEntSensor]
     def _init_pkmn(belt, options):
         belt.Actions.update({'A':DoAttack})
         hb = agents_module.StatusBar(belt.gm, belt.agent, metric='health', **options)
+        hb.master=False
         belt.Dependents.update({ 'health':hb })
         belt.gm.Effects.update({ str(belt.agent.uniq_id)+'_health':hb })
-
-#        hb = agents_module.StatusBar(
-#        belt.Dependents.update({ 'health':hb })
-#        belt.gm.Effects.update({ str(agent.uniq_id)+'_health':hb })
-#
-    def _init_plyr_pkmn(belt): pass 
-    def _init_wild_pkmn(belt): pass
-    def add_pkmn(belt, pkmn):
-        belt.Pkmn.append(stored_pkmn(belt.gm, pkmn))
-
-''' stored_pkmn: a struct-class that stores sufficient information to
-    totally recreate a pokemon. Has constructor, comparator, save methods.'''
-class stored_pkmn(Entity):
-    def __init__(sp, gm, pkmn_aiagent_obj=None, which_pkmn_id=-1, \
-                    cur_health=-1): 
-        Entity.__init__(sp, gm)
-        sp.fields \
-            = [sp.pkmn_id, sp.maxhealth, sp.curhealth, sp.moves, sp.afflictions] \
-            = [None, None, None, None, None]
-        if not pkmn_aiagent_obj==None:
-            sp._ingest_as_ai_agent(pkmn_aiagent_obj)
-
-    def _ingest_as_ai_agent(sp, pkmn_ai):
-        sp.max_health = pkmn_ai.max_health
-        sp.cur_health = pkmn_ai.cur_health
-        sp.was_wild = True if pkmn_ai.team=='wild' else False
-
-
-           

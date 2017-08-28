@@ -3,6 +3,7 @@ import  numpy as np
 from abstractEntities import Entity
 from motionActions import *
 from attackActions import *
+import random
 
 '''             State               '''
 
@@ -49,9 +50,11 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['tilesize'] = st.gm.tile_size
         st.s_env['redraw'] = EVAL_F
         if genus in ['pkmn','plyr']:
+#            print logic.agent.primary_delay, logic.agent
             st.s_env['root delay'] = logic.agent.primary_delay
         if genus=='plyr':   st.setup_plyr_fields(logic)
         if genus=='pkmn':   st.setup_basic_pkmn_fields(logic)
+#        print st.s_env['delay']
         if genus=='target': st.setup_target(logic) 
         if ppos:
             st.s_env['tpos'] = divvec(ppos, st.gm.ts())
@@ -107,7 +110,14 @@ class State(Entity): # i do not write, so no need to have logic
     def setup_target(st, logic): pass
 
     def setup_basic_pkmn_fields(st, logic):
-        st.s_env['delay'] = np.random.uniform(0.0, st.s_env['root delay'])
+#        st.s_env['delay'] =  random.choice(range(\
+#                                    logic.agent.primary_delay))
+        # off by one:
+        st.s_env['delay'] = np.random.uniform(1.0,2.0)*logic.agent.primary_delay
+#        print logic.agent.primary_delay,
+#        i = random.choice(range(logic.agent.primary_delay))
+#        print         st.s_env['delay']
+
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['unit step'] = logic.gm.ts()
         st.s_env['is being caught'] = False
@@ -115,10 +125,3 @@ class State(Entity): # i do not write, so no need to have logic
                 if k in ['r','l','u','d','-']}
         st.s_env['attacks'] = {k:v for k,v in st.belt.Actions.items()\
                 if k in ['A']}
-
-#        st.s_env['attacks'] = {'tackle':Tackle(logic)}
-#        st.s_env['motions']=[]
-#        for m in [MotionUp, MotionRight, MotionDown, MotionLeft, MotionStatic]:
-#            st.s_env['motions'].append(m)
-#            if isinstance(v, MotionAction): st.s_env['motions'].append(v)
-#            if k=='tackle': st.s_env['attacks'].append(v)

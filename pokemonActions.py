@@ -57,7 +57,7 @@ class PickRandMove(ActionPicker):
         return ap.Verify(ap.logic.belt.Actions['-'])
     def implement(ap):
         assert(ap.viability==EVAL_T)
-        ap.logic.update_global('delay', ap.logic.view('root delay'))
+        ap.logic.update_global('delay', ap.logic.view('delay')+ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
 #        print '\t>> implemented',ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].name
