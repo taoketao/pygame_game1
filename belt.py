@@ -72,7 +72,12 @@ class Belt(Entity):
 
     def _init_pkmn(belt, options):
         belt.Actions.update({'A':DoAttack})
-        hb = agents_module.StatusBar(belt.gm, belt.agent, metric='health', **options)
-        hb.master=False
-        belt.Dependents.update({ 'health':hb })
-        belt.gm.Effects.update({ str(belt.agent.uniq_id)+'_health':hb })
+        tmp=options['hbcolor']
+        for i,c in enumerate([tmp,'y']):
+            options['hbcolor']=c
+            options['offset']=i
+            hb = agents_module.StatusBar(belt.gm, belt.agent, metric='health', **options)
+            if i==1: hb.update_metric(random.choice(range(5,35)), 'absolute')
+            hb.master=False
+            belt.Dependents.update({ 'health'+c:hb })
+            belt.gm.Effects.update({ str(belt.agent.uniq_id)+'_health':hb })

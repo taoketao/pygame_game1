@@ -29,12 +29,12 @@ PLYR_IMG_SHIFT_INIT = 0.125
 DEFAULT_STEPSIZE = 3.7 # a prime?
 PLYR_CATCH_DIST = 0.5
 PLYR_COLL_BUF = 1+PLYR_COLL_WIDTH
-PLYR_STEP_DELAY = 71
+PLYR_STEP_DELAY = 51
 
 # Latencies for Pkmn:
 PKMN_WANDER_LOW, PKMN_WANDER_HIGH = 1.0,3.0
 PKMN_MOVE_LOW, PKMN_MOVE_HIGH = 0.4,0.9
-PKMN_WANDER_DELAY = 600
+PKMN_WANDER_DELAY = 1600
 DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'} 
 
 # (color) options for Mouse:
@@ -42,7 +42,7 @@ MOUSE_CURSOR_DISPL = 3
 MOUSE_GRAD = (180,160,60,160)
                      
 # Health bar: 
-BAR_WIDTH = 3
+#BAR_WIDTH = 3
 
 
 class Player(ae_module.VisualStepAgent):
@@ -174,73 +174,83 @@ class StatusBar(ae_module.TileAgent):
         sb.species='bar'
         sb.team = owner.team
         sb.owner = owner
-        sb.color = { 'b': (110,120,255,255), 'r': (255,0,0,255) }[\
+
+        # Set fields
+        sb.color = { 'b': (110,120,255,255), 'r': (255,0,0,255),\
+                     'y': (255,255,0,255)}[\
                 options.get('hbcolor','r')]
         sb.metric = options['metric']
         sb.bg_color = (0,0,0,255)
-        tx,ty = options.get('init_tloc',(0,0))
         sb.prev_position = (0,0)
-        sb.offset = options.get('offset',2) # stack distance 
-        sb.shift = options.get('shift', 2) # buffer dist from edge
+        sb.offset = 2+(BAR_WIDTH+1)*options.get('offset',0) # stack distance 
+        sb.shift = 2+(BAR_WIDTH+1)*options.get('shift', 0) # buffer dist from edge
         sb.orientation = options.get('orientation', 'horiz') # vs vertic
         sb.cur_metric = sb.init_metric = options['health']
         if sb.orientation=='vertic':
             sb.bar_shape = (BAR_WIDTH, options[sb.metric])
-            sb.shift = max(1, (gm.ts()[Y]-options[sb.metric])/2)
         elif sb.orientation=='horiz':
             sb.bar_shape = (options[sb.metric], BAR_WIDTH)
-            sb.shift = max(1, (gm.ts()[X]-options[sb.metric])/2)
         else: raise Exception("Other statusbar format not implemented")
-        sb.gm.notify_update_agent(sb, tx=tx,ty=ty, team=sb.team, \
-                agent_type=sb.species, img_str = 'bar '+str(sb.color))
+
+        # conduct essential initial interactions
+        sb.gm.notify_update_agent(sb, team=sb.team,   \
+                tx=options.get('init_tloc',(0,0))[X], \
+                ty=options.get('init_tloc',(0,0))[Y], \
+                agent_type=sb.species, img_str='bar '+str(sb.color))
         sb.gm.notify_image_update(sb, 'bar '+str(sb.color)+str(sb.uniq_id), \
                                       sb.draw_statusbar())
         sb.targeter = sensors_module.GetNextReservation(gm, owner.uniq_id)
         sb.targeter.set_state('stateless')
 
-    def update_position_and_image(sb): 
-        if sb.cur_metric<0: sb.cur_metric = sb.init_metric = \
-                            sb.owner.view_field('max health')
-        sb.gm.notify_image_update(sb, 'bar '+str(sb.color)+str(sb.uniq_id), \
-                                      sb.draw_statusbar())
+    def update_position(sb): 
         sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
 
-    def update_metric(sb, amount, delta_or_flat='delta'):
-        if delta_or_flat=='delta': amount = sb.cur_metric+amount
-        elif not delta_or_flat=='flat': raise Exception()
-        sb.cur_metric = min(sb.init_metric, max(0, amount))
+    # Public access method: TODO: turn this into a sensor/etc
+    def update_metric(sb, amount, delta_or_absolute='delta'):
+        if delta_or_absolute=='delta': amount = sb.cur_metric+amount
+        elif not delta_or_absolute=='absolute': raise Exception()
+        sb.cur_metric = min(sb.init_metric, max(0, amount)) # CAPPED!
+        sb.gm.notify_image_update(sb, 'bar '+str(sb.color)+str(sb.uniq_id), \
+                                          sb.draw_statusbar())
 
     def draw_statusbar(sb):
+        scaling_amount = float(0.5*sb.cur_metric)/sb.init_metric # for debugging
+        scaling_amount = float(sb.cur_metric)/sb.init_metric # for debugging
         if sb.orientation=='horiz':
-            scaling = (float(0.5*sb.cur_metric)/sb.init_metric, 1)
+            scaling = (scaling_amount, 1)
             loc = (sb.shift, sb.offset)
             maxsize = (sb.gm.ts()[X]-2*sb.shift, BAR_WIDTH)
+            full_size = minvec(addvec(sb.bar_shape,2), \
+                            (sb.gm.ts()[X]-2*sb.shift, BAR_WIDTH+2))
+            cur_size = minvec(multvec(sb.bar_shape,scaling), \
+                            (sb.gm.ts()[X]-2*sb.shift, BAR_WIDTH))
         elif sb.orientation=='vertic':
-            scaling = (1, float(0.5*sb.cur_metric)/sb.init_metric)
-            loc = (sb.offset, sb.shift)
+            scaling = (1, scaling_amount)
             maxsize = (BAR_WIDTH, sb.gm.ts()[Y]-2*sb.shift)
+            full_size = minvec(addvec(sb.bar_shape,2), \
+                            (BAR_WIDTH+2, sb.gm.ts()[X]-2*sb.shift))
+            cur_size = minvec(multvec(sb.bar_shape,scaling), \
+                            (BAR_WIDTH, sb.gm.ts()[X]-2*sb.shift))
+            loc = (sb.offset, sb.shift+sb.gm.ts()[Y]-sb.bar_shape[Y])
+            loc = (sb.offset, -2*sb.shift+sb.gm.ts()[Y]-sb.bar_shape[Y])
         image = pygame.Surface(sb.gm.ts()).convert_alpha()
         image.fill((0,0,0,0))
 
-        full_size = minvec(addvec(sb.bar_shape,2), \
-                            (sb.gm.ts()[X]-2*sb.shift, BAR_WIDTH+2))
-        curh_size = minvec(multvec(sb.bar_shape,scaling), \
-                            (sb.gm.ts()[X]-2*sb.shift, BAR_WIDTH))
+        delt = sub_aFb(cur_size,full_size) 
         s_full = pygame.Surface( full_size ).convert_alpha()
-        s_curr = pygame.Surface( curh_size ).convert_alpha()
+        s_curr = pygame.Surface( cur_size ).convert_alpha()
         s_full.fill(sb.bg_color)
         s_curr.fill(sb.color)
-#        ppos = multvec(sb.gm.ts(), new_tpos)
-#        image.blit(s_full, addvec(ppos,loc))
-#        image.blit(s_curr, addvec(ppos, addvec(loc, 1)))
         image.blit(s_full, loc)
-        image.blit(s_curr, addvec(loc, 1))
+        image.blit(s_curr, addvec(loc,{'horiz':1, \
+                'vertic':sub_aFb((1,1),delt)}\
+                [sb.orientation]))
         return image
 
 
     def Reset(sb): pass # All StatusBar fields are reset by the logic.
     def PrepareAction(sb): sb.targeter.rescan()
-    def DoAction(sb): sb.update_position_and_image()
+    def DoAction(sb): sb.update_position()
 
 
 

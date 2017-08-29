@@ -48,6 +48,7 @@ sql_get_tocc='SELECT tx,ty,agent_type FROM agent_status;'
 sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? 
                     WHERE uniq_id=?; '''
 
-
+BAR_SCALING_FACTOR = 0.4
+BAR_WIDTH = 2
 BLOCKING_SPECIES = [u'plyr', u'pkmn']
 STD_FPS=1.0

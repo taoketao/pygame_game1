@@ -1,4 +1,13 @@
-DEFAULT_FPS = 1 # should be a cap: lower than expected max FPS
+''' Game Options '''
+DEFAULT_FPS = 15 # should be a cap: lower than expected max FPS
+MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
+TILE_SIZE = (40,35);
+
+''' ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''' ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'''#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+''' ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
 
 # 8/13: for the current rewrite, a (*) marks objects that have been checked
 # and passed for the next iteration.
@@ -13,12 +22,6 @@ from utilities import *
 from agents import *
 from display import Display
                     
-''' Map Options '''
-MAP_LEVEL_CONFIG = './config7.ini'
-MAP_LEVEL_CONFIG = './config_collision.ini'
-TILE_SIZE = (64,56);
-TILE_SIZE = (40,40);
-TILE_SIZE = (40,35);
 HUD_SIZE = TILE_SIZE[Y] # one tile
 X = 0;  Y = 1
 
@@ -173,18 +176,19 @@ class GameManager(object): # *
 
         gm.addNew('Agents', 'Player', Player )
         gm.addNew('Effects', 'mouse highlighter', MouseTarget )
-        for (i,j) in [(1,1),(1,2),(2,1)]:
+        for (i,j) in [(1,1),(1,2),(2,1),(2,2),(3,2),(3,3)]:
             s=str(i)+','+str(j)
-            if gm.TEMPORARY_VARIABLE_DEBUG:
+#            if gm.TEMPORARY_VARIABLE_DEBUG:
+            if np.random.rand()<0.5:
                 gm.addNew('Agents', 'PkmnPlyr'+s, AIAgent, init_tloc=(i,j),\
                         uniq_name='PkmnPlyr'+s, hbcolor='b', team='plyr', \
-                        pokedex=1, health=20)
+                        pokedex=1, health=20, orientation='vertic')
                 gm.TEMPORARY_VARIABLE_DEBUG=False
             else:
                 gm.addNew('Agents', 'PkmnWild'+s, AIAgent, init_tloc=(i,j),\
                         uniq_name=\
                         'PkmnWild'+s, hbcolor='r', team='wild', pokedex=1, 
-                        health=5*i+15*j)
+                        health=5*i+10*j)
 #                        health=np.random.choice(5*i+15*j))
         for g,v in gm.entities.items():
             if isinstance(v,StatusBar): 
