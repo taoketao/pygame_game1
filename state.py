@@ -36,26 +36,36 @@ class State(Entity): # i do not write, so no need to have logic
         else: raise Exception(key, val, st, field_type, st.init_options)
     def view_env(st, what):         return st.s_env[what]
 
-    def update_ap(st, key, val, who):
-        if not st.gm.entities[who].write_state_access==True: 
+    def update_ap(st, key, val, who_id): 
+        if not st.gm.entities[who_id].write_state_access==True: 
             raise Exception('State writing access not permitted: ActionPicker')
-        if not st.s_ap.has_key(who):
-            st.s_ap[who] = {}
-        st.s_ap[who][key] = val
-    def view_ap(st, what, who):     return st.s_ap[who][what]
+        if not st.s_ap.has_key(who_id):
+            st.s_ap[who_id] = {}
+        st.s_ap[who_id][key] = val
+    def view_ap(st, what, who_id):     return st.s_ap[who_id][what]
 
     def update_dep(st, key, val, who): # who: pass Object Reference
-        if not st.gm.entities[who].write_state_access==True: 
+        if type(who) in [str, int]:
+            raise Exception('provide object reference, not key or id.')
+        if not who.write_state_access:
             raise Exception('State writing access not permitted: Dependent')
-        key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
-                            who.species, 'species not recognized')
-        if not st.s_dep.has_key(key):
-            st.s_dep[key] = {}
-        st.s_dep[who][key] = val
-    def view_dep(st, what, who): # by object reference
-        key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
-                            who.species, 'species not recognized')
-        return st.s_dep[key][what]
+        if not st.s_dep.has_key(who.uniq_id):
+            st.s_dep[who.uniq_id] = {}
+        st.s_dep[who.uniq_id][key] = val
+    def view_dep(st, what, who_id): # by object reference
+        if not type(who_id)==int: 
+            who_id = who_id.uniq_id # Ref to actual object
+
+#        if type(who)==int: 
+#            who = st.gm.entities[who] # Ref to actual object
+
+            #raise Exception("NBD: please provide object reference not uniq_id.") 
+#        if type(who)==str: key=who
+#        else:
+#            key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
+#                            who.species, 'species not recognized')
+#        print 'st.s_dep req:',st.s_dep, who_id, what
+        return st.s_dep[who_id][what]
     
 
     # Initialize and define global fields. All globals must start here.
@@ -71,11 +81,11 @@ class State(Entity): # i do not write, so no need to have logic
 
         st.s_env['tilesize'] = st.gm.tile_size
         if ppos:
-            st.s_env['tpos'] = divvec(ppos, st.gm.ts())
-            st.s_env['ppos'] = ppos
+            st.s_env['initial tpos'] = divvec(ppos, st.gm.ts())
+            st.s_env['initial ppos'] = ppos
         elif tpos:
-            st.s_env['tpos'] = multvec(tpos, st.gm.ts())
-            st.s_env['ppos'] = tpos
+            st.s_env['initial tpos'] = multvec(tpos, st.gm.ts())
+            st.s_env['initial ppos'] = tpos
 
 
     def _init_sensors(st, logic):

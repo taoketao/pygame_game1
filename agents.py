@@ -20,7 +20,7 @@ import logic as logic_module
 # latencies for Player:
 DEFAULT_STEPSIZE = 3.7 # a prime?
 PLYR_CATCH_DIST = 0.5
-PLYR_STEP_DELAY = 51
+PLYR_STEP_DELAY = 41
 
 # Latencies for Pkmn:
 PKMN_WANDER_DELAY = 1600

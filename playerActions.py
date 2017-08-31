@@ -116,7 +116,7 @@ class PlayerMotion(ActionPicker):
         ap.viability = EVAL_U; 
         ap.root.reset()
 
-def ThrowPokeballAction(ActionPicker): 
+class ThrowPokeballAction(ActionPicker): 
 #    def __init__(ap, logic, parent_query): 
     def __init__(ap, logic): 
         ActionPicker.__init__(ap, logic)
@@ -127,9 +127,9 @@ def ThrowPokeballAction(ActionPicker):
 #        ap.logic.update_ap('targ') = parent.view_my('tile targ', parent.uniq_id)
 
 #    def implement(ap): 
-    def implement(ap, targ, src, **unused_arguments):
+    def implement(ap, **arguments):
 #        _get = ap.logic.view_my('parent') ap.logic.view_my('parent').uniq_id
-        ap.logic.spawn_dep('cast pokeball', 'Move', targ=targ, src=src)
+        ap.logic.spawn_dep('cast pokeball', 'Move', dest=arguments['dest'])
 #        pq = ap.logic.view_my('parent query')
 #        ap.logic.spawn_dep('cast pokeball', 'Move', targ=pq('targ'), src=pq('src'))
 #        ap.logic.spawn_dep('cast pokeball', 'Move', \
@@ -140,9 +140,13 @@ class HandlePlayerActionRequests(ActionPicker):
     def __init__(ap, logic):
         ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
-#        ap.action_map = { SP_ACTION: ThrowPokeballAction(logic) }
-        ap.action_map = { SP_ACTION: lambda src,dest:ap.logic.spawn_dep(\
-                'cast pokeball', 'Move', src=src, dest=dest)}
+        ap.action_map = { SP_ACTION: ThrowPokeballAction(logic) }
+#        print ap.action_map, ThrowPokeballAction(logic)
+#        import sys; sys.exit()
+#        ap.action_map = { SP_ACTION: lambda dest:ap.logic.spawn_dep(\
+#                            'cast pokeball', 'Move', dest=dest)}
+#        ap.action_map = { SP_ACTION: lambda dest:ap.logic.spawn_dep(\
+#                            'cast pokeball', 'Move', dest=dest)}
 #        f = lambda x: ap.logic.view_my(x, ap.uniq_id)
 #        help(ThrowPokeballAction)
 #        tmp = ThrowPokeballAction(logic,  f )
@@ -153,23 +157,26 @@ class HandlePlayerActionRequests(ActionPicker):
         a_requests = ap.logic.view('action requests')
         ap.logic.update_ap('requests', a_requests, ap.uniq_id)
         if not any(a_requests.values()): return ap.INVIABLE()
-#        print 'ThrowPokeball tid:',ap.logic.view_sensor('mousepos')
         tid = ap.logic.view_sensor('mousepos')
+        if ap.logic.view_sensor('tpos')==tid: return ap.INVIABLE()
         tile_blocked = ap.logic.view_sensor('tile obstr', tid=tid, \
-                            blck=['plyr','pkmn'])
-#        print '\t--blocked:',tile_blocked
-        if tile_blocked==True:
+                blck=['block_'+s for s in BLOCKING_SPECIES])
+        if tile_blocked==True: return ap.INVIABLE()
+        ap.logic.update_ap('dest', tid, ap.uniq_id)
+        ap.logic.update_ap('selected', [a for a in a_requests.keys() if a_requests[a]==True][0], ap.uniq_id) # arbitrary select one requested action
+        return ap.GETVIA( ap.action_map[ ap.logic.view_my('selected', \
+                            ap.uniq_id) ] )
+
 #            ap.logic.update_global('action requests', all(all,(ap.logic.view(\
 #                    'action requests'), [False]*len(PLYR_ACTIONS))))
-            if any(a_requests): return ap.INVIABLE()
-            ap.logic.update_ap('action requests', {gi:False \
-                                    for gi in a_requests.keys()}, ap.uniq_id)
-            return ap.VIABLE()
+#            
+#            if any(a_requests): return ap.INVIABLE()
+#            ap.logic.update_ap('action requests', {gi:False \
+#                                    for gi in a_requests.keys()}, ap.uniq_id)
+#            return ap.VIABLE() # ie, attempted but fails
         # check throw dist radius...
-        who_on_tile = ap.logic.view_sensor('get who at tile', tid=tid)
-        ap.logic.update_ap('dest', tid, ap.uniq_id)
-        ap.logic.update_ap('src', ap.logic.view('tpos'), ap.uniq_id)
-        return ap.VIABLE()
+        #who_on_tile = ap.logic.view_sensor('get who at tile', tid=tid)
+#        ap.logic.update_ap('src', ap.logic.view_sensor('tpos'), ap.uniq_id)
 #
 #        if len(who_on_tile)==0: return ap.INVIABLE()
 #        if len(who_on_tile)>1: raise Exception("Tile occ > 1 not implemented!")
@@ -183,27 +190,33 @@ class HandlePlayerActionRequests(ActionPicker):
 #            put('occ',  occ['who id'], ap.uniq_id)
 #            return ap.GETVIA(ap.action_map[req_id].find_viability())
 #
-        return ap.VIABILITY_ERROR()
+#        return ap.VIABILITY_ERROR()
 
 
 
     def implement(ap): 
-        try: 
-             print ap.logic.view_my('requests',ap.uniq_id).keys(), '--2'
-             print ap.logic.view_my('requests',ap.uniq_id).values(), '--2'
-        except: pass
-        for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
-            if not req_TF: continue
-            print ap.action_map.items(),'--3'
-            _get = lambda x : ap.logic.view_my(x, ap.uniq_id)
-            print ap.logic._state.s_ap
-            ap.action_map[req_id]( src=_get('src'), dest=_get('dest') )
+#        try: 
+#             print ap.logic.view_my('requests',ap.uniq_id).keys(), '--2'
+#             print ap.logic.view_my('requests',ap.uniq_id).values(), '--2'
+#        except: pass
+        #for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
+        req_id = ap.logic.view_my('selected', ap.uniq_id) 
+#            print req_id, req_TF, ap.action_map, ap.logic.view_my('dest',ap.uniq_id)
+#            if not req_TF: continue
+        #print ap.action_map.items(),'--3'
+        #_get = lambda x : ap.logic.view_my(x, ap.uniq_id)
+#        ''' No need: the logic invokes these after the master has acted. '''
+        ap.action_map[req_id].implement( dest = ap.logic.view_my('dest',ap.uniq_id) )
+        return 
+#            print ap.logic._state.s_ap
+#            ap.action_map[req_id]( src=_get('src'), dest=_get('dest') )
+#            ap.action_map[req_id]( dest=_get('dest') )
 #            ap.action_map[req_id].implement(\
 #                    src=ap.logic.view_my('src',ap.uniq_id),\
 #                    targ=ap.logic.view_my('targ',ap.uniq_id))
 
     def reset(ap): 
-        try: print ap.logic.view_my('requests',ap.uniq_id).items(), '--1'
+        try: pass#print ap.logic.view_my('requests',ap.uniq_id).items(), '--1'
         except: pass
         ap.viability=EVAL_U
         if ap.viability==EVAL_T:
@@ -221,7 +234,7 @@ class PlayerAction(ActionPicker):
         ap.logic.update_global('action requests', ap.gm.input_actions_map())
         #ap.gm.events[4:])
         X = ap.root.find_viability()
-        print "Action attempt: ",WHICH_EVAL[X]
+        #print "Action attempt: ",WHICH_EVAL[X]
         return ap.COPYEVAL(X)
     def implement(ap): 
         assert(ap.viability==EVAL_T)
@@ -257,6 +270,7 @@ class BasicPlayerActionPicker(ActionPicker):
         
 
     def reset(ap): 
+#        print 'basic player action ',ap.logic.view_sensor('tpos',agent_id=ap.logic.agent.uniq_id)
         ap.viability = EVAL_U
         ap.root.reset()
 

@@ -209,12 +209,24 @@ class TileObstrSensor(MultiSensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-        if not type(blck)==list: blck=[blck]
+#        if not type(blck)==list: blck=[blck]
+        try:
+            blck[0]; assert(not type(blck)==str)
+        except:
+            blck=[blck]
+#        nblock = []
+#        for b in blck:
+#            if (not b[:6]=='block_') and not b=='*':
+#                nblock.append( 'block_'+b )
+#            nblock.append( b )
+        if type(blck)==tuple: blck=[b for b in blck]
         for bi in range(len(blck)):
             b=blck[bi]
             if not b[:6]=='block_' and not b=='*':
                  blck[bi] = 'block_'+b
-        return sensor.gm.query_tile_for_blck(tid, blck)
+        x=sensor.gm.query_tile_for_blck(tid, blck)
+        print 'new sensorblock:',blck,x
+        return x
 
 
 class GetWhoAtTIDSensor(MultiSensor):
@@ -232,7 +244,7 @@ class GetWhoAtTIDSensor(MultiSensor):
         sensor._store({tid: {   'species':[r[0] for r in res],\
                                 'who id':[r[1] for r in res],\
                                 'team':[r[2] for r in res] }})
-        print sensor._storage, res
+#        print sensor._storage, res
         return sensor._retrieve(tid)
 
 

@@ -86,7 +86,7 @@ class Belt(Entity):
                     **options)
             if i==1: hb.update_metric(random.choice(range(-10,35)), 'absolute')
             hb.master=False
-            belt.Dependents.update({ 'health'+c:hb })
+            belt.Dependents.update({ 'healthbar_'+c:hb })
 
 
     def spawn_new(belt, what_to_spawn, kind, **options):

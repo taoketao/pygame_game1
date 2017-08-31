@@ -46,6 +46,8 @@ class Logic(Entity):
             sensor.rescan()
             if snm in ['tpos','ppos']: # Self-reference these.
                 logic.get_sensor(snm).agent_id = logic.agent.uniq_id
+            if logic.agent.species=='plyr' and snm=='tpos':
+                print "Rescanned tpos sensor.", logic.view_sensor('tpos')
 
         # Reset Actions and ActionPickers:
         logic.root_ap.reset()
@@ -72,7 +74,13 @@ class Logic(Entity):
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      
         logic.viability = logic.root_ap.find_viability()
-        for dep in logic.belt.Dependents.values(): dep.PrepareAction()
+        removes = []
+        for dep_key, dep in logic.belt.Dependents.items(): 
+            ret = dep.PrepareAction()
+            if ret in EVALS and not ret==EVAL_T: 
+                removes.append(dep_key)
+                print 'removing:', dep_key, dep, WHICH_EVAL[ret]
+        map(logic.belt.Dependents.pop, removes)
 #-- Interface method        __ Implement __        Call after Deciding, for all
     def Implement(logic):   
         if logic.gm.frame_iter>1: logic.root_ap.implement()
@@ -110,16 +118,39 @@ class Logic(Entity):
         
         logic.root_ap.reset()
 
+    # view/update_global//env: interface with high-level, oft-accessed state
+    # variables. Specifically, these ought to be dominated by: (1) computed, 
+    # parameterized globals and (2) forcible changes via messages, as the only
+    # way an external entity should be able to effect this.
+    def view(logic, what):  
+        if not what in logic._state.s_env.keys() and \
+                what in logic._state.s_ssr.keys() :
+                    raise Exception("This information is accessed via sensor",what)
+        return logic._state.view_env(what)
+    def update_global(logic, key, value, field_type=None):
+        logic._state.update_env(key, value, field_type)
 
-    def view_my(logic, what, who): return logic._state.view_ap(what, who)
-    def view(logic, what):  return logic._state.view_env(what)
-    def view_sensor(logic, what_sensor, **args): # Sensors can elect to prime also
-        return logic.get_sensor(what_sensor).sense(**args)
+    # view/update_ap//my: ActionPickers interface with private reserved space
+    def view_my(logic, what, who): 
+        if not type(who)==int: who=who.uniq_id
+        return logic._state.view_ap(what, who)
+    def update_ap(logic, key, value, who):
+        logic._state.update_ap(key, value, who)
+    
+    # view/update_dep: dependent objects piggyback, storing and writing 
+    # their data accessibly but also providing reads to parent's components.
+    def view_dep(logic, what, who): return logic._state.view_dep(what, who)
+    def update_dep(logic, key, value, who):
+        logic._state.update_dep(key, value, who)
 
+    # get_resource: ad hoc implementation for reading from the Game Manager 
     def get_resource(logic, database, which_resource):
         if database=='plyr img':
             return logic.gm.imgs['player sprite '+str(which_resource)]
 
+    # get/view/has_sensor: read/query this logic-holder's sensors, from anywhere.
+    def view_sensor(logic, what_sensor, **args): # Sensors can elect to prime also
+        return logic.get_sensor(what_sensor).sense(**args)
     def get_sensor(logic, name): return logic.belt.Sensors.get(name, False)
     def has_sensor(logic, what_sensor):
         return not logic.get_sensor(what_sensor)==False
@@ -160,15 +191,10 @@ class Logic(Entity):
     def pTOt(logic, X): 
         try: return divvec(X, logic.gm.tile_size, '//')
         except: raise Exception(X)
-    
-    def update_ap(logic, key, value, who):
-        logic._state.update_ap(key, value, who)
-    def update_global(logic, key, value, field_type=None):
-        logic._state.update_env(key, value, field_type)
 
     def spawn_dep(logic, what_to_spawn, kind, **options):
         # spawn a dependant by keystr. kind: Move, Agent, StatusBar, ...
-        options['parent_logic'] = logic#._state
+        options['logic'] = logic#._state
         new_ent = logic.belt.spawn_new(what_to_spawn, kind, **options)
 
 

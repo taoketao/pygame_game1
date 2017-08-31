@@ -11,6 +11,7 @@ WHICH_EVAL = {\
     EVAL_R:'R',
     EVAL_ERR:'ERR',
     EVAL_INIT:'INIT'}
+EVALS=[EVAL_T, EVAL_F, EVAL_U, EVAL_R, EVAL_ERR, EVAL_INIT]
 
 X=0
 Y=1
@@ -44,11 +45,11 @@ NULL_RESERVATION=-2342
 RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
 
 # These macros: for rendering, queries, etc.
-BLOCKING_SPECIES = [u'plyr', u'pkmn'] 
-EFFECT_SPECIES = [ u'bar', u'move']
-AFTEREFFECT_SPECIES = [ u'target']
+BLOCKING_SPECIES = (u'plyr', u'pkmn') 
+EFFECT_SPECIES = ( u'bar', u'move')
+AFTEREFFECT_SPECIES = ( u'target', )
 
-sql_all_AS='SELECT * FROM agent_status;'
+sql_all='SELECT * FROM agent_status;'
 sql_tile_locs='SELECT tx,ty,img_str,uniq_id FROM agent_status;'
 sql_get_pposes='SELECT tx,ty,px,py,species,img_str,uniq_id FROM agent_status;'
 sql_get_tocc ='SELECT tx,ty,species FROM agent_status;'
@@ -69,4 +70,5 @@ def next_stage(s):
             STAGE_2:STAGE_3, STAGE_3:STAGE_4, 
             STAGE_4:STAGE_5, STAGE_5:None}  [s]
 
-CAST_POKEBALL_SPEED = 500 # in ticks per tile, roughly.
+CAST_POKEBALL_SPEED = 500 # in scaling ticks per tile. UNREALISTIC sanity
+POKEBALL_SCALE = (0.35, 0.4) # looks solid when tile_size = (40,35)

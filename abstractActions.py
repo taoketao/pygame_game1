@@ -65,10 +65,12 @@ class Action(AE.Entity):
         ''' VIABLE: Determine this action as EVAL_T and return EVAL_T. '''
         action.viability=EVAL_T; return EVAL_T
     def GETTRUTH(action, query): 
-        ''' GETTRUTH(query): Determine EVAL_T and return EVAL_T only if query==true. '''
+        ''' GETTRUTH(query): Determine EVAL_T and return EVAL_T only if
+            query==true. '''
         return (action.VIABLE() if query==True else action.INVIABLE())
     def GETVIA(action, query): 
-        ''' GETVIA(query): Determine EVAL_T and return EVAL_T only if query.find_viability()==EVAL_T. '''
+        ''' GETVIA(query): Determine EVAL_T and return EVAL_T only if 
+            query.find_viability()==EVAL_T. '''
         return (action.VIABLE() if query.find_viability()==EVAL_T \
                 else action.INVIABLE())
     def Verify(action, query): 
@@ -77,14 +79,15 @@ class Action(AE.Entity):
             raise Exception(query, WHICH_EVAL[query.viability])
         return action.viability
     def VIABILITY_ERROR(action):
-        ''' VIABILITY_ERROR: Determine this action as EVAL_ERR and return EVAL_ERR.  '''
+        ''' VIABILITY_ERROR: Determine this action as & return EVAL_ERR.  '''
         action.viability = EVAL_ERR; return EVAL_ERR
     def COPYEVAL(action, query): 
-        ''' COPYEVAL(query): Determine as query irrespective of its value and pass it up.  '''
+        ''' COPYEVAL(query): Copy value irrespectively and pass it up.  '''
         action.viability=query; return query
 
 class ActionPicker(Action):
-    ''' ActionPicker: a more practical version of Action that takes Logic and everything that that implies. '''
+    ''' ActionPicker: a more practical version of Action that takes Logic 
+        and everything that that implies. '''
     def __init__(ap, logic):
         Action.__init__(ap, logic.gm)
         ap.logic=logic
@@ -92,7 +95,8 @@ class ActionPicker(Action):
         ap.key = 'stub key'
         ap.write_state_access = False # by default
     def easy_init(ap, k): 
-        ''' easy_init is suggested when the ActionPicker's determination can be encapsulated with a single field that is not needed elsewhere. '''
+        ''' easy_init is suggested when the ActionPicker's determination can
+        be encapsulated with a single field that is not needed elsewhere. '''
         ap.write_state_access = True
         ap.key = k
         ap.logic.update_ap(ap.key, EVAL_INIT, ap.uniq_id)

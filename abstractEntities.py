@@ -120,6 +120,7 @@ class Highlighter(TileAgent):
 
     def update_position(h): 
         ''' update_position: call every frame to update. '''
+        #print 'Sense my tpos by highlighter',h,':',h.targeter.sense()
         h.gm.notify_tmove(h.uniq_id, h.targeter.sense())
 
     def draw_highlight(h, tile_location):
@@ -149,6 +150,6 @@ class Highlighter(TileAgent):
         return image
 
     def Reset(h): pass
-    def PrepareAction(h): h.targeter.rescan()
+    def PrepareAction(h): h.targeter.rescan(); return EVAL_T
     def DoAction(h): h.update_position()
 

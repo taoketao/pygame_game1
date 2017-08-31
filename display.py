@@ -4,7 +4,6 @@ from PIL import Image, ImageOps
 
 from abstractEntities import Entity
 from utilities import *
-POKEBALL_SCALE = 0.15
 PB_OPENFRAMES = 30.0
 
 IMGS_LOC = './resources/images/'
@@ -13,8 +12,9 @@ class Display(Entity):
     def __init__(disp, gm):
         Entity.__init__(disp, gm)
         disp._init_display()
-        disp._init_load_images()
+        disp._init_load_tilesize_images()
         disp._init_process_images()
+        disp._init_load_free_images()
         disp.draw_background()
         disp.map_background = pygame.Surface(gm.map_pix_size)
         disp.draw_background(disp.map_background)
@@ -27,7 +27,7 @@ class Display(Entity):
         disp.screen.fill(hud_color, rect = \
                 pygame.Rect((0,disp.gm.map_y), disp.gm.hud_size))
 
-    def _init_load_images(disp):
+    def _init_load_tilesize_images(disp):
         disp.imgs = {}
         ''' >>> Tiles:  '''
         for k,v in zip(['a','g','d'], ['apricorn','grass_tile','dirt_tile']):
@@ -46,11 +46,14 @@ class Display(Entity):
                 load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 disp.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
 
+    def _init_load_free_images(disp):
         ''' >>> Pokeballs:  '''
         # Pokeball sizes: see moves.py.
         pball = pygame.image.load(join(IMGS_LOC, 'moves',\
                             'pokeball.png')).convert_alpha()
-        pball_size = multvec(disp.gm.ts(), 2*POKEBALL_SCALE, 'int')
+        pball_size = multvec(disp.gm.ts(), POKEBALL_SCALE, 'int')
+
+#        pball_size = disp.gm.ts()
         pbimg = pygame.transform.scale(pball, pball_size)
         disp.imgs['pokeball'] = pbimg
         for i in range(int(PB_OPENFRAMES)): # see moves.py

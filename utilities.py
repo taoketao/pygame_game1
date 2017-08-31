@@ -65,6 +65,7 @@ def multpos(v,m,optn=None):
 def multvec(v,m,optn=None):return multpos(v,m,optn)
 def divvec(v,m,optn='//'):
     if optn=='/': return (v[X]/m[X], v[Y]/m[Y])
+    if optn=='f': return (v[X]/float(m[X]), v[Y]/float(m[Y]))
     return multpos(v,m,optn)
 
 def orvec(a, op, b): 
@@ -95,3 +96,6 @@ def out_of_bounds(gm, tpos=None, ppos=None):
             return True
         return False
     raise Exception()
+
+
+def unit_vector(a): return multvec( a,(a[X]**2+a[Y]**2)**-0.5)

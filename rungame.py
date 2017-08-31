@@ -1,5 +1,5 @@
 ''' Game Options '''
-DEFAULT_FPS = 2 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 20 # should be a cap: lower than expected max FPS
 MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);
@@ -141,13 +141,16 @@ class GameManager(object): # *
         print '**************************'
         res = gm.db.execute(sql_str).fetchall()
         if len(res)==0: print '\t[None]'; return
-        res.insert(0,sql_str.split(','))
+        if not '*' in sql_str:
+            res.insert(0,sql_str.split(','))
         l = [max([len(str(v[i])) for v in res]) for i in range(len(res[0]))]
         for  item in res:
             print '\t',
             for vi,v in enumerate(item): 
-                s='  {:'+str(l[vi])+'}'
-                print s.format(v),
+                try: 
+                    s='  {:'+str(l[vi])+'}'
+                    print s.format(v),
+                except: pass
             print '\n',
         print ''
 
@@ -302,6 +305,7 @@ class GameManager(object): # *
 
     def process_update_queue(gm):
         old_tposes = set(gm.prev_agent_information)
+        _debug_store = gm.update_queue[:]
         while(len(gm.update_queue)>0):
             cmd, values, what_kind = gm.update_queue.pop(0)
             #print '\n',cmd,values,what_kind; 
@@ -319,7 +323,8 @@ class GameManager(object): # *
                 gm.display.queue_A_img(img_str, sub_aFb(offset, (px,py)))
             elif ent_type in EFFECT_SPECIES:
                 gm.display.queue_E_img(img_str, (px,py))
-            else: raise Exception()
+            else: raise Exception(ent_type, AFTEREFFECT_SPECIES, BLOCKING_SPECIES,\
+                    EFFECT_SPECIES, uniq_id, gm.entities[uniq_id], _debug_store)
 
             if ent_type ==u'plyr':
                 for i in [-1,0,1]: 
@@ -442,8 +447,8 @@ class GameManager(object): # *
     def query_tile_for_blck(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)
 #        print "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;"
-        print gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
-                tid).fetchall()
+#        print gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
+#                tid).fetchall()
         res = gm.db.execute( "SELECT "+what+" FROM \
                 tilemap WHERE tx=? AND ty=?;", tid).fetchone()
         if all(x==u'true' for x in res):
