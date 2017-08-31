@@ -20,6 +20,7 @@ UDIR = 0
 LDIR = 1
 DDIR = 2
 RDIR = 3
+SP_ACTION = 4;  PLYR_ACTIONS = [SP_ACTION]
 UVEC=[1,0,0,0]
 LVEC=[0,1,0,0]
 DVEC=[0,0,1,0]
@@ -28,6 +29,7 @@ xVEC=[0,0,0,0]
 DIR_LONG_VECS = [UVEC, LVEC, DVEC, RVEC]
 DIRECTIONS = EVENTS = [UDIR, LDIR, DDIR, RDIR]
 DIR_TILE_VECS = [(0,-1), (-1,0), (0,1), (1,0)]
+DIRVECS_TO_STR = {(0,1):'u',(1,0):'l',(-1,0):'r',(0,-1):'d'}
 DIRNAMES = ['u','l','d','r']
 def index_to_ltr(i):
     return {0:'u',1:'l',2:'d',3:'r',-1:'-'}[i]
@@ -37,18 +39,34 @@ MTNKEYS = ['l','d','r','u','-']
 
 DEFAULT_IMAGE_OFFSET = (0.0,0.0)
 
-RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
 
 NULL_RESERVATION=-2342
+RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
+
+# These macros: for rendering, queries, etc.
+BLOCKING_SPECIES = [u'plyr', u'pkmn'] 
+EFFECT_SPECIES = [ u'bar', u'move']
+AFTEREFFECT_SPECIES = [ u'target']
 
 sql_all_AS='SELECT * FROM agent_status;'
 sql_tile_locs='SELECT tx,ty,img_str,uniq_id FROM agent_status;'
-sql_get_pposes='SELECT tx,ty,px,py,agent_type,img_str,uniq_id FROM agent_status;'
-sql_get_tocc='SELECT tx,ty,agent_type FROM agent_status;'
+sql_get_pposes='SELECT tx,ty,px,py,species,img_str,uniq_id FROM agent_status;'
+sql_get_tocc ='SELECT tx,ty,species FROM agent_status;'
+sql_get_tocc2 ='SELECT tx,ty FROM agent_status;'
+sql_query_tile = '''SELECT species, uniq_id, team FROM agent_status \
+                    WHERE tx=? AND ty=?;'''
 sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? 
                     WHERE uniq_id=?; '''
+sql_img_update = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
+sql_ins = 'INSERT INTO agent_status VALUES (?,?,?,?,?,?,?,?);'
 
 BAR_SCALING_FACTOR = 0.4
 BAR_WIDTH = 2
-BLOCKING_SPECIES = [u'plyr', u'pkmn']
-STD_FPS=1.0
+
+STAGE_0, STAGE_1, STAGE_2, STAGE_3, STAGE_4, STAGE_5 = 990,991,992,993,994,995
+def next_stage(s): 
+    return {STAGE_0:STAGE_1, STAGE_1:STAGE_2, 
+            STAGE_2:STAGE_3, STAGE_3:STAGE_4, 
+            STAGE_4:STAGE_5, STAGE_5:None}  [s]
+
+CAST_POKEBALL_SPEED = 500 # in ticks per tile, roughly.

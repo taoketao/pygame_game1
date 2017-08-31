@@ -25,7 +25,7 @@ class Sensor(Entity):
 
     def _sensor_check(sensor, what):
         try: assert(sensor.priming in [EVAL_T,EVAL_F])
-        except: print sensor, what
+        except: raise Exception(sensor, what)
         if what=='access':
             if sensor.priming == EVAL_F: 
                 return EVAL_F
@@ -95,7 +95,6 @@ class GetPPosSensor(Sensor):
             return sensor._retrieve(agent_id)
         sensor.prime()
         querystr = 'SELECT px,py FROM agent_status WHERE uniq_id==?;'
-#        print 'db >>',sensor.gm.db.execute('SELECT * FROM agent_status').fetchall()
         sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
         return sensor.sense(agent_id)
 
@@ -115,12 +114,9 @@ class GetNextReservation(Sensor):
         if not res: 
             querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
             res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
-        print agent_id,"found reservation:",res
         sensor._store({agent_id:res})
-#        print sensor._store
-#        import sys; sys.exit()
         return sensor.sense(agent_id)
-#
+
 ''' Mouse position '''
 class GetMouseTIDSensor(Sensor):
     def __init__(sensor, gm):
@@ -133,17 +129,6 @@ class GetMouseTIDSensor(Sensor):
         sensor._store(sensor.gm.request_mousepos('tpos'))
         return sensor._retrieve()
 
-#''' User input indicating position '''
-#class GetMoveInputSensor(Sensor):
-#    def __init__(sensor, gm):
-#        Sensor.__init__(sensor, gm)
-#        sensor.access_name = 'curr move vec'
-#    def sense(sensor):
-#        if sensor.get_priming()==EVAL_T:
-#            sensor._store(sensor.gm.request_mousepos('tpos')) # Add any more queued
-#            return sensor._retrieve()
-#        sensor.prime()
-
 
 class GetFrameSmoothingSensor(Sensor):
     def __init__(sensor, gm):
@@ -152,7 +137,6 @@ class GetFrameSmoothingSensor(Sensor):
     def sense(sensor): 
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve()
-#            return sensor._storage[sensor.access_name]
         sensor.prime()
         sensor._store(sensor.gm.smoothing())
         return sensor.sense()
@@ -164,7 +148,6 @@ class GetCurUnitStepSensor(Sensor):
     def sense(sensor, vsa_id): 
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(vsa_id)
-#            return sensor._storage[sensor.access_name][vsa_id]
         sensor.prime()
         sensor._store({vsa_id:sensor.gm.entities[vsa_id].get_pstep()})
         return sensor.sense(vsa_id)
@@ -177,6 +160,8 @@ class WildEntSensor(Sensor): # TODO totally out of date!
         return [x[1] for x in sensor._abstract_query(\
                 sensor.gm.get_tile_occupants, (lambda x: x[2]==u'wild'), tid)]
     def sense(sensor, tid): return sensor.query_get_wild_at_tile(tid)
+
+
 
 class MultiSensor(Sensor):
 # A sensor whose 'primeness' is multifaceted. EVAL returned depends on input.
@@ -206,6 +191,8 @@ class MultiSensor(Sensor):
 
     def _retrieve(sensor, *keys):
         sensor._sensor_check()
+        if len(keys)==1:
+            return sensor._storage[keys[0]]
         return sensor._storage[keys]
     
     def rescan(sensor):  # Prune memory here.
@@ -222,31 +209,50 @@ class TileObstrSensor(MultiSensor):
         sensor.access_name = "tile obstr"
 
     def sense(sensor, tid, blck): 
-#        print "sensing tile",tid,'. Primings:', [(k,WHICH_EVAL[v]) for k,v in sensor.get_primings().items()]
-        try: assert(blck[:6]=='block_')
-        except: blck = 'block_'+blck
-        if sensor.query_priming(tid, blck)==EVAL_T: # premature optimization !!!
-            pass#return sensor._retrieve(tid, blck)
-        block_res = sensor.gm.query_tile_for_blck(tid, blck)
-#        print '...Sensor returning',block_res,'...'
-#        sensor._store({(tid, blck): block_res})
-        return block_res
+        if not type(blck)==list: blck=[blck]
+        for bi in range(len(blck)):
+            b=blck[bi]
+            if not b[:6]=='block_' and not b=='*':
+                 blck[bi] = 'block_'+b
+        return sensor.gm.query_tile_for_blck(tid, blck)
 
-# Query a tile for the teams of its occupants 
-class TeamDetector(MultiSensor): 
-    def __init__(sensor, gm, radius=-1): 
+
+class GetWhoAtTIDSensor(MultiSensor):
+    ''' GetWhoAtTIDSensor: sense who, what, and what team is an entity 
+        at q_tid. MultiSensor: to support multiple inquires to a tile. '''
+    def __init__(sensor, gm):
         MultiSensor.__init__(sensor, gm)
-        sensor.access_name = "team detector"
+        sensor.access_name = "get who at tile"
 
-    def sense(sensor, tid, pos=None):
-        if pos and dist(pos, tid, 'eucl')>radius: # for later impl
-            sensor._store({tid: set()})
-            return []
-        if sensor.query_priming(tid)==EVAL_T: return sensor._retrieve(tid)
-        occups = sensor.gm.get_tile_occupants(tid) # list of a_type,id,team
-        sensor._store({tid: set(o[2] for o in occups)})
+    def sense(sensor, tid): 
+        if sensor.query_priming(tid)==EVAL_T:
+            return sensor._retrieve(tid)
+        res = sensor.gm.get_tile_occupants(tid) # Format: species,uniq_id,team
+#        sensor._store([{'species':r[0],'who id':r[1],'team':r[2]} for r in res])
+        sensor._store({tid: {   'species':[r[0] for r in res],\
+                                'who id':[r[1] for r in res],\
+                                'team':[r[2] for r in res] }})
+        print sensor._storage, res
         return sensor._retrieve(tid)
 
-    def _retrieve(sensor, tid):
-        sensor._sensor_check()
-        return sorted(list(sensor._storage[tid]))
+
+
+
+## Query a tile for the teams of its occupants 
+#class TeamDetector(MultiSensor): 
+#    def __init__(sensor, gm, radius=-1): 
+#        MultiSensor.__init__(sensor, gm)
+#        sensor.access_name = "team detector"
+#
+#    def sense(sensor, tid, pos=None):
+#        if pos and dist(pos, tid, 'eucl')>radius: # for later impl
+#            sensor._store({tid: set()})
+#            return []
+#        if sensor.query_priming(tid)==EVAL_T: return sensor._retrieve(tid)
+#        occups = sensor.gm.get_tile_occupants(tid) # list of a_type,id,team
+#        sensor._store({tid: set(o[2] for o in occups)})
+#        return sensor._retrieve(tid)
+#
+#    def _retrieve(sensor, tid):
+#        sensor._sensor_check()
+#        return sorted(list(sensor._storage[tid]))

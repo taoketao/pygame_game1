@@ -24,17 +24,10 @@ class State(Entity): # i do not write, so no need to have logic
         st.gm = gm
         st.s_env = {} # environment info and holistic internal state
         st.s_ap = {} # space reserved for ActionPickers to store exec data
-#        st.running = {} # a log of fields specifically indicating Running actions.
         st.s_ssr = {} # space reserved for sensors to hold intermediate values
+        st.s_dep = {} # space reserved for simple Dependent object entities
         st.belt = (belt if belt else None)
 
-    def update_ap(st, key, val, who):
-        if not st.gm.entities[who].write_state_access==True: 
-            raise Exception('State writing access not permitted.')
-        if not st.s_ap.has_key(who):
-            st.s_ap[who] = {}
-        st.s_ap[who][key] = val
-    def view_ap(st, what, who):     return st.s_ap[who][what]
     def update_env(st, key, val, field_type=None):   
         if field_type==None:    st.s_env[key] = val
         elif field_type==list:    
@@ -43,19 +36,40 @@ class State(Entity): # i do not write, so no need to have logic
         else: raise Exception(key, val, st, field_type, st.init_options)
     def view_env(st, what):         return st.s_env[what]
 
+    def update_ap(st, key, val, who):
+        if not st.gm.entities[who].write_state_access==True: 
+            raise Exception('State writing access not permitted: ActionPicker')
+        if not st.s_ap.has_key(who):
+            st.s_ap[who] = {}
+        st.s_ap[who][key] = val
+    def view_ap(st, what, who):     return st.s_ap[who][what]
+
+    def update_dep(st, key, val, who): # who: pass Object Reference
+        if not st.gm.entities[who].write_state_access==True: 
+            raise Exception('State writing access not permitted: Dependent')
+        key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
+                            who.species, 'species not recognized')
+        if not st.s_dep.has_key(key):
+            st.s_dep[key] = {}
+        st.s_dep[who][key] = val
+    def view_dep(st, what, who): # by object reference
+        key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
+                            who.species, 'species not recognized')
+        return st.s_dep[key][what]
+    
+
     # Initialize and define global fields. All globals must start here.
     def setup_fields(st, genus, logic, ppos=None, tpos=None):
         st._init_sensors(logic)
         st._init_actions(logic, genus)
-        st.s_env['tilesize'] = st.gm.tile_size
-        st.s_env['redraw'] = EVAL_F
-        if genus in ['pkmn','plyr']:
-#            print logic.agent.primary_delay, logic.agent
+
+        if genus in RESERVABLE_SPECIES:
             st.s_env['root delay'] = logic.agent.primary_delay
         if genus=='plyr':   st.setup_plyr_fields(logic)
         if genus=='pkmn':   st.setup_basic_pkmn_fields(logic)
-#        print st.s_env['delay']
         if genus=='target': st.setup_target(logic) 
+
+        st.s_env['tilesize'] = st.gm.tile_size
         if ppos:
             st.s_env['tpos'] = divvec(ppos, st.gm.ts())
             st.s_env['ppos'] = ppos
@@ -70,18 +84,6 @@ class State(Entity): # i do not write, so no need to have logic
             sensor.set_state(st)
 
     def _init_actions(st, logic, genus):
-#        if genus=='pkmn': return
-#            print '\t',st.belt.Actions, logic
-#            for k in ['l','r','u','d','-']:
-#                print '--',k
-#                st.belt.Actions[k]=st.belt.Actions[k]( logic)
-#            for k in ['l','r','u','d','-']:
-#                print '--',k
-#                st.belt.Actions[k]=st.belt.Actions[k](logic)
-#            sys.exit()
-#        print ''
-#        if not genus=='pkmn':
-#            tmp = {k:v(logic) for k,v in st.belt.Actions.items()}
         st.belt.Actions = {k:v(logic) for k,v in st.belt.Actions.items()}
 
     def setup_plyr_fields(st, logic):
@@ -90,7 +92,6 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['available']       = True
         st.s_env['unit step']       = logic.plyr_steps((1,1))
-#        st.s_env['prev move vec']   = [0,0,0,0]
         st.s_env['curr move vec']   = [0,0,0,0]
         st.s_env['num moves']       = 4
         st.s_env['Image']           = 'player sprite 7' # down
@@ -110,14 +111,7 @@ class State(Entity): # i do not write, so no need to have logic
     def setup_target(st, logic): pass
 
     def setup_basic_pkmn_fields(st, logic):
-#        st.s_env['delay'] =  random.choice(range(\
-#                                    logic.agent.primary_delay))
-        # off by one:
         st.s_env['delay'] = np.random.uniform(1.0,2.0)*logic.agent.primary_delay
-#        print logic.agent.primary_delay,
-#        i = random.choice(range(logic.agent.primary_delay))
-#        print         st.s_env['delay']
-
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['unit step'] = logic.gm.ts()
         st.s_env['is being caught'] = False

@@ -89,3 +89,9 @@ def floormod(a,b): return (int(a[Y]//b[Y])*b[Y], int(a[Y]//b[Y])*b[Y])
 def roundvec(a): return (int(round(a[X])), int(round(a[Y])))
 def minvec(a,b): return (min(a[X],b[X]), min(a[Y],b[Y]))
 
+def out_of_bounds(gm, tpos=None, ppos=None):
+    if tpos: 
+        if orvec(tpos, '>=', gm.map_num_tiles) or orvec(tpos, '<', (0,0)):
+            return True
+        return False
+    raise Exception()

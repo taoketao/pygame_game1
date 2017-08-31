@@ -80,7 +80,7 @@ class VisualStepAgent(Entity):
         '''public access method: get the gm's standard current tile pos.'''
         return ta.gm.request_tpos(ta.uniq_id)
         
-    def get_ppos(ta):  
+    def get_ppos(ta):  # Not currently used!
         '''public access method: get the gm's standard current pixel pos.'''
         return ta.gm.request_ppos(ta.uniq_id)
 
@@ -116,17 +116,11 @@ class Highlighter(TileAgent):
         h.targeter = None;
         h.image_offset = (-2,-2)
         h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
-                    team=h.team, agent_type=h.species)
-#        h.gm.reserved_tiles[(0,0)] = NULL_RESERVATION
+                    team=h.team, species=h.species)
 
-    def update_position_and_image(h): 
-        ''' update_position_and_image: call every frame to update. '''
-#        prev_tpos = h.prev_position
-        new_tpos = h.targeter.sense()
-#        px,py=multvec(h.gm.ts(), new_tpos)
-#        h.gm.notify_tmove(h.uniq_id, multvec(h.gm.ts(), new_tpos))
-        h.gm.notify_tmove(h.uniq_id, new_tpos)
-#        h.prev_position = new_tpos
+    def update_position(h): 
+        ''' update_position: call every frame to update. '''
+        h.gm.notify_tmove(h.uniq_id, h.targeter.sense())
 
     def draw_highlight(h, tile_location):
         '''  Draw a target on specified tile. '''
@@ -136,8 +130,8 @@ class Highlighter(TileAgent):
         image.fill((0,0,0,0))
         tx,ty = h.gm.tile_size
         tx = tx-2; ty=ty-2
-        M = MOUSE_CURSOR_DISPL = 1; # stub!
-        for i in [1,3,4,5]:
+        M = MOUSE_CURSOR_DISPL = 2; # stub!
+        for i in [1,3,6,5]:
             for d in DIRECTIONS:
                 rect_size = { UDIR: (tx-2*(i+1)*M, M),  
                               DDIR: (tx-2*(i+1)*M, M),
@@ -149,16 +143,12 @@ class Highlighter(TileAgent):
                 if rect_size[X]<=0 or rect_size[Y]<=0: continue
                 s = pygame.Surface( rect_size ).convert_alpha()
                 s.fill( h.color )
-#                try:            s.fill( (r,g,b, h.alphas[i-1]) )
-#                except: 
-#                    try:        s.fill( (r,g,b, h.alphas[-1]) )
-#                    except:     s.fill( (r,g,b, h.color[-1]) )
-                image.blit( s, location )
+                image.blit( s, addvec(location,1) )
         h.display_parameters = (-1, image, addvec((1,1),\
                         multvec(tile_location,h.gm.ts())))
         return image
 
     def Reset(h): pass
     def PrepareAction(h): h.targeter.rescan()
-    def DoAction(h): h.update_position_and_image()
+    def DoAction(h): h.update_position()
 

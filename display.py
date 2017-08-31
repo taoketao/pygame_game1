@@ -23,12 +23,13 @@ class Display(Entity):
     def _init_display(disp):
         disp.screen = pygame.display.set_mode(disp.gm.screen_size)
         disp.screen.convert()
-        yellowish = (220,220,20)
-        disp.screen.fill(yellowish, rect = \
+        hud_color = (220,220,20)
+        disp.screen.fill(hud_color, rect = \
                 pygame.Rect((0,disp.gm.map_y), disp.gm.hud_size))
 
     def _init_load_images(disp):
         disp.imgs = {}
+        ''' >>> Tiles:  '''
         for k,v in zip(['a','g','d'], ['apricorn','grass_tile','dirt_tile']):
             disp.imgs[k] = pygame.image.load(join(IMGS_LOC, 'environment',\
                             v+'_img.png')).convert_alpha()
@@ -45,15 +46,7 @@ class Display(Entity):
                 load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 disp.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
 
-    def _init_process_images(disp):
-        ''' >>> [processing tile-sized]:  '''
-        for tnm, t in disp.imgs.items():
-            tmp = pygame.Surface(disp.gm.ts()).convert_alpha()
-            pygame.transform.scale(t, disp.gm.ts(), tmp)
-            t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
-            disp.imgs[tnm]=tmp.convert_alpha()
-
-        ''' >>> Misc:  '''
+        ''' >>> Pokeballs:  '''
         # Pokeball sizes: see moves.py.
         pball = pygame.image.load(join(IMGS_LOC, 'moves',\
                             'pokeball.png')).convert_alpha()
@@ -63,6 +56,15 @@ class Display(Entity):
         for i in range(int(PB_OPENFRAMES)): # see moves.py
             pb_i = disp._get_whitened_img(pbimg, i/PB_OPENFRAMES, pball_size)
             disp.imgs['pokeball-fade-'+str(i)] = pb_i
+
+
+    def _init_process_images(disp):
+        for tnm, t in disp.imgs.items():
+            tmp = pygame.Surface(disp.gm.ts()).convert_alpha()
+            pygame.transform.scale(t, disp.gm.ts(), tmp)
+            t.fill((255,255,255,255), None, pygame.BLEND_RGBA_MULT)
+            disp.imgs[tnm]=tmp.convert_alpha()
+
 
     def _get_whitened_img(disp, base_pygame_img, frac, size=None): 
         mode = 'RGBA'
@@ -106,12 +108,12 @@ class Display(Entity):
         disp._agent_update_tups.insert(0, (img, ppos) )
     def queue_E_img(disp, img, ppos):
         disp._effect_update_tups.append( (img, ppos) )
+    def queue_AE_img(disp, img, ppos):
+        disp._aftereffect_update_tups.append( (img, ppos) )
 #        print "--------------------Queueing effect:",img,ppos
 
     def std_render(disp):
-        #print '\tQUEUES:', disp._agent_update_tups, disp._effect_update_tups, disp._tiles_to_reset
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
-#        print sorted(set(disp._tiles_to_reset))
         for tile in disp._tiles_to_reset+[(0,0)]:
             tmp = disp.gm.db.execute(query, tile).fetchone()
             if tmp==None: continue
@@ -121,62 +123,19 @@ class Display(Entity):
             if not obstr=='-':
                 disp.screen.blit(disp.imgs[obstr], ploc)
 
-#        upd_ents = disp._effect_update_tups + disp._agent_update_tups
-#        upd_ents.sort(key=lambda x: x[1][1])
-        upd_ents = disp._agent_update_tups
+        upd_ents = disp._effect_update_tups+disp._agent_update_tups
         upd_ents.sort(key=lambda x: x[1][1])
-        upd_ents = disp._effect_update_tups+upd_ents
+        upd_ents = disp._aftereffect_update_tups+upd_ents#+disp._effect_update_tups
         for img_str,ploc in upd_ents:
             img = disp.imgs[img_str]
             disp.screen.blit(img, ploc)
-        pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in disp._tiles_to_reset])
-        disp._wipe_queues()
-
-
-    def foo(disp):
-        imgEffects=disp._effect_update_tups; imgAgents=disp._agent_update_tups
-        imgAgents.sort(key=lambda x: disp.gm.request_ppos(x[0])[Y])
-        reset_tiles = disp._tiles_to_reset[:]
-
-        ts = disp.gm.ts()
-
-        for ent_id, img, ploc in imgEffects + imgAgents:
-            for i in [-1,0,1]:
-                for j in [-1,0,1]:
-                    tp = divvec(addvec(multvec((i,j), disp.gm.ts()), ploc), ts)
-                    if not tp in reset_tiles and not disp.oob(tpos=tp): 
-                        reset_tiles.append(tp)
-
-        upd_tiles = []
-        query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
-        # Blit the background over the new image:
-        for tile in reset_tiles:
-            if disp.oob(tile): continue
-            tmp = disp.gm.db.execute(query, tile).fetchone()
-            base,obstr = tmp
-            ploc = multvec(tile, disp.gm.ts())
-            disp.screen.blit(disp.imgs[base], ploc)
-            if not obstr=='-':
-                disp.screen.blit(disp.imgs[obstr], ploc)
-            upd_tiles.append(ploc)
-        # Blit the new image:
-        for ent, img, ploc in imgEffects + imgAgents:
-            if not img: img = disp.gm.entities[ent.uniq_id].query_image()
-            if ent<0:   disp.screen.blit(img, ploc)
-            else:       disp.screen.blit(disp.imgs[img], ploc)
-            upd_tiles.append(ploc)
-        pygame.display.update([pygame.Rect(ppos, disp.gm.ts()) for ppos in upd_tiles])
+        pygame.display.update([ pygame.Rect(ppos, disp.gm.ts()) \
+                                for ppos in disp._tiles_to_reset])
         disp._wipe_queues()
 
     # Wipe the render-update queues:
     def _wipe_queues(disp):
-        disp._effect_update_tups    =[]
-        disp._agent_update_tups     =[]
-        disp._tiles_to_reset       =[]
-
-    def oob(disp, tpos=None, ppos=None): 
-        if tpos:
-            if orvec(tpos, '>=', disp.gm.map_num_tiles) or orvec(tpos, '<', (0,0)):
-                return True
-            return False
-        raise Exception()
+        disp._effect_update_tups        =[]
+        disp._aftereffect_update_tups   =[]
+        disp._agent_update_tups         =[]
+        disp._tiles_to_reset            =[]

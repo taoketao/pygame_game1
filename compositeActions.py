@@ -98,6 +98,7 @@ class Cond(ActionPicker):
         ap.viability = EVAL_U; ap.cond.reset(); ap.do.reset()
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
 
+# TryCatch, Try: as expected
 class TryCatch(ActionPicker):
     def __init__(ap, logic, tr, ca):
         ActionPicker.__init__(ap, logic)
@@ -119,21 +120,5 @@ class TryCatch(ActionPicker):
         ap.tr.reset(); 
         if ap.ca: ap.ca.reset()
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
+
 def Try(logic, tr): return TryCatch(logic, tr, None)
-
-
-class MessageNearbyRedraw(ActionPicker):
-    def __init__(ap, logic):
-        ActionPicker.__init__(ap, logic)
-        ap.write_state_access=True
-        if ap.logic.agent.species=='plyr':
-            R = [(-1,0),(1,0),(-1,1),(0,1),(1,1),(-1,-1),(0,-1),(1,-1),(0,-2)]
-        else: R = [(-1,0),(1,0),(0,-1),(0,1)]
-        ap.logic.update_ap('range', R, ap.uniq_id)
-    def find_viability(ap): return ap.VIABLE()
-    def implement(ap):
-        for (x,y) in ap.logic.view_my('range', ap.uniq_id):
-            targ_tid = addvec(ap.logic.view_sensor('tpos'),(x,y))
-            ap.logic.gm.send_message(tpos=targ_tid, \
-                                     message='redraw', \
-                                     notify_display=True)

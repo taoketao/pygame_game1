@@ -7,6 +7,8 @@ from pokemonActions import *
 from motionActions import *
 from attackActions import *
 import agents as agents_module
+import leaves as leaves_module
+import moves as moves_module
 
 
 '''             Belt               '''
@@ -34,6 +36,9 @@ import agents as agents_module
 #-------------#-------------#--------------#--------------#--------------
 
 class Belt(Entity):
+    ''' Belt: a fancy dynamic container for an agent. Belts are designed to
+        interact closely with a Logic, a State, an Agent, and the Game Manager
+        to implement and house user-facing objects. cp State, houses data '''
     def __init__(belt, gm, agent, **options): 
         Entity.__init__(belt, gm)
         if not isinstance(agent, VisualStepAgent): 
@@ -41,13 +46,15 @@ class Belt(Entity):
         belt.agent = agent
         belt.gm = gm
 
-        for container_init in ['Dependents', 'Actions', 'Pkmn', 'Items', 'Sensors']:
+        for container_init in ['Dependents', 'Actions', 'Pkmn', 'Items', \
+                'Sensors', 'Moves']:
             setattr(belt, container_init, {})
 
         belt.Sensors.update({True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
                                 'smoothing':GetFrameSmoothingSensor ,\
                                 'next reserved':GetFrameSmoothingSensor ,\
                                 'tile obstr':TileObstrSensor, \
+                                'get who at tile':GetWhoAtTIDSensor ,\
                                 'unit step':GetCurUnitStepSensor }, \
                             False: {} }[options.get('std_sensors',True)] )
         belt.Actions.update({True: {'u':MotionUp,       'd':MotionDown,   \
@@ -64,20 +71,27 @@ class Belt(Entity):
 
     def _init_basic_player(belt):
         belt.Items.update({i:'pokeball-lvl-1' for i in range(4)})
-
-    def setup_belt(belt, class_type, **options):
-        if class_type==agents_module.Player:        \
-            belt.Dependents.update(                 \
-                    {'highlighter': agents_module.PlayerHighlighter(belt.gm)} )
+        belt.Sensors.update({'mousepos':GetMouseTIDSensor})
+        belt.Moves.update({'cast pokeball': moves_module.ThrowPokeballMove})
+        belt.Dependents.update({'highlighter': \
+                leaves_module.PlayerHighlighter(belt.gm, belt.agent.uniq_id)} )
 
     def _init_pkmn(belt, options):
         belt.Actions.update({'A':DoAttack})
         tmp=options['hbcolor']
-        for i,c in enumerate([tmp,'y']):
+        for i,c in enumerate([tmp,'y']): # hacky sanity checks:
             options['hbcolor']=c
             options['offset']=i
-            hb = agents_module.StatusBar(belt.gm, belt.agent, metric='health', **options)
-            if i==1: hb.update_metric(random.choice(range(5,35)), 'absolute')
+            hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
+                    **options)
+            if i==1: hb.update_metric(random.choice(range(-10,35)), 'absolute')
             hb.master=False
             belt.Dependents.update({ 'health'+c:hb })
-            belt.gm.Effects.update({ str(belt.agent.uniq_id)+'_health':hb })
+
+
+    def spawn_new(belt, what_to_spawn, kind, **options):
+        prefab = getattr(belt, kind+'s')[what_to_spawn]
+        new_ent = prefab(belt.gm, **options)
+        belt.Dependents.update({what_to_spawn: new_ent})
+
+        return new_ent

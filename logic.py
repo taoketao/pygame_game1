@@ -7,13 +7,13 @@ import pygame, random, sys
 
 from utilities import *
 from abstractEntities import *
-from belt import *
 from sensors import *
-from state import *
 from playerActions import *
 from pokemonActions import *
 from otherActions import *
 from compositeActions import *
+import belt as belt_module
+import state as state_module
 
 
 #-------------#-------------#--------------#--------------#--------------
@@ -76,9 +76,7 @@ class Logic(Entity):
 #-- Interface method        __ Implement __        Call after Deciding, for all
     def Implement(logic):   
         if logic.gm.frame_iter>1: logic.root_ap.implement()
-        for dep in logic.belt.Dependents.values(): 
-            print 'dep dowing actino'
-            dep.DoAction()
+        for dep in logic.belt.Dependents.values():  dep.DoAction()
 
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
@@ -91,8 +89,8 @@ class Logic(Entity):
         Entity.__init__(logic, gm)
         agent.has_logic=True
         logic.agent = agent
-        logic.belt = Belt(gm, agent, **options)
-        logic._state = State(gm, logic.belt)
+        logic.belt = belt_module.Belt(gm, agent, **options)
+        logic._state = state_module.State(gm, logic.belt)
         logic._state.setup_fields(agent.species, logic=logic, 
                             ppos=options['init_ppos'])
         logic.message_queue = []
@@ -168,7 +166,10 @@ class Logic(Entity):
     def update_global(logic, key, value, field_type=None):
         logic._state.update_env(key, value, field_type)
 
-
+    def spawn_dep(logic, what_to_spawn, kind, **options):
+        # spawn a dependant by keystr. kind: Move, Agent, StatusBar, ...
+        options['parent_logic'] = logic#._state
+        new_ent = logic.belt.spawn_new(what_to_spawn, kind, **options)
 
 
 

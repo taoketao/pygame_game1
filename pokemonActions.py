@@ -31,9 +31,7 @@ class WildPkmnBehavior(ActionPicker):
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         ap.root.implement()
-    def reset(ap): 
-#        print 'RESETTING PKMN CORE BEHAVIOR'
-        ap.viability = EVAL_U; ap.root.reset()
+    def reset(ap):  ap.viability = EVAL_U; ap.root.reset()
 
 class PickRandMove(ActionPicker):
     def __init__(ap, logic, components):
@@ -53,25 +51,22 @@ class PickRandMove(ActionPicker):
                 ap.logic.update_global('img choice', a.name)
                 return ap.VIABLE()
         ap.logic.update_ap('mov choice', '-', ap.uniq_id)
-#        ap.Verify(ap.Redraw)
         return ap.Verify(ap.logic.belt.Actions['-'])
     def implement(ap):
         assert(ap.viability==EVAL_T)
         ap.logic.update_global('delay', ap.logic.view('delay')+ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
-#        print '\t>> implemented',ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].name
         ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
-        #ap.redraw.implement_arg(prevtloc)
-#        ap.Redraw.implement(prevtloc)
 
     def reset(ap): 
         ap.viability = EVAL_U; 
         for c in ap.logic.belt.Actions.values(): c.reset()
         ap.logic.update_ap('mov choice', EVAL_U, ap.uniq_id) 
 
-# wander: pick a random valid direction and move there.
 class Wander(ActionPicker):
+    ''' Wander: pick a random valid direction and move there. Does not attempt
+    to avoid collisions on reserved tiles (which is otherwise case-handled. '''
     def __init__(ap, logic):
         ActionPicker.__init__(ap, logic)
         ap.card_dirs = [m for m in logic.view('motions').values() if m.index>=0]
@@ -83,24 +78,6 @@ class Wander(ActionPicker):
         assert(ap.viability==EVAL_T)
         ap.chooser.implement()
     def reset(ap): ap.viability = EVAL_U; ap.chooser.reset()
-
-#class Redraw(ActionPicker):
-#    def __init__(ap, logic):
-#        ActionPicker.__init__(ap, logic)
-#    def find_viability(ap): return ap.VIABLE()
-##    def implement_arg(ap, prevtloc=None):
-#    def implement(ap, prevtloc=None):
-#        if prevtloc: 
-#            ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
-#        if not ap.logic.view('redraw')==ap.logic.view_sensor('tpos'):
-#            ap.logic.agent.set_img(ap.logic.view('img choice'), ap.logic.view('redraw'))
-#
-#
-
-
-
-
-
 
 
 

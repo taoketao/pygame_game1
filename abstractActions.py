@@ -36,6 +36,7 @@ from utilities import *
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #-------------#-------------#--------------#--------------#--------------
 
+
 class Action(AE.Entity):
     ''' Action: the base object which all Actions should inherit. '''
     def __init__(action, gm):

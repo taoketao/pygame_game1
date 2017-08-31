@@ -1,5 +1,6 @@
 from abstractActions import *
 from compositeActions import *
+import numpy as np
 
 
 
@@ -24,7 +25,6 @@ class PickNewest(ActionPicker):
 
 
     def find_viability(ap):
-        # Messy messy, but so is lateral non-hierarchical variable passing
         curmove = ap.logic.view('curr move vec') # Todo: receive GM messages for update!
         prev = ap.logic.get_PDA()
         # One: for consistent behavior, use old move if it's still valid.
@@ -44,7 +44,6 @@ class PickNewest(ActionPicker):
         # Three: filter attempted moves for viability
         for act in ap.components.values():
             av = act.find_viability()
-#            print '\tRESULT %-%-%-%-% :', act.name,     WHICH_EVAL[av]
             if av==EVAL_F:
                 ap.logic.pop_PDA(act.index)
         allowed_top_move = ap.logic.get_PDA()
@@ -68,34 +67,6 @@ class PickNewest(ActionPicker):
         ap.viability=EVAL_U
         for a in ap.components.values(): 
             a.reset()
-#        ap.logic.belt.Actions['-'].reset()
-        
-
-# Actually carry out a picked action once ready:
-#class orderPDAAction(ActionPicker):
-#    def __init__(ap, logic, mode):
-#        ActionPicker.__init__(ap, logic)
-#        ap.VIABLE()
-#    def find_viability(ap): 
-#        return ap.VIABLE()
-##        act = ap.logic.get_PDA()
-#        if act.find_viability()==EVAL_T:
-#            return ap.VIABLE()
-#        ap.logic.update_global('img choice', act.index)
-#        return ap.INVIABLE()
-##        return {EVAL_T:ap.VIABLE(), EVAL_F:ap.INVIABLE()}.get(x, EVAL_ERR)
-#
-#    def reset(ap): 
-#        ap.viability = EVAL_U
-#    def implement(ap): pass
-#        x= ap.logic.get_PDA().find_viability()
-#        assert(ap.viability==EVAL_T)
-#        if not ap.viability==EVAL_T:
-#            print 'default err'
-#            return logic.do_default()
-##       hack:
-#        if ap.logic.view("mov choice")>=0: 
-#            return ap.logic.get_PDA().implement()
 
 
 class SetPlayerCycleImage(ActionPicker):
@@ -106,22 +77,17 @@ class SetPlayerCycleImage(ActionPicker):
         
     def find_viability(ap): return ap.VIABLE()
     def reset(ap): 
-#        print '<<   setplyrimg resetting'
         ap.viability=EVAL_U
     def implement(ap): 
         assert(ap.viability==EVAL_T)
         if ap.logic.view("mov choice")<0: 
              ap.logic.update_ap('cycler', 0, ap.uniq_id)
         c = ap.logic.view_my('cycler', ap.uniq_id)
-#        mvname=ap.logic.get_PDA().index
-#        print 'MVNAME', mvname,  ap.logic.view("mov choice")
         choose_img = ap.logic.view('img choice') * 3
-        if choose_img<0: 
-            raise Exception(map(ap.logic.view, ['img choice', 'mov choice', 'prev motion']))
+        if choose_img<0:  raise Exception(map(ap.logic.view, \
+                    ['img choice', 'mov choice', 'prev motion']))
 
         ap.logic.agent.set_img(choose_img + c )
-#        ap.logic.update_global("Image", 'player sprite '+\
-#                                str(choose_img + c ))
         if ap.logic.view("mov choice")<0: return
         c += 1
         if c==3: c=0
@@ -150,7 +116,119 @@ class PlayerMotion(ActionPicker):
         ap.viability = EVAL_U; 
         ap.root.reset()
 
-def ThrowPokeball(x,y): pass            
+def ThrowPokeballAction(ActionPicker): 
+#    def __init__(ap, logic, parent_query): 
+    def __init__(ap, logic): 
+        ActionPicker.__init__(ap, logic)
+#        ap.logic.update_ap('parent query', parent_query, ap.uniq_id)
+    def find_viability(ap):
+        return ap.VIABLE() # the targ should be checked as viable already
+#        ap.logic.update_ap('src') = parent.view_my('tile src', parent.uniq_id)
+#        ap.logic.update_ap('targ') = parent.view_my('tile targ', parent.uniq_id)
+
+#    def implement(ap): 
+    def implement(ap, targ, src, **unused_arguments):
+#        _get = ap.logic.view_my('parent') ap.logic.view_my('parent').uniq_id
+        ap.logic.spawn_dep('cast pokeball', 'Move', targ=targ, src=src)
+#        pq = ap.logic.view_my('parent query')
+#        ap.logic.spawn_dep('cast pokeball', 'Move', targ=pq('targ'), src=pq('src'))
+#        ap.logic.spawn_dep('cast pokeball', 'Move', \
+#                        targ = p.view_my('targ', p.uniq_id), 
+#                        src = p.view_my('src', p.uniq_id))
+
+class HandlePlayerActionRequests(ActionPicker):
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
+        ap.write_state_access = True
+#        ap.action_map = { SP_ACTION: ThrowPokeballAction(logic) }
+        ap.action_map = { SP_ACTION: lambda src,dest:ap.logic.spawn_dep(\
+                'cast pokeball', 'Move', src=src, dest=dest)}
+#        f = lambda x: ap.logic.view_my(x, ap.uniq_id)
+#        help(ThrowPokeballAction)
+#        tmp = ThrowPokeballAction(logic,  f )
+#        ap.action_map = { SP_ACTION: tmp }
+#        print 'ACTION MAP:', ap.action_map.items()
+
+    def find_viability(ap):
+        a_requests = ap.logic.view('action requests')
+        ap.logic.update_ap('requests', a_requests, ap.uniq_id)
+        if not any(a_requests.values()): return ap.INVIABLE()
+#        print 'ThrowPokeball tid:',ap.logic.view_sensor('mousepos')
+        tid = ap.logic.view_sensor('mousepos')
+        tile_blocked = ap.logic.view_sensor('tile obstr', tid=tid, \
+                            blck=['plyr','pkmn'])
+#        print '\t--blocked:',tile_blocked
+        if tile_blocked==True:
+#            ap.logic.update_global('action requests', all(all,(ap.logic.view(\
+#                    'action requests'), [False]*len(PLYR_ACTIONS))))
+            if any(a_requests): return ap.INVIABLE()
+            ap.logic.update_ap('action requests', {gi:False \
+                                    for gi in a_requests.keys()}, ap.uniq_id)
+            return ap.VIABLE()
+        # check throw dist radius...
+        who_on_tile = ap.logic.view_sensor('get who at tile', tid=tid)
+        ap.logic.update_ap('dest', tid, ap.uniq_id)
+        ap.logic.update_ap('src', ap.logic.view('tpos'), ap.uniq_id)
+        return ap.VIABLE()
+#
+#        if len(who_on_tile)==0: return ap.INVIABLE()
+#        if len(who_on_tile)>1: raise Exception("Tile occ > 1 not implemented!")
+#        np.random.shuffle(who_on_tile)
+#        for occ in who_on_tile:
+#            if not (occ['team']==u'wild' and occ['species']==u'pkmn'):
+#                return ap.INVIABLE()
+#            put = ap.logic.update_ap # convenience
+#            put('targ', tid, ap.uniq_id)
+#            put('src', ap.logic.view('tpos'), ap.uniq_id)
+#            put('occ',  occ['who id'], ap.uniq_id)
+#            return ap.GETVIA(ap.action_map[req_id].find_viability())
+#
+        return ap.VIABILITY_ERROR()
+
+
+
+    def implement(ap): 
+        try: 
+             print ap.logic.view_my('requests',ap.uniq_id).keys(), '--2'
+             print ap.logic.view_my('requests',ap.uniq_id).values(), '--2'
+        except: pass
+        for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
+            if not req_TF: continue
+            print ap.action_map.items(),'--3'
+            _get = lambda x : ap.logic.view_my(x, ap.uniq_id)
+            print ap.logic._state.s_ap
+            ap.action_map[req_id]( src=_get('src'), dest=_get('dest') )
+#            ap.action_map[req_id].implement(\
+#                    src=ap.logic.view_my('src',ap.uniq_id),\
+#                    targ=ap.logic.view_my('targ',ap.uniq_id))
+
+    def reset(ap): 
+        try: print ap.logic.view_my('requests',ap.uniq_id).items(), '--1'
+        except: pass
+        ap.viability=EVAL_U
+        if ap.viability==EVAL_T:
+            for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
+                if not req_TF: continue
+                ap.action_map[req_id].reset()
+
+
+    pass # TODO resume here. Implement Player action input handler
+class PlayerAction(ActionPicker):
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
+        ap.root = HandlePlayerActionRequests(logic)
+    def find_viability(ap):  
+        ap.logic.update_global('action requests', ap.gm.input_actions_map())
+        #ap.gm.events[4:])
+        X = ap.root.find_viability()
+        print "Action attempt: ",WHICH_EVAL[X]
+        return ap.COPYEVAL(X)
+    def implement(ap): 
+        assert(ap.viability==EVAL_T)
+        ap.root.implement()
+    def reset(ap): 
+        ap.viability = EVAL_U; 
+        ap.root.reset()
 
 
 class BasicPlayerActionPicker(ActionPicker): 
@@ -169,7 +247,11 @@ class BasicPlayerActionPicker(ActionPicker):
 #            PlayerMotion(g,l)))
 #        ap.root = Sequential(g,l, [View(g,l,'isPlayerActionable')])
 #        ap.root = Try(logic, PlayerMotion(logic) )
+
         ap.root = Priority(logic, [\
+#                Cond(logic, All(View(logic, 'isPlayerActionable'),\
+#                                nonempty('triggered actions')
+                PlayerAction(logic),
                 Delay(logic),
                 PlayerMotion(logic)])
         
@@ -181,7 +263,6 @@ class BasicPlayerActionPicker(ActionPicker):
     def find_viability(ap): 
         if not ap.viability == EVAL_U: raise Exception("Please call reset!")
         via= ap.root.find_viability()
-#        print WHICH_EVAL[via]
         if via==EVAL_T: return ap.VIABLE(); 
         return ap.INVIABLE()
         return ap.Verify(ap.root)

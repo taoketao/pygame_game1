@@ -14,57 +14,30 @@ class MotionAction(Action):
         action.logic = logic
         action.agent = logic.agent
 
-    def find_viability(action): # TODO : a likely place to resume work.
+    def find_viability(action):
         if action.name=='-': return action.VIABLE()
         if action.viability in [EVAL_T, EVAL_F]: return action.viability
         cur_ppos = action.logic.view_sensor('ppos', agent_id=action.agent.uniq_id)
         unit_step = action.logic.view('unit step')
-#        print 'cur_ppos, unit_step, action.name, action.agent',cur_ppos, unit_step, action.name, action.agent
-
         if EVAL_F in [cur_ppos, unit_step]:
             print "ERR?: cur_ppos & unit_step", cur_ppos, unit_step
             return action.INVIABLE()
         query_ppos = addvec(multvec(action.posvec, unit_step), cur_ppos)
         query_tpos = action.logic.pTOt(query_ppos)
         if query_tpos==action.logic.view_sensor('tpos'): return action.VIABLE()
-#        print query_tpos,divvec(query_ppos,action.gm.ts()),'\t\t<-'
-
-        # 8/18 TODO: this currently does not recognize *agent* collisions.
-        # further update:   ...or any collisions for that matter. But at least
-        # indeed updates are happening to the database.  Error located to sensor.
-        # Error solved: not everything was getting updated.
         if action.logic.agent.species in BLOCKING_SPECIES:
             query_tpos = action.logic.pTOt(query_ppos)
-#            if action.logic.agent.species == 'plyr': 
-#                print action.name,cur_ppos,'->',query_ppos,'=?',query_tpos,\
-#                        action.logic.view_sensor('tile obstr', tid=query_tpos, blck=action.logic.agent.species),  \
-#                        action.gm.db.execute('SELECT img_str,tx,ty,px,py FROM agent_status').fetchall(),\
-#                        action.gm.db.execute('SELECT img_str,tx,ty,px,py FROM agent_status').fetchall()
             return action.GETTRUTH(action.logic.view_sensor('tile obstr', \
                     tid=query_tpos, blck=action.logic.agent.species)==False)
         raise Exception(action.logic.agent.species, 'not impl yet')
 
-#    def find_viability__tile(action): # A version that checks only Tiles.
-#        assert(isinstance(action.agent, TileAgent))
-#        assert(action.gm.ts() == action.logic.view('unit step'))
-#        assert(action.agent.species in ['pkmn'] )
-#        if action.name=='-': return True
-#        #if action.viability in [EVAL_T, EVAL_F]: return action.viability
-#        cur_t = action.logic.view_sensor('tpos', agent_id=action.agent.uniq_id)
-#        query_t = addvec(action.posvec, cur_t)
-#        print "At", cur_t, "querying", query_t
-#        return action.GETTRUTH(action.logic.view_sensor('tile obstr', tid=query_t, blck='pkmn'))
-
     def implement(action):
-#        print '*'*30,"ENACTING", action.index, action.posvec, WHICH_EVAL[action.viability]
         assert(action.viability==EVAL_T)
         if action.index<0: return
         action.agent.move_in_direction(action.posvec)
 
     def same(action, targ): return action.index==targ.index # etc
-    def reset(action): 
-#        print '<<<<   motion reseting:',action.name
-        action.viability = EVAL_U # actually impt here
+    def reset(action): action.viability = EVAL_U 
 
 
 class MotionUp(MotionAction):
@@ -103,5 +76,3 @@ class MotionNull(MotionAction):
         action.dvec = None;         action.posvec = NULL_POSITION;
         action.name = '__x__';      action.index = -2
         action.null=True
-
-#
