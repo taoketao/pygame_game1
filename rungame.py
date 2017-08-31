@@ -1,5 +1,5 @@
 ''' Game Options '''
-DEFAULT_FPS = 20 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 24 # should be a cap: lower than expected max FPS
 MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);

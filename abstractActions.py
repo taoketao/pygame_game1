@@ -107,10 +107,10 @@ class ActionPicker(Action):
 
 # simple actions: 
 class View(ActionPicker):
-    ''' View(X): a simple action that responds to the logic's field X. '''
+    ''' View(X): responds to the logic's wide-access field X, as a bool. '''
     def __init__(ap, logic, X):
         ActionPicker.__init__(ap, logic)
-        ap.X, ap.write_state_access = X, False
+        (ap.X, ap.write_state_access) = (X, False)
     def find_viability(ap): return ap.GETTRUTH(ap.logic.view(ap.X))
     def reset(ap):  ap.viability = EVAL_U;
 
@@ -120,6 +120,12 @@ class isTrue(ActionPicker): # Only changes if X changes via reference!
         ActionPicker.__init__(ap, logic)
         ap.X, ap.write_state_access = X, False
     def find_viability(ap): return ap.GETTRUTH(ap.X)
+    def reset(ap):  ap.viability = EVAL_U
+
+class Fail(ActionPicker):
+    def __init__(ap, logic): ActionPicker.__init__(ap, logic)
+    def find_viability(ap): return ap.INVIABLE()
+    def implement(ap): assert(ap.viability==EVAL_F)
     def reset(ap):  ap.viability = EVAL_U
 
 class nonEmpty(ActionPicker): # Query an element in the State..

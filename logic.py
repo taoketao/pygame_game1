@@ -70,21 +70,32 @@ class Logic(Entity):
             pass#put('curtid', logic.view_sensor('tpos'))
 
         for dep in logic.belt.Dependents.values(): dep.Reset()
+        print logic.agent.species,'888888', logic.belt.Spawns
+        logic.gm._pretty_print_sql(sql_all)
+        for move in logic.belt.Spawns.values(): move.reset()
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      
         logic.viability = logic.root_ap.find_viability()
+        
         removes = []
-        for dep_key, dep in logic.belt.Dependents.items(): 
-            ret = dep.PrepareAction()
+        for mv_keyname, move in logic.belt.Spawns.items(): 
+            ret = move.find_viability()
             if ret in EVALS and not ret==EVAL_T: 
-                removes.append(dep_key)
-                print 'removing:', dep_key, dep, WHICH_EVAL[ret]
-        map(logic.belt.Dependents.pop, removes)
+                removes.append(mv_keyname)
+                print 'removing:', mv_keyname, move, WHICH_EVAL[ret]
+        for r in removes: 
+            logic.belt.Spawns[r].kill()
+            logic.belt.Spawns.pop(r)
+
+        for d in logic.belt.Dependents.values(): d.PrepareAction()
+
+
 #-- Interface method        __ Implement __        Call after Deciding, for all
     def Implement(logic):   
         if logic.gm.frame_iter>1: logic.root_ap.implement()
-        for dep in logic.belt.Dependents.values():  dep.DoAction()
+        for dep in logic.belt.Dependents.values():  dep.DoAction() # broad
+        for move in logic.belt.Spawns.values():  move.implement() # specific
 
     # Notify: primary inbox method!
     def notify(logic, whatCol, whatVal):
@@ -192,7 +203,7 @@ class Logic(Entity):
         try: return divvec(X, logic.gm.tile_size, '//')
         except: raise Exception(X)
 
-    def spawn_dep(logic, what_to_spawn, kind, **options):
+    def spawn_new(logic, what_to_spawn, kind, **options):
         # spawn a dependant by keystr. kind: Move, Agent, StatusBar, ...
         options['logic'] = logic#._state
         new_ent = logic.belt.spawn_new(what_to_spawn, kind, **options)

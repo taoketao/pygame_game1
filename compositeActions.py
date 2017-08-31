@@ -75,6 +75,7 @@ class PickRand(ActionPicker): # AKA, DoOneRetOne in no order
 
 
 
+
 # COND: basic conditional. Returns what <do> returns only when <cond>, else EVAL_T
 class Cond(ActionPicker):
     def __init__(ap, logic, cond, do):
@@ -97,6 +98,41 @@ class Cond(ActionPicker):
     def reset(ap): 
         ap.viability = EVAL_U; ap.cond.reset(); ap.do.reset()
         ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
+
+
+# CONDELSE: Returns what <do1> returns only when <cond>, else what <do2> returns.
+class CondElse(ActionPicker):
+    def __init__(ap, logic, cond, do1, do2):
+        ActionPicker.__init__(ap, logic)
+        ap.cond = cond
+        ap.do1 = do1
+        ap.do2 = do2
+        ap.easy_init('valuation')
+
+    def find_viability(ap):
+        cond_via = ap.GETVIA(ap.cond)
+        ap.logic.update_ap(ap.key, cond_via, ap.uniq_id)
+        if cond_via==EVAL_T:
+            ap.viability = ap.do1.find_viability()
+            return ap.GETVIA(ap.do1)#ap.viability
+        return ap.GETVIA(ap.do2)#ap.viability
+        return ap.GETVIA(ap.do2.find_viability())
+
+    def implement(ap):
+        { EVAL_T:ap.do1, EVAL_F:ap.do2 }\
+                [ap.logic.view_my(ap.key, ap.uniq_id)]\
+                .implement()
+#
+#        if ap.logic.view_my(ap.key, ap.uniq_id)==EVAL_T: ap.do1.implement()
+#        elif ap.logic.view_my(ap.key, ap.uniq_id)==EVAL_F: ap.do2.implement()
+
+    def reset(ap): 
+        ap.viability = EVAL_U; 
+        ap.cond.reset(); ap.do1.reset(); ap.do2.reset()
+        ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
+
+
+
 
 # TryCatch, Try: as expected
 class TryCatch(ActionPicker):

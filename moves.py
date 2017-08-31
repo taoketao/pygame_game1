@@ -14,7 +14,7 @@ class BasicMove(aa.Action):
         mv.write_state_access=True
         mv.move_name = 'STUB move todo implement!!'
         mv.species = 'move'
-        mv.key = 'stub key::move'
+        mv.storage_key = 'stub key::move'
         mv.team = logic.agent.team
         mv.logic=logic
         mv.logic.update_dep('stage', STAGE_0, mv)
@@ -32,6 +32,12 @@ class BasicMove(aa.Action):
     @abc.abstractmethod
     def reset(mv): raise Exception("Implement me! move",mv)
 
+    def kill(mv): 
+        mv.gm.display.queue_reset_tile(mv.logic.view_sensor('tpos'), 'tpos')
+        mv.gm.db.execute(sql_del_partial+'uniq_id=?;', (mv.uniq_id,) )
+        mv.gm.entities.pop(mv.uniq_id)
+#        mv.logic.belt.Spawns.pop(mv.move_name)
+
     # Aliases:
     def get(mv, x): return mv.logic.view_dep(x,mv)
     def put(mv, x, y): mv.logic.update_dep(x,y,mv)
@@ -44,7 +50,7 @@ class ThrowPokeballMove(BasicMove):
 #            raise Exception("where did i come from hmmmmmm :)", mv.uniq_id)
 #        else: pass
         mv.move_name = 'cast pokeball'
-        mv.key = str(mv.uniq_id)+'::'+mv.move_name
+        mv.storage_key = str(mv.uniq_id)+'::'+mv.move_name
 
         #src = addvec(logic.view('tpos'), divvec(gm.ts(),2))
         src = addvec(logic.view_sensor('tpos'), 0.3)
@@ -114,7 +120,6 @@ class ThrowPokeballMove(BasicMove):
 #        mv.storage['cast time'] = { STAGE_0: CAST_POKEBALL_SPEED }
 #        mv.storage['vector'] = floorvec(sub_aFb(dest,src))
 #
-    def DoAction(mv): pass 
     def reset(mv): mv.viability=EVAL_U 
     def find_viability(mv): 
         print 'cast t:', mv.get('t'), mv.gm.dt, mv.get('stage0->1 t fin')
@@ -123,8 +128,10 @@ class ThrowPokeballMove(BasicMove):
         print 'cast t:', mv.get('t'), mv.gm.dt, mv.get('stage0->1 t fin')
         if mv.get('stage')==STAGE_0 and mv.get('t')>mv.get('stage0->1 t fin'):
             mv.put('stage', STAGE_1) # alter stage conditionally
-            return mv.INVIABLE() # todo
-        return mv.VIABLE() # todo
+            mv.logic.update_global('isPlayerActionable', True)
+#            mv.kill()
+            return mv.INVIABLE()# for now
+        return mv.VIABLE()
 
 
     def implement(mv):
@@ -143,7 +150,7 @@ class ThrowPokeballMove(BasicMove):
             print next_fractional_tpos, mv.get('dest'), mv.get('src'), multvec(mv.get('uvec'),mv.get('t'))
 
             mv.gm.notify_pmove(mv, multvec(next_fractional_tpos, mv.gm.ts()))
-            mv.gm._pretty_print_sql(sql_all)
+#            mv.gm._pretty_print_sql(sql_all)
 #            print mv.gm.db.execute(sql_all).fetchall()
             map(lambda dir_tile : mv.gm.display.queue_reset_tile(addvec(\
                 dir_tile, next_fractional_tpos)), mv.get('trail tiles'))

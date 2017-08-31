@@ -122,6 +122,7 @@ class ThrowPokeballAction(ActionPicker):
         ActionPicker.__init__(ap, logic)
 #        ap.logic.update_ap('parent query', parent_query, ap.uniq_id)
     def find_viability(ap):
+        ap.logic.update_global('isPlayerActionable', False)
         return ap.VIABLE() # the targ should be checked as viable already
 #        ap.logic.update_ap('src') = parent.view_my('tile src', parent.uniq_id)
 #        ap.logic.update_ap('targ') = parent.view_my('tile targ', parent.uniq_id)
@@ -129,7 +130,7 @@ class ThrowPokeballAction(ActionPicker):
 #    def implement(ap): 
     def implement(ap, **arguments):
 #        _get = ap.logic.view_my('parent') ap.logic.view_my('parent').uniq_id
-        ap.logic.spawn_dep('cast pokeball', 'Move', dest=arguments['dest'])
+        ap.logic.spawn_new('cast pokeball', 'move', dest=arguments['dest'])
 #        pq = ap.logic.view_my('parent query')
 #        ap.logic.spawn_dep('cast pokeball', 'Move', targ=pq('targ'), src=pq('src'))
 #        ap.logic.spawn_dep('cast pokeball', 'Move', \
@@ -166,6 +167,7 @@ class HandlePlayerActionRequests(ActionPicker):
         ap.logic.update_ap('selected', [a for a in a_requests.keys() if a_requests[a]==True][0], ap.uniq_id) # arbitrary select one requested action
         return ap.GETVIA( ap.action_map[ ap.logic.view_my('selected', \
                             ap.uniq_id) ] )
+        # Todo: later convert this into a priority input handler.
 
 #            ap.logic.update_global('action requests', all(all,(ap.logic.view(\
 #                    'action requests'), [False]*len(PLYR_ACTIONS))))
@@ -201,6 +203,7 @@ class HandlePlayerActionRequests(ActionPicker):
 #        except: pass
         #for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
         req_id = ap.logic.view_my('selected', ap.uniq_id) 
+        print req_id, ap.action_map[req_id]
 #            print req_id, req_TF, ap.action_map, ap.logic.view_my('dest',ap.uniq_id)
 #            if not req_TF: continue
         #print ap.action_map.items(),'--3'
@@ -264,7 +267,8 @@ class BasicPlayerActionPicker(ActionPicker):
         ap.root = Priority(logic, [\
 #                Cond(logic, All(View(logic, 'isPlayerActionable'),\
 #                                nonempty('triggered actions')
-                PlayerAction(logic),
+                CondElse(logic, View(logic, 'isPlayerActionable'), \
+                            PlayerAction(logic), Fail(logic)),
                 Delay(logic),
                 PlayerMotion(logic)])
         

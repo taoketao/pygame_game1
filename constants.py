@@ -60,6 +60,7 @@ sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=?
                     WHERE uniq_id=?; '''
 sql_img_update = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
 sql_ins = 'INSERT INTO agent_status VALUES (?,?,?,?,?,?,?,?);'
+sql_del_partial = 'DELETE FROM agent_status WHERE '
 
 BAR_SCALING_FACTOR = 0.4
 BAR_WIDTH = 2
@@ -70,5 +71,5 @@ def next_stage(s):
             STAGE_2:STAGE_3, STAGE_3:STAGE_4, 
             STAGE_4:STAGE_5, STAGE_5:None}  [s]
 
-CAST_POKEBALL_SPEED = 500 # in scaling ticks per tile. UNREALISTIC sanity
+CAST_POKEBALL_SPEED = 210 # in scaling ticks per tile. UNREALISTIC sanity
 POKEBALL_SCALE = (0.35, 0.4) # looks solid when tile_size = (40,35)

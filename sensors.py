@@ -225,7 +225,7 @@ class TileObstrSensor(MultiSensor):
             if not b[:6]=='block_' and not b=='*':
                  blck[bi] = 'block_'+b
         x=sensor.gm.query_tile_for_blck(tid, blck)
-        print 'new sensorblock:',blck,x
+#        print 'new sensorblock:',blck,x
         return x
 
 

@@ -44,6 +44,7 @@ class State(Entity): # i do not write, so no need to have logic
         st.s_ap[who_id][key] = val
     def view_ap(st, what, who_id):     return st.s_ap[who_id][what]
 
+    # This is deprecated?:
     def update_dep(st, key, val, who): # who: pass Object Reference
         if type(who) in [str, int]:
             raise Exception('provide object reference, not key or id.')
@@ -55,16 +56,6 @@ class State(Entity): # i do not write, so no need to have logic
     def view_dep(st, what, who_id): # by object reference
         if not type(who_id)==int: 
             who_id = who_id.uniq_id # Ref to actual object
-
-#        if type(who)==int: 
-#            who = st.gm.entities[who] # Ref to actual object
-
-            #raise Exception("NBD: please provide object reference not uniq_id.") 
-#        if type(who)==str: key=who
-#        else:
-#            key = { 'move':str(who.uniq_id)+'::'+who.move_name}.get(\
-#                            who.species, 'species not recognized')
-#        print 'st.s_dep req:',st.s_dep, who_id, what
         return st.s_dep[who_id][what]
     
 

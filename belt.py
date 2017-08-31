@@ -17,13 +17,21 @@ import moves as moves_module
     Pickers to utilitize.   Core Attributes that all Belts have:
     --Actions: the available actions that the Agent can decide amongst. The
         decision process or what the actions represent are not relevant.
+    --Moves: 'scripts' (that are actually Actions) of various fixed action
+        patterns. Unlike Action prefabs, Move prefabs often take variable 
+        arguments and require a kill function.
     --Sensors: the various tool this entity has to understand its environment.
         Encapsulates both trivial behavior handling as well as a behavior-
         -altering effect: with more Senses, different things can be done
         with its knowledge!
-    --Dependent (graphical) objects: entities that ought to be updated with
-        parameters decided with logic.Update calls.
-    Auxiliarry Attributes that only some Belts have:
+    --Dependent (graphical) objects: otherwise independent entities that
+        require 
+    --Spawns: short-lived instantiations of Move scripts. These are the 
+        closest to fully breaking a connection to this belt's associated
+        logic, but are kept mainly for organization purposes. 
+
+
+    Auxiliary Attributes that only some Belts have:
     --Items: The user-facing multiset of consumable items.
     --Pkmn: The list of pokemon this character or object 'owns'.
 
@@ -47,8 +55,8 @@ class Belt(Entity):
         belt.gm = gm
 
         for container_init in ['Dependents', 'Actions', 'Pkmn', 'Items', \
-                'Sensors', 'Moves']:
-            setattr(belt, container_init, {})
+                'Sensors', 'Spawns', 'Moves']:
+            setattr(belt, container_init, {}) # init as empty
 
         belt.Sensors.update({True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
                                 'smoothing':GetFrameSmoothingSensor ,\
@@ -90,8 +98,10 @@ class Belt(Entity):
 
 
     def spawn_new(belt, what_to_spawn, kind, **options):
-        prefab = getattr(belt, kind+'s')[what_to_spawn]
+        # Take a prefab from Moves and initialize it into Spawns.
+        assert(kind=='move') # stub
+        prefab = belt.Moves[what_to_spawn] # typically an action...
         new_ent = prefab(belt.gm, **options)
-        belt.Dependents.update({what_to_spawn: new_ent})
+        belt.Spawns.update({what_to_spawn: new_ent})
 
         return new_ent
