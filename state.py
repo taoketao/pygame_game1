@@ -112,6 +112,12 @@ class State(Entity): # i do not write, so no need to have logic
     def setup_target(st, logic): pass
 
     def setup_basic_pkmn_fields(st, logic):
+        try:
+            st.s_env['caught_counter'] = logic.belt.Dependents['caughtbar'\
+                        ].view_metric()[0]
+        except:
+            st.s_env['caught_counter'] = 'not catchable'
+
         st.s_env['delay'] = np.random.uniform(1.0,2.0)*logic.agent.primary_delay
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['unit step'] = logic.gm.ts()

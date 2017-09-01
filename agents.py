@@ -103,6 +103,7 @@ class AIAgent(ae_module.TileAgent):
                 img_str='pkmn sprite '+str(ai.pokedex)+'d',\
                 tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
         ai.set_img('d')
+    def deliver_message(ai, **t): ai._logic.deliver_message(**t)
 
     def Reset(ai):         ai._logic.Update()
     def PrepareAction(ai): ai._logic.Decide()

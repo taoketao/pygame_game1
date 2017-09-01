@@ -1,5 +1,5 @@
 ''' Game Options '''
-DEFAULT_FPS = 24 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 18 # should be a cap: lower than expected max FPS
 MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);
@@ -130,13 +130,10 @@ class GameManager(object): # *
         gm._init_game()
         FRAME_COUNTER = 0
         for _ in range(max_num_epochs_test):
-            print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
+            #print '\n\nFRAME_COUNTER', FRAME_COUNTER; 
             FRAME_COUNTER+=1
             gm._run_frame()
-#            print 'reservations:'
-#            for k,v in sorted(gm.reserved_tiles.items()): print k,v
-#            gm._pretty_print_sql(sql_tile_locs)
-    
+
     def _pretty_print_sql(gm, sql_str):
         print '**************************'
         res = gm.db.execute(sql_str).fetchall()
@@ -180,11 +177,8 @@ class GameManager(object): # *
                 gm.addNew('Agents', 'PkmnWild'+s, agents_module.AIAgent, \
                         init_tloc=(i,j), uniq_name= 'PkmnWild'+s, \
                         hbcolor='r', team='wild', \
-                        pokedex=1, health=5*i+10*j)
+                        pokedex=1, health=12+2*i+4*j)
         gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget)
-#        for g,v in gm.entities.items():
-#            if isinstance(v,leaves_module.StatusBar): 
-#                print '\t',g,':',v, v.metric, v.cur_metric,v.init_metric
 #       </stub>
 
         gm.process_update_queue() # after entities have been initialized...
@@ -203,9 +197,6 @@ class GameManager(object): # *
                 + gm.AfterEffects.values()
     def BroadcastAll(gm, fn_name): 
         map(operator.methodcaller(fn_name), gm.active_entities())
-#        map(operator.methodcaller(fn_name), gm.Effects.values())
-#        map(operator.methodcaller(fn_name), gm.Agents.values())
-#        map(operator.methodcaller(fn_name), gm.AfterEffects.values())
 
     def _run_frame(gm):
         gm.frame_iter += 1
@@ -407,8 +398,7 @@ class GameManager(object): # *
     def request_tpos(gm, agent_id):
         if not type(agent_id)==int:
             agent_id = gm.Agents[agent_id].uniq_id
-        q = 'SELECT tx,ty FROM agent_status WHERE uniq_id=?;'
-        return gm.db.execute(q, (agent_id,)).fetchall()[0]
+        return gm.db.execute(sql_get_tpos_of_who, (agent_id,)).fetchone()
 
     def request_ppos(gm, agent_id): # return if possible, else NULL_POSITION.
         q = 'SELECT px,py FROM agent_status WHERE uniq_id=?;'
@@ -420,6 +410,15 @@ class GameManager(object): # *
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
     def send_message(gm, **arglist):
+        print "GM delivering message", arglist
+        if arglist.get('at',False):
+            ents = gm.db.execute(sql_query_tile, arglist['at']).fetchall()
+            for ent in ents:
+                e_species, e_id, e_team = ent
+                if (not arglist['sender_team']==e_team) and e_species=='pkmn':
+                    if arglist['what']=='catching':
+                        gm.entities[e_id].deliver_message(msg="catching", \
+                                amount = arglist['amount']  )
         return
     '''
         print "message to be routed:", arglist,
@@ -446,9 +445,6 @@ class GameManager(object): # *
     # returns BLOCK=T, FREE=F
     def query_tile_for_blck(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)
-#        print "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;"
-#        print gm.db.execute( "SELECT "+what+" FROM tilemap WHERE tx=? AND ty=?;", \
-#                tid).fetchall()
         res = gm.db.execute( "SELECT "+what+" FROM \
                 tilemap WHERE tx=? AND ty=?;", tid).fetchone()
         if all(x==u'true' for x in res):

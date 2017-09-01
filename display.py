@@ -4,7 +4,6 @@ from PIL import Image, ImageOps
 
 from abstractEntities import Entity
 from utilities import *
-PB_OPENFRAMES = 30.0
 
 IMGS_LOC = './resources/images/'
 
@@ -56,8 +55,8 @@ class Display(Entity):
 #        pball_size = disp.gm.ts()
         pbimg = pygame.transform.scale(pball, pball_size)
         disp.imgs['pokeball'] = pbimg
-        for i in range(int(PB_OPENFRAMES)): # see moves.py
-            pb_i = disp._get_whitened_img(pbimg, i/PB_OPENFRAMES, pball_size)
+        for i in range(PB_OPENFRAMES): # see moves.py
+            pb_i = disp._get_whitened_img(pbimg, float(i)/PB_OPENFRAMES, pball_size)
             disp.imgs['pokeball-fade-'+str(i)] = pb_i
 
 
@@ -116,6 +115,15 @@ class Display(Entity):
 #        print "--------------------Queueing effect:",img,ppos
 
     def std_render(disp):
+        if False:
+            _='This chunk prints a map of what tile are updated.'
+            for y in range(disp.gm.num_y_tiles):
+                for x in range(disp.gm.num_x_tiles):
+                    if (x,y) in disp._tiles_to_reset: print '0',
+                    else: print '.',
+                print ''
+            print ''
+
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         for tile in disp._tiles_to_reset+[(0,0)]:
             tmp = disp.gm.db.execute(query, tile).fetchone()

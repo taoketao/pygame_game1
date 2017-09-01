@@ -53,7 +53,7 @@ class StatusBar(ae_module.TileAgent):
 
         # Set fields
         sb.color = { 'b': (110,120,255,255), 'r': (255,0,0,255),\
-                     'y': (255,255,0,255)}[\
+                'y': (255,255,0,255), 'w':(255,255,255,255)}[\
                 options.get('hbcolor','r')]
         sb.metric = options['metric']
         sb.bg_color = (0,0,0,255)
@@ -61,12 +61,15 @@ class StatusBar(ae_module.TileAgent):
         sb.offset = 2+(BAR_WIDTH+1)*options.get('offset',0) # stack distance 
         sb.shift = 2+(BAR_WIDTH+1)*options.get('shift', 0) # buffer dist from edge
         sb.orientation = options.get('orientation', 'horiz') # vs vertic
-        sb.cur_metric = sb.init_metric = options['health']
-        if sb.orientation=='vertic':
-            sb.bar_shape = (BAR_WIDTH, options[sb.metric])
-        elif sb.orientation=='horiz':
-            sb.bar_shape = (options[sb.metric], BAR_WIDTH)
-        else: raise Exception("Other statusbar format not implemented")
+        sb.cur_metric = sb.init_metric = options.get(sb.metric)
+        sb.bar_shape = [BAR_WIDTH];
+        sb.bar_shape.insert({'horiz':0, 'vertic':1}[sb.orientation], \
+                    options[sb.metric]/options.get('vizscale',1))
+#        if sb.orientation=='vertic':
+#            sb.bar_shape = (BAR_WIDTH, options[sb.metric]/options.get('vizscale',1))
+#        elif sb.orientation=='horiz':
+#            sb.bar_shape = (options[sb.metric]/options.get('vizscale',1), BAR_WIDTH)
+#        else: raise Exception("Other statusbar format not implemented")
 
         # conduct essential initial interactions
         sb.gm.notify_update_agent(sb, team=sb.team,   \
@@ -78,16 +81,23 @@ class StatusBar(ae_module.TileAgent):
         sb.targeter = sensors_module.GetNextReservation(gm, owner.uniq_id)
         sb.targeter.set_state('stateless')
 
+        sb.relative_scaling = gm.tile_size[{'horiz':0,'vertic':1}[sb.orientation]]
+
     def update_position(sb): 
         sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
 
     # Public access method: TODO: turn this into a sensor/etc
     def update_metric(sb, amount, delta_or_absolute='delta'):
-        if delta_or_absolute=='delta': amount = sb.cur_metric+amount
+#        raise Exception( amount, delta_or_absolute)
+        if delta_or_absolute=='delta' or amt<0: amount = sb.cur_metric+amount
         elif not delta_or_absolute=='absolute': raise Exception()
         sb.cur_metric = min(sb.init_metric, max(0, amount)) # CAPPED!
         sb.gm.notify_image_update(sb, 'bar '+str(sb.color)+str(sb.uniq_id), \
                                           sb.draw_statusbar())
+
+    def view_metric(sb): return (sb.cur_metric, sb.init_metric)
+    def view_pct(sb): return float(sb.cur_metric) / sb.init_metric
+
 
     def draw_statusbar(sb):
         scaling_amount = float(0.5*sb.cur_metric)/sb.init_metric # for debugging

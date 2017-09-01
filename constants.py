@@ -54,6 +54,7 @@ sql_tile_locs='SELECT tx,ty,img_str,uniq_id FROM agent_status;'
 sql_get_pposes='SELECT tx,ty,px,py,species,img_str,uniq_id FROM agent_status;'
 sql_get_tocc ='SELECT tx,ty,species FROM agent_status;'
 sql_get_tocc2 ='SELECT tx,ty FROM agent_status;'
+sql_get_tpos_of_who ='SELECT tx,ty FROM agent_status WHERE uniq_id=?;'
 sql_query_tile = '''SELECT species, uniq_id, team FROM agent_status \
                     WHERE tx=? AND ty=?;'''
 sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? 
@@ -71,5 +72,7 @@ def next_stage(s):
             STAGE_2:STAGE_3, STAGE_3:STAGE_4, 
             STAGE_4:STAGE_5, STAGE_5:None}  [s]
 
+PB_OPENFRAMES = 30
+POKEBALL_OPEN_SPEED = 16
 CAST_POKEBALL_SPEED = 210 # in scaling ticks per tile. UNREALISTIC sanity
 POKEBALL_SCALE = (0.35, 0.4) # looks solid when tile_size = (40,35)

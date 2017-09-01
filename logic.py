@@ -27,7 +27,29 @@ class Logic(Entity):
         internal state and belts for the agent. Simple entities like most Moves 
         I organize ActionPickers and field messages to update State. 
         Belt should be fully initialized; changes now must be fielded through me.
+    '''
 
+    def __init__(logic, gm, agent, **options):
+        ''' Initializer '''
+        Entity.__init__(logic, gm)
+        agent.has_logic=True
+        logic.agent = agent
+        logic.belt = belt_module.Belt(gm, agent, **options)
+        logic._state = state_module.State(gm, logic.belt)
+        logic._state.setup_fields(agent.species, logic=logic, 
+                            ppos=options['init_ppos'])
+        logic.message_queue = []
+        if agent.species=='plyr': 
+            logic.root_ap = BasicPlayerActionPicker(logic)
+        elif agent.species=='target':
+            logic.root_ap = MouseActionPicker(logic)
+        elif agent.species=='pkmn':
+            logic.root_ap = WildPkmnBehavior(logic)
+        else: raise Exception('not impl yet')
+        
+        logic.root_ap.reset()
+
+    '''
         Public Methods: 
         (cp Update/Decide/Implement with reset/find_viability/implement)   '''
 
@@ -39,15 +61,23 @@ class Logic(Entity):
         while len(logic.message_queue)>0:
             print "processing message...",logic.message_queue[0]
             msg = logic.message_queue.pop(0)
-            logic._state.update_global(msg[0],msg[1])
+            if msg['msg']=='catching':
+                print '\tCurrent health:',logic.belt.health.view_metric()
+#                amt = msg['amount']*(1.2-logic.belt.Dependents['healthbar'].view_pct())
+                amt = int(msg['amount']*min(1,1.2-logic.belt.health.view_pct()))
+                amt = msg['amount']
+#                logic.update_global(caught_counter,msg[1])
+                logic.belt.Dependents['caughtbar'].update_metric(-amt, 'delta')
+                print "amount left from dt =",amt,':', logic.belt.Dependents['caughtbar'].view_metric()
+
 
         # Rescan sensors:
         for snm,sensor in logic.belt.Sensors.items():
             sensor.rescan()
             if snm in ['tpos','ppos']: # Self-reference these.
                 logic.get_sensor(snm).agent_id = logic.agent.uniq_id
-            if logic.agent.species=='plyr' and snm=='tpos':
-                print "Rescanned tpos sensor.", logic.view_sensor('tpos')
+#            if logic.agent.species=='plyr' and snm=='tpos':
+#                print "Rescanned tpos sensor.", logic.view_sensor('tpos')
 
         # Reset Actions and ActionPickers:
         logic.root_ap.reset()
@@ -70,8 +100,8 @@ class Logic(Entity):
             pass#put('curtid', logic.view_sensor('tpos'))
 
         for dep in logic.belt.Dependents.values(): dep.Reset()
-        print logic.agent.species,'888888', logic.belt.Spawns
-        logic.gm._pretty_print_sql(sql_all)
+#        print logic.agent.species,'888888', logic.belt.Spawns
+#        logic.gm._pretty_print_sql(sql_all)
         for move in logic.belt.Spawns.values(): move.reset()
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
@@ -83,7 +113,7 @@ class Logic(Entity):
             ret = move.find_viability()
             if ret in EVALS and not ret==EVAL_T: 
                 removes.append(mv_keyname)
-                print 'removing:', mv_keyname, move, WHICH_EVAL[ret]
+#                print 'removing:', mv_keyname, move, WHICH_EVAL[ret]
         for r in removes: 
             logic.belt.Spawns[r].kill()
             logic.belt.Spawns.pop(r)
@@ -97,37 +127,14 @@ class Logic(Entity):
         for dep in logic.belt.Dependents.values():  dep.DoAction() # broad
         for move in logic.belt.Spawns.values():  move.implement() # specific
 
-    # Notify: primary inbox method!
-    def notify(logic, whatCol, whatVal):
-        logic.message_queue.append( (whatCol, whatVal) )
+#    def notify(logic, whatCol, whatVal):
+#        logic.message_queue.append( (whatCol, whatVal) )
+    def deliver_message(logic, **args):
+        ''' deliver_message: primary inbox method! '''
+        logic.message_queue.append( args.copy() )
 
 
     ''' ----------  Private methods  ---------- '''
-
-    def __init__(logic, gm, agent, **options):
-        Entity.__init__(logic, gm)
-        agent.has_logic=True
-        logic.agent = agent
-        logic.belt = belt_module.Belt(gm, agent, **options)
-        logic._state = state_module.State(gm, logic.belt)
-        logic._state.setup_fields(agent.species, logic=logic, 
-                            ppos=options['init_ppos'])
-        logic.message_queue = []
-        if agent.species=='plyr': 
-            logic.root_ap = BasicPlayerActionPicker(logic)
-        elif agent.species=='target':
-            logic.root_ap = MouseActionPicker(logic)
-        elif agent.species=='pkmn':
-            logic.root_ap = WildPkmnBehavior(logic)
-#            for dk,dv in logic.belt.Dependents.items():
-#                if dk=='health' and logic.agent.team=='--plyr--': 
-#                    dv = dv(logic.gm, team=logic.agent.team, agent=logic.agent, metric=dk, color='b', init_value=)
-#                if dk=='health' and logic.agent.team=='--plyr--': 
-#                    dv = dv(logic.gm, team=logic.agent.team, agent=logic.agent, metric=dk, color='r')
-        else:
-            raise Exception('not impl yet')
-        
-        logic.root_ap.reset()
 
     # view/update_global//env: interface with high-level, oft-accessed state
     # variables. Specifically, these ought to be dominated by: (1) computed, 

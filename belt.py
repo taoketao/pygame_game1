@@ -74,7 +74,7 @@ class Belt(Entity):
         elif which_init=='target': pass
         elif which_init=='--wild-- pkmn': belt._init_pkmn(options);
         elif which_init=='--plyr-- pkmn': belt._init_pkmn(options);
-        else: raise Exception("an easy, nbd exception but please implement.",options)
+        else: raise Exception("an easy exception: please implement.",options)
         belt.which_init=which_init
 
     def _init_basic_player(belt):
@@ -86,15 +86,22 @@ class Belt(Entity):
 
     def _init_pkmn(belt, options):
         belt.Actions.update({'A':DoAttack})
-        tmp=options['hbcolor']
-        for i,c in enumerate([tmp,'y']): # hacky sanity checks:
-            options['hbcolor']=c
-            options['offset']=i
-            hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
-                    **options)
-            if i==1: hb.update_metric(random.choice(range(-10,35)), 'absolute')
-            hb.master=False
-            belt.Dependents.update({ 'healthbar_'+c:hb })
+
+        hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
+                **options)
+        hb.master=False
+        belt.Dependents.update({ 'healthbar':hb })
+
+        belt.health = belt.Dependents['healthbar']
+
+        if belt.agent.team=='--wild--':
+            options['caughtness']=150
+            options['vizscale']=5
+            options['hbcolor']='w'
+            options['offset']=1
+            belt.Dependents.update({ 'caughtbar': leaves_module.StatusBar(\
+                    belt.gm, belt.agent, metric='caughtness', \
+                    orientation='horiz', **options) })
 
 
     def spawn_new(belt, what_to_spawn, kind, **options):
