@@ -10,7 +10,9 @@ TILE_SIZE = (40,36);
 '''#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ''' ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
 
-import pygame, sys, operator
+import sys
+sys.path.append('/Users/morganbryant/Desktop/Codes/miniconda2/lib/python2.7/site-packages')
+import pygame, operator
 import sqlite3 as sql
 import ConfigParser
 import numpy as np
@@ -141,7 +143,7 @@ class GameManager(object): # *
         if not '*' in sql_str:
             res.insert(0,sql_str.split(','))
         l = [max([len(str(v[i])) for v in res]) for i in range(len(res[0]))]
-        for  item in res:
+        for item in res:
             print '\t',
             for vi,v in enumerate(item): 
                 try: 
@@ -164,6 +166,11 @@ class GameManager(object): # *
 
 #       Stub code:  <stub>
         gm.addNew('Agents', 'Player', agents_module.Player )
+        gm.addNew('Agents', 'PkmnWild', agents_module.AIAgent, \
+                init_tloc=(1,1), uniq_name= 'PkmnWild', \
+                hbcolor='r', team='wild', \
+                pokedex=1, health=14)
+        '''
         for (i,j) in [(1,1),(1,2),(2,1),(2,2),(3,2),(3,3)]:
             s=str(i)+','+str(j)
             if np.random.rand()<0.5:
@@ -179,7 +186,7 @@ class GameManager(object): # *
                         hbcolor='r', team='wild', \
                         pokedex=1, health=12+2*i+4*j)
         gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget)
-#       </stub>
+#       </stub>'''
 
         gm.process_update_queue() # after entities have been initialized...
         gm._reset_events()
@@ -248,7 +255,11 @@ class GameManager(object): # *
         if down[pygame.K_a]:     gm.events[LDIR]=True
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_SPACE]: gm.events[SP_ACTION]=True
-        if down[pygame.K_q]:     sys.exit()
+        if down[pygame.K_q]:     
+            print gm.Agents['Player']._logic.belt.Pkmn
+            sys.exit()
+#        for a in sorted(gm.entities.keys()):
+#            print a,'\t',gm.entities[a]
         if down[pygame.K_p]:     raw_input()
         if (not gm.buttonUp[SP_ACTION]) and (not down[pygame.K_SPACE]):
             gm.buttonUp[SP_ACTION] = True 
@@ -410,15 +421,20 @@ class GameManager(object): # *
     def request_what_at(gm, what, tpos): pass  # perhaps break this up....
 
     def send_message(gm, **arglist):
-        print "GM delivering message", arglist
-        if arglist.get('at',False):
-            ents = gm.db.execute(sql_query_tile, arglist['at']).fetchall()
-            for ent in ents:
-                e_species, e_id, e_team = ent
-                if (not arglist['sender_team']==e_team) and e_species=='pkmn':
-                    if arglist['what']=='catching':
-                        gm.entities[e_id].deliver_message(msg="catching", \
-                                amount = arglist['amount']  )
+#        print "GM delivering message", arglist
+#        if 'msg' in arglist.keys(): raise Exception(' <msg> field is reserved '+\
+#                'by the gm.send_message function.')
+        if arglist.get('msg') in ['catching', 'throwing']:
+            if arglist.get('at',False):
+                ents = gm.db.execute(sql_query_tile, arglist['at']).fetchall()
+                for ent in ents:
+                    e_species, e_id, e_team = ent
+                    if (not arglist['sender_team']==e_team) and e_species=='pkmn':
+                        gm.entities[e_id].deliver_message(**arglist)
+        elif arglist.get('msg')=='you caught me':
+            gm.entities[arglist['recipient_id']].deliver_message(**arglist)
+        else: raise Exception(arglist)
+
         return
     '''
         print "message to be routed:", arglist,

@@ -85,7 +85,11 @@ class VisualStepAgent(Entity):
         return ta.gm.request_ppos(ta.uniq_id)
 
     def query_image(ta): return ta._logic.view("Image")
-
+    def delete_all(ta): 
+        ta._logic=None
+        ta=None
+        del ta
+        
 
 class PixelAgent(VisualStepAgent):
     def __init__(ta, gm, init_ppos):

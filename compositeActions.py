@@ -116,7 +116,6 @@ class CondElse(ActionPicker):
             ap.viability = ap.do1.find_viability()
             return ap.GETVIA(ap.do1)#ap.viability
         return ap.GETVIA(ap.do2)#ap.viability
-        return ap.GETVIA(ap.do2.find_viability())
 
     def implement(ap):
         { EVAL_T:ap.do1, EVAL_F:ap.do2 }\
@@ -129,7 +128,7 @@ class CondElse(ActionPicker):
     def reset(ap): 
         ap.viability = EVAL_U; 
         ap.cond.reset(); ap.do1.reset(); ap.do2.reset()
-        ap.logic.update_ap(ap.key, EVAL_T, ap.uniq_id)
+        ap.logic.update_ap(ap.key, EVAL_U, ap.uniq_id)
 
 
 

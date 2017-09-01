@@ -113,8 +113,8 @@ class State(Entity): # i do not write, so no need to have logic
 
     def setup_basic_pkmn_fields(st, logic):
         try:
-            st.s_env['caught_counter'] = logic.belt.Dependents['caughtbar'\
-                        ].view_metric()[0]
+            # function:
+            st.s_env['caught_counter'] = logic.belt.Dependents['caughtbar'].view_metric
         except:
             st.s_env['caught_counter'] = 'not catchable'
 

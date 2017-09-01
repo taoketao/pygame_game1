@@ -201,32 +201,29 @@ class MultiSensor(Sensor):
     @abc.abstractmethod
     def sense(sensor, *what): raise Exception("Implement me please")
 
+class TileOccupSensor(MultiSensor):
+    # Query: at the specific tile, query whether the tile has agents on it.
+    def __init__(sensor, gm): 
+        MultiSensor.__init__(sensor, gm)
+        sensor.access_name = "tile occ"
+    def sense(sensor, tid): 
+        return len(sensor.gm.get_tile_occupants(tid))>0
+
 class TileObstrSensor(MultiSensor):
     # Query: at the specific tile, get blocking (T:obstr/F:free) info here.
     # Use case: moving. Uses agent component block_[plyr,pkmn,flying,water].
     def __init__(sensor, gm): 
         MultiSensor.__init__(sensor, gm)
         sensor.access_name = "tile obstr"
-
     def sense(sensor, tid, blck): 
-#        if not type(blck)==list: blck=[blck]
-        try:
-            blck[0]; assert(not type(blck)==str)
-        except:
-            blck=[blck]
-#        nblock = []
-#        for b in blck:
-#            if (not b[:6]=='block_') and not b=='*':
-#                nblock.append( 'block_'+b )
-#            nblock.append( b )
+        try:        blck[0]; assert(not type(blck)==str)
+        except:     blck=[blck]
         if type(blck)==tuple: blck=[b for b in blck]
         for bi in range(len(blck)):
             b=blck[bi]
             if not b[:6]=='block_' and not b=='*':
                  blck[bi] = 'block_'+b
-        x=sensor.gm.query_tile_for_blck(tid, blck)
-#        print 'new sensorblock:',blck,x
-        return x
+        return sensor.gm.query_tile_for_blck(tid, blck)
 
 
 class GetWhoAtTIDSensor(MultiSensor):

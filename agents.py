@@ -78,7 +78,7 @@ class Player(ae_module.VisualStepAgent):
     def get_num_actions(ego): return len(ego._belt.Actions)
     def alias_sensor(ego, what_sensor): return ego._logic.get_sensor(what_sensor)
     def view_field(ego, what_field): return ego._logic.view(what_field)
-
+    def deliver_message(ego, **t): ego._logic.deliver_message(**t)
 
 class AIAgent(ae_module.TileAgent):
     ''' AIAgent class: basic pokemon unit.'''
@@ -93,12 +93,13 @@ class AIAgent(ae_module.TileAgent):
         px,py = gm._t_to_p(init_tloc)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
         ai._logic.update_global('curtid',init_tloc)
-        ai._logic.update_global('max health',options['health'])
-        ai._logic.update_global('cur health',options['health']) # default
+#        ai._logic.update_global('max health',options['health'])
+#        ai._logic.update_global('cur health',options['health']) # default
         ai._logic.update_global('uniq_name',options['uniq_name'])
         ai._belt = ai._logic.belt
         ai.initialized = True
         ai.pokedex = options['pokedex']
+        ai._logic.update_global('pkmn_id', ai.pokedex)
         ai.gm.notify_update_agent(ai, team=ai.team, species=ai.species, \
                 img_str='pkmn sprite '+str(ai.pokedex)+'d',\
                 tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)

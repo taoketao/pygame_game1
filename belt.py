@@ -62,6 +62,7 @@ class Belt(Entity):
                                 'smoothing':GetFrameSmoothingSensor ,\
                                 'next reserved':GetFrameSmoothingSensor ,\
                                 'tile obstr':TileObstrSensor, \
+                                'tile occ':TileOccupSensor, \
                                 'get who at tile':GetWhoAtTIDSensor ,\
                                 'unit step':GetCurUnitStepSensor }, \
                             False: {} }[options.get('std_sensors',True)] )
@@ -80,7 +81,8 @@ class Belt(Entity):
     def _init_basic_player(belt):
         belt.Items.update({i:'pokeball-lvl-1' for i in range(4)})
         belt.Sensors.update({'mousepos':GetMouseTIDSensor})
-        belt.Moves.update({'cast pokeball': moves_module.ThrowPokeballMove})
+        belt.Moves.update({'cast pokeball': moves_module.CatchPokeballMove})
+        belt.Moves.update({'throw pokemon': moves_module.ThrowPokeballMove})
         belt.Dependents.update({'highlighter': \
                 leaves_module.PlayerHighlighter(belt.gm, belt.agent.uniq_id)} )
 

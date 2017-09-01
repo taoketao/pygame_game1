@@ -14,6 +14,7 @@ class WildPkmnBehavior(ActionPicker):
         ap.agent = logic.agent
         ap.write_state_access = True
         ap.root = Priority(ap.logic, [ \
+                    GetCaught(ap.logic), \
                     Delay(ap.logic), \
                     # use attack move (a big AP itself),
                     Wander(ap.logic) ] )
@@ -80,7 +81,22 @@ class Wander(ActionPicker):
     def reset(ap): ap.viability = EVAL_U; ap.chooser.reset()
 
 
-
+class GetCaught(ActionPicker):
+    def __init__(ap, logic): ActionPicker.__init__(ap, logic)
+    def find_viability(ap):
+        if not 'caughtbar' in ap.logic.belt.Dependents.keys():
+            return ap.INVIABLE()
+        cb = ap.logic.belt.Dependents['caughtbar'].view_pct()
+        if cb <= 0: return ap.VIABLE()
+        return ap.INVIABLE()
+    def implement(ap):
+        assert(ap.viability==EVAL_T)
+        ap.gm.send_message(msg='you caught me', 
+                recipient_id = ap.logic.view('most recently caught by'), \
+                pkmn_id = ap.logic.view('pkmn_id'),\
+                health_cur_max = ap.logic.belt.health.view_metric())
+        ap.logic.kill()
+    
 # wasCaught: query if the pokemon was caught; execute pkmn removal from scene.
 class wasCaughtProcessing(ActionPicker):
     def __init__(ap, logic):

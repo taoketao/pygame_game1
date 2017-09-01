@@ -33,6 +33,7 @@ class Logic(Entity):
         ''' Initializer '''
         Entity.__init__(logic, gm)
         agent.has_logic=True
+        logic.IS_DEAD = False
         logic.agent = agent
         logic.belt = belt_module.Belt(gm, agent, **options)
         logic._state = state_module.State(gm, logic.belt)
@@ -55,20 +56,36 @@ class Logic(Entity):
 
 #-- Interface method        __ Update __        Call before choosing actions 
     def Update(logic):
+        if logic.IS_DEAD: 
+            logic._kill(); return
+
         # Wipe sensors and prime them
         logic.viability = EVAL_F
         # Read and process messages:
         while len(logic.message_queue)>0:
-            print "processing message...",logic.message_queue[0]
             msg = logic.message_queue.pop(0)
+            print 'received message:',msg
             if msg['msg']=='catching':
-                print '\tCurrent health:',logic.belt.health.view_metric()
-#                amt = msg['amount']*(1.2-logic.belt.Dependents['healthbar'].view_pct())
-                amt = int(msg['amount']*min(1,1.2-logic.belt.health.view_pct()))
                 amt = msg['amount']
-#                logic.update_global(caught_counter,msg[1])
-                logic.belt.Dependents['caughtbar'].update_metric(-amt, 'delta')
-                print "amount left from dt =",amt,':', logic.belt.Dependents['caughtbar'].view_metric()
+                caughtbar = logic.belt.Dependents['caughtbar']
+                caughtbar.update_metric(-amt, 'delta')
+                logic.update_global('most recently caught by', \
+                                     msg['source_logic'].agent.uniq_id)
+                #print "amount CATCH left from dt =",amt,':', logic.belt.Dependents['caughtbar'].view_metric() ,'(should ==:)',logic.view('caught_counter'), ';  health:', logic.belt.health.view_metric()
+
+                logic.update_global('caugh_counter', caughtbar.view_metric()[0])
+            elif msg['msg']=='you caught me':
+                # vvvv No! This: needs to ~kill~ and the player needs this.
+                print msg, msg['recipient_id'], logic.gm.entities[msg['recipient_id']],\
+                        logic.agent.uniq_id
+
+                logic.belt.Pkmn[len(logic.belt.Pkmn)+1] = {\
+                    'pokedex' : msg['pkmn_id'], \
+                    'health_cur' : msg['health_cur_max'][0] ,\
+                    'health_max' : msg['health_cur_max'][1]\
+                    }
+            else:
+                pass
 
 
         # Rescan sensors:
@@ -76,33 +93,16 @@ class Logic(Entity):
             sensor.rescan()
             if snm in ['tpos','ppos']: # Self-reference these.
                 logic.get_sensor(snm).agent_id = logic.agent.uniq_id
-#            if logic.agent.species=='plyr' and snm=='tpos':
-#                print "Rescanned tpos sensor.", logic.view_sensor('tpos')
-
-        # Reset Actions and ActionPickers:
-        logic.root_ap.reset()
 
         # Update interlocking global fields:
         put = logic._state.update_env
         put('next reserved', logic.view_sensor('tpos'))
-        #put('delay',logic.view('delay')-logic.gm.dt**-1)
         put('delay',logic.view('delay')-logic.gm.dt) # check...
-        #print logic.agent.uniq_id,logic.view('delay'), logic.view('root delay'), logic.gm.dt
-#        print "Decrease delay :", logic.gm.dt/1000.0, logic.gm.fps, logic.gm.dt**-1
-#        print logic.gm.dt, logic.gm.fpms, logic.gm.dt*logic.gm.fpms
-        if logic.agent.species=='plyr': 
-            pass
-#            put('prev move vec', logic.view('curr move vec'))   # do both these lines
-#            put('curr move vec', logic.gm.events[:4])           # with a Sensor
-#            put('triggered actions', logic.gm.events[4:])
-        if logic.agent.species=='pkmn':
-#            put('prevtid', logic.view('curtid'))
-            pass#put('curtid', logic.view_sensor('tpos'))
 
+        # Reset Actions and ActionPickers:
+        logic.root_ap.reset()
         for dep in logic.belt.Dependents.values(): dep.Reset()
-#        print logic.agent.species,'888888', logic.belt.Spawns
-#        logic.gm._pretty_print_sql(sql_all)
-        for move in logic.belt.Spawns.values(): move.reset()
+        for move in logic.belt.Spawns.values():  move.reset()
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      
@@ -211,10 +211,27 @@ class Logic(Entity):
         except: raise Exception(X)
 
     def spawn_new(logic, what_to_spawn, kind, **options):
-        # spawn a dependant by keystr. kind: Move, Agent, StatusBar, ...
-        options['logic'] = logic#._state
+        options['logic'] = logic
         new_ent = logic.belt.spawn_new(what_to_spawn, kind, **options)
+        new_ent.reset()
+        return new_ent
 
-
-
-
+    def kill(logic): logic.IS_DEAD = True
+    def _kill(logic):
+        print "I am dying:", logic.agent
+        logic.gm.display.queue_reset_tile(logic.view_sensor('tpos'), 'tpos')
+        logic.agent.delete_all()
+        logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (logic.agent.uniq_id,))
+        for entity in logic.belt.Sensors.values() + logic.belt.Moves.values() + \
+                logic.belt.Dependents.values() +[ logic.agent, logic]:
+            try:
+              for coll in (logic.gm.Agents, logic.gm.Effects, logic.gm.AfterEffects):
+                for k,v in coll.items():
+                    if v.uniq_id==entity.uniq_id:
+                        coll.pop(k)
+                coll = {k:v for k,v in coll.items() if not \
+                            v.uniq_id==logic.agent.uniq_id}
+            except:pass
+            logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
+            logic.gm.entities.pop(entity.uniq_id)
+            

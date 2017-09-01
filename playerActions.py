@@ -116,21 +116,26 @@ class PlayerMotion(ActionPicker):
         ap.viability = EVAL_U; 
         ap.root.reset()
 
+class CatchPokeballAction(ActionPicker): 
+    def __init__(ap, logic): ActionPicker.__init__(ap, logic)
+    def find_viability(ap, dest):
+        if not ap.logic.view('isPlayerActionable'): return ap.INVIABLE()
+        ap.logic.update_global('isPlayerActionable', False)
+        return ap.GETVIA(ap.logic.spawn_new('cast pokeball', 'move', dest=dest))
+
 class ThrowPokeballAction(ActionPicker): 
     def __init__(ap, logic): ActionPicker.__init__(ap, logic)
-
-    def find_viability(ap):
+    def find_viability(ap, dest):
+        if not ap.logic.view('isPlayerActionable'): return ap.INVIABLE()
         ap.logic.update_global('isPlayerActionable', False)
-        return ap.VIABLE() # the targ should be checked as viable already
-
-    def implement(ap, **arguments):
-        ap.logic.spawn_new('cast pokeball', 'move', dest=arguments['dest'])
+        return ap.GETVIA(ap.logic.spawn_new('throw pokemon', 'move', dest=dest))
 
 class HandlePlayerActionRequests(ActionPicker):
     def __init__(ap, logic):
         ActionPicker.__init__(ap, logic)
         ap.write_state_access = True
-        ap.action_map = { SP_ACTION: ThrowPokeballAction(logic) }
+        ap.action_map = { 'catch': CatchPokeballAction(logic),\
+                          'throw': ThrowPokeballAction(logic)   }
 
     def find_viability(ap):
         a_requests = ap.logic.view('action requests')
@@ -140,27 +145,27 @@ class HandlePlayerActionRequests(ActionPicker):
         if ap.logic.view_sensor('tpos')==tid: return ap.INVIABLE()
         tile_blocked = ap.logic.view_sensor('tile obstr', tid=tid, \
                 blck=['block_'+s for s in BLOCKING_SPECIES])
-        if tile_blocked==True: return ap.INVIABLE()
         ap.logic.update_ap('dest', tid, ap.uniq_id)
-        ap.logic.update_ap('selected', [a for a in a_requests.keys() \
-                if a_requests[a]==True][0], ap.uniq_id) # arbitrary select one
-        return ap.GETVIA( ap.action_map[ ap.logic.view_my('selected', \
-                            ap.uniq_id) ] )
-        # Todo: later convert this into a priority input handler.
-
+        if tile_blocked==True: return ap.INVIABLE()
+        key = {True:'catch', False:'throw'}[ap.logic.view_sensor(\
+                    'tile occ', tid=tid)]
+        ap.logic.update_ap('selected', key, ap.uniq_id)
+        via = ap.action_map[key].find_viability(tid)
+        return ap.COPYEVAL(via)
+            
     def implement(ap): 
-        req_id = ap.logic.view_my('selected', ap.uniq_id) 
-        ap.action_map[req_id].implement( dest = ap.logic.view_my('dest',ap.uniq_id) )
-        return 
+        pass
+#        req_id = ap.logic.view_my('selected', ap.uniq_id) 
+#        ap.action_map[req_id].implement( dest = ap.logic.view_my('dest',ap.uniq_id) )
+#        return 
 
     def reset(ap): 
-        try: pass#print ap.logic.view_my('requests',ap.uniq_id).items(), '--1'
-        except: pass
         ap.viability=EVAL_U
-        if ap.viability==EVAL_T:
-            for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
-                if not req_TF: continue
-                ap.action_map[req_id].reset()
+        for a in ap.action_map.values(): a.reset()
+#        if ap.viability==EVAL_T:
+#            for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
+#                if not req_TF: continue
+#                ap.action_map[req_id].reset()
 
 class PlayerAction(ActionPicker):
     def __init__(ap, logic):
