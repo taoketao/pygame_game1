@@ -128,7 +128,10 @@ class ThrowPokeballAction(ActionPicker):
     def find_viability(ap, dest):
         if not ap.logic.view('isPlayerActionable'): return ap.INVIABLE()
         ap.logic.update_global('isPlayerActionable', False)
-        return ap.GETVIA(ap.logic.spawn_new('throw pokemon', 'move', dest=dest))
+        res = ap.logic.spawn_new('throw pokeball', 'move', dest=dest)
+        if res==None: return ap.INVIABLE()
+        res.reset()
+        return ap.GETVIA(res)
 
 class HandlePlayerActionRequests(ActionPicker):
     def __init__(ap, logic):
@@ -149,11 +152,15 @@ class HandlePlayerActionRequests(ActionPicker):
         if tile_blocked==True: return ap.INVIABLE()
         key = {True:'catch', False:'throw'}[ap.logic.view_sensor(\
                     'tile occ', tid=tid)]
+        key = {True:'catch', False:'throw'}[len(ap.gm.get_tile_occupants(tid))>0]
+
         ap.logic.update_ap('selected', key, ap.uniq_id)
         via = ap.action_map[key].find_viability(tid)
+        print '!%'*80, WHICH_EVAL[via], key
         return ap.COPYEVAL(via)
             
     def implement(ap): 
+#        ap.action_map[ap.logic.view_my('selected',ap.uniq_id)].implement()
         pass
 #        req_id = ap.logic.view_my('selected', ap.uniq_id) 
 #        ap.action_map[req_id].implement( dest = ap.logic.view_my('dest',ap.uniq_id) )

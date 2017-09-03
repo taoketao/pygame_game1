@@ -28,12 +28,12 @@ PKMN_WANDER_DELAY = 1600
 
 class Player(ae_module.VisualStepAgent):
     ''' Player class: the human player representation as an agent (step, img) '''
-    def __init__(ego, gm):
+    def __init__(ego, gm, **__unused_arguments):
         init_tpos = divvec(gm.map_num_tiles,1.5) 
         init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
                 range(1, min(gm.ts())), 2)))
         ae_module.VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
-        ego.species='plyr'
+        ego.uniq_name = ego.species='plyr'
         ego.team = '--plyr--'
         ego.primary_delay = PLYR_STEP_DELAY
         ego.store_reservations=True
@@ -87,15 +87,18 @@ class AIAgent(ae_module.TileAgent):
         init_tloc = options['init_tloc']
         ai.primary_delay = PKMN_WANDER_DELAY 
         ai.species = 'pkmn'
-        ai.team = '--'+options.get('team')+'--'
+        ai.team = options.get('team')
+        if not '--' in ai.team: ai.team= '--'+ai.team+'--'
+        #ai.team = '--'+options.get('team')+'--'
         ai.store_reservations=True
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         px,py = gm._t_to_p(init_tloc)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
         ai._logic.update_global('curtid',init_tloc)
+        ai.uniq_name = options.get('uniq_name', '-uniqname not provided-')
+#        ai._logic.update_global('uniq_name',options['uniq_name'])
 #        ai._logic.update_global('max health',options['health'])
 #        ai._logic.update_global('cur health',options['health']) # default
-        ai._logic.update_global('uniq_name',options['uniq_name'])
         ai._belt = ai._logic.belt
         ai.initialized = True
         ai.pokedex = options['pokedex']

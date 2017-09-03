@@ -35,7 +35,7 @@ class PlayerHighlighter(ae_module.Highlighter):
 
 class MouseTarget(ae_module.Highlighter):
     ''' Follow the mouse & indicate current tile. '''
-    def __init__(h, gm): 
+    def __init__(h, gm, **_unused_args_): 
         ae_module.Highlighter.__init__(h, gm)
         h.targeter = sensors_module.GetMouseTIDSensor(gm)
         h.color= MOUSE_GRAD
@@ -61,10 +61,14 @@ class StatusBar(ae_module.TileAgent):
         sb.offset = 2+(BAR_WIDTH+1)*options.get('offset',0) # stack distance 
         sb.shift = 2+(BAR_WIDTH+1)*options.get('shift', 0) # buffer dist from edge
         sb.orientation = options.get('orientation', 'horiz') # vs vertic
-        sb.cur_metric = sb.init_metric = options.get(sb.metric)
+        try: 
+            sb.init_metric = options['max_'+sb.metric]
+            sb.cur_metric = options['cur_'+sb.metric]
+        except:
+            sb.cur_metric = sb.init_metric = options[sb.metric]
         sb.bar_shape = [BAR_WIDTH];
         sb.bar_shape.insert({'horiz':0, 'vertic':1}[sb.orientation], \
-                    options[sb.metric]/options.get('vizscale',1))
+                    sb.init_metric/options.get('vizscale',1))
 #        if sb.orientation=='vertic':
 #            sb.bar_shape = (BAR_WIDTH, options[sb.metric]/options.get('vizscale',1))
 #        elif sb.orientation=='horiz':
@@ -80,11 +84,16 @@ class StatusBar(ae_module.TileAgent):
                                       sb.draw_statusbar())
         sb.targeter = sensors_module.GetNextReservation(gm, owner.uniq_id)
         sb.targeter.set_state('stateless')
+        sb.targeter.rescan()
 
         sb.relative_scaling = gm.tile_size[{'horiz':0,'vertic':1}[sb.orientation]]
 
     def update_position(sb): 
-        sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
+        p=sb.targeter.sense()
+        print p, sb.targeter
+#        try:        assert( not p==None )
+#        except:     p = sensors_module.
+        sb.gm.notify_tmove(sb.uniq_id, p)
 
     # Public access method: TODO: turn this into a sensor/etc
     def update_metric(sb, amount, delta_or_absolute='delta'):

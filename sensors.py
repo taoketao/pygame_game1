@@ -115,6 +115,7 @@ class GetNextReservation(Sensor):
             querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
             res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
         sensor._store({agent_id:res})
+        print '\t\t',sensor.sense(agent_id), agent_id
         return sensor.sense(agent_id)
 
 ''' Mouse position '''

@@ -14,6 +14,7 @@ from otherActions import *
 from compositeActions import *
 import belt as belt_module
 import state as state_module
+import agents as agents_module
 
 
 #-------------#-------------#--------------#--------------#--------------
@@ -32,6 +33,7 @@ class Logic(Entity):
     def __init__(logic, gm, agent, **options):
         ''' Initializer '''
         Entity.__init__(logic, gm)
+        print 'OPTIONS:', options
         agent.has_logic=True
         logic.IS_DEAD = False
         logic.agent = agent
@@ -57,6 +59,7 @@ class Logic(Entity):
 #-- Interface method        __ Update __        Call before choosing actions 
     def Update(logic):
         if logic.IS_DEAD: 
+            print 'I am dead!'
             logic._kill(); return
 
         # Wipe sensors and prime them
@@ -84,8 +87,13 @@ class Logic(Entity):
                     'health_cur' : msg['health_cur_max'][0] ,\
                     'health_max' : msg['health_cur_max'][1]\
                     }
+            elif msg['msg']=='create pokemon':
+                print '\tMSG',msg, logic.belt.Pkmn
+                logic.spawn_new('create pokemon', 'move',\
+                                which_slot=msg['which_slot'], \
+                                init_tloc=floorvec(msg['init_tloc']))
             else:
-                pass
+                raise Exception(msg)
 
 
         # Rescan sensors:
@@ -124,8 +132,10 @@ class Logic(Entity):
 #-- Interface method        __ Implement __        Call after Deciding, for all
     def Implement(logic):   
         if logic.gm.frame_iter>1: logic.root_ap.implement()
-        for dep in logic.belt.Dependents.values():  dep.DoAction() # broad
-        for move in logic.belt.Spawns.values():  move.implement() # specific
+        for dep in logic.belt.Dependents.values():  
+            dep.DoAction() # broad
+        for move in logic.belt.Spawns.values():  
+            move.implement() # specific
 
 #    def notify(logic, whatCol, whatVal):
 #        logic.message_queue.append( (whatCol, whatVal) )
@@ -211,10 +221,32 @@ class Logic(Entity):
         except: raise Exception(X)
 
     def spawn_new(logic, what_to_spawn, kind, **options):
-        options['logic'] = logic
-        new_ent = logic.belt.spawn_new(what_to_spawn, kind, **options)
-        new_ent.reset()
-        return new_ent
+        optn = options.copy()
+        print '>>>>>>>>>>>> \n\n\n\n\nspawning logic:',what_to_spawn, kind, options
+        print '\n'*15
+        if what_to_spawn in ['cast pokeball', 'throw pokeball']:
+            optn['logic'] = logic
+            new_ent = logic.belt.spawn_new(what_to_spawn, kind, **optn)
+            try:    new_ent.reset()
+            except: new_ent.Reset()
+            return new_ent
+        elif what_to_spawn in ['create pokemon']:
+            if not optn.get('which_slot',False): return 'signal XASDFUEN'
+            optn.update(logic.belt.Pkmn[optn['which_slot']]) # Add data from belt
+            optn['name'] = name = 'PkmnPlyr_'+str(logic.belt.pkmn_counter)
+            optn['team'] = logic.agent.team
+#            optn['team'] = logic.agent.team
+            logic.belt.pkmn_counter += 1
+            ch,mh = optn.get('health_cur_max', (optn['health_cur'],optn['health_max']))
+            optn['cur_health'] = ch; optn['max_health'] = mh; 
+            if 'init_ppos' in optn.keys(): 
+                optn['init_tloc']=divvec(optn['init_ppos'], logic.gm.ts())
+            raise Exception( '*** About to pass on options:', optn)
+            logic.gm.notify_new_spawn('Agents', name, agents_module.AIAgent, \
+                                 sp_init='pkmn_basic_init', **optn)
+        else:
+            raise Exception('logic spawn_new', what_to_spawn, kind, optn)
+
 
     def kill(logic): logic.IS_DEAD = True
     def _kill(logic):

@@ -60,7 +60,9 @@ def multpos(v,m,optn=None):
     elif optn in ('elemwise','e','vector'): return (v[X]*m[X], v[Y]*m[Y])
     elif optn in ('div', '/'): return (v[X]/float(m), v[Y]/float(m))
     elif optn =='//': return (int(v[X]//m), int(v[Y]//m))
-    elif optn==None: return (v[X]*m, v[Y]*m)
+    elif optn==None: 
+        try: return (v[X]*m, v[Y]*m)
+        except: raise Exception(v,m) 
     else: raise Exception()
 def multvec(v,m,optn=None):return multpos(v,m,optn)
 def divvec(v,m,optn='//'):

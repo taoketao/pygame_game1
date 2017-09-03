@@ -1,5 +1,5 @@
 ''' Game Options '''
-DEFAULT_FPS = 18 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 15 # should be a cap: lower than expected max FPS
 MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);
@@ -102,6 +102,7 @@ class GameManager(object): # *
     def _init_global_fields(gm): # *
         gm.uniq_id_counter = 100
         gm.entities = {}
+        gm.new_spawns_queue=[]
         gm.reserved_tiles = {}
         gm.frame_iter = 0
         gm._smoothing = 1.0      # animation smoothing factor
@@ -167,9 +168,14 @@ class GameManager(object): # *
 #       Stub code:  <stub>
         gm.addNew('Agents', 'Player', agents_module.Player )
         gm.addNew('Agents', 'PkmnWild', agents_module.AIAgent, \
-                init_tloc=(1,1), uniq_name= 'PkmnWild', \
+                init_tloc=(1,1),
                 hbcolor='r', team='wild', \
                 pokedex=1, health=14)
+        gm.addNew('Agents', 'PkmnInitPlyr', agents_module.AIAgent, \
+                init_tloc=(1,2),
+                hbcolor='b', team='plyr', \
+                max_health=30, cur_health=20,
+                pokedex=1 )
         '''
         for (i,j) in [(1,1),(1,2),(2,1),(2,2),(3,2),(3,3)]:
             s=str(i)+','+str(j)
@@ -185,8 +191,8 @@ class GameManager(object): # *
                         init_tloc=(i,j), uniq_name= 'PkmnWild'+s, \
                         hbcolor='r', team='wild', \
                         pokedex=1, health=12+2*i+4*j)
-        gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget)
 #       </stub>'''
+        gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget)
 
         gm.process_update_queue() # after entities have been initialized...
         gm._reset_events()
@@ -195,6 +201,7 @@ class GameManager(object): # *
         gm.display.std_render()
 
     def addNew(gm, store_where, key, class_val, **options):
+        options['uniq_name'] = key
         init = class_val(gm, **options)
         d={key: init}
         {'Agents': gm.Agents, 'Effects':gm.Effects, 'AfterEffects':\
@@ -202,7 +209,10 @@ class GameManager(object): # *
 
     def active_entities(gm): return gm.Agents.values() + gm.Effects.values() \
                 + gm.AfterEffects.values()
+
     def BroadcastAll(gm, fn_name): 
+        print 3*fn_name+' ', gm.Agents.keys() + gm.Effects.keys() \
+                + gm.AfterEffects.keys()
         map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
@@ -217,8 +227,14 @@ class GameManager(object): # *
         gm.display.std_render()
 
     def _prepare_new_frame(gm):
+        while len(gm.new_spawns_queue)>0:
+            tmp = gm.new_spawns_queue.pop(0)
+            gm.addNew(tmp[0], tmp[1], tmp[2], **tmp[3])
+            print 'Success! added a new'
+
         gm.reserved_tiles = {} # bidirectional map
         for tx,ty,_,aid in gm.db.execute(sql_tile_locs):
+            print tx,ty,aid,'\t\t9999'
             if gm.entities[aid].species in BLOCKING_SPECIES:
                 gm.reserved_tiles.update({aid:(tx,ty), (tx,ty):aid})
         sql_get_tocc = 'SELECT tx,ty,species FROM agent_status;'
@@ -256,10 +272,11 @@ class GameManager(object): # *
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_SPACE]: gm.events[SP_ACTION]=True
         if down[pygame.K_q]:     
-            print gm.Agents['Player']._logic.belt.Pkmn
+            print 'player belt pkmn:',gm.Agents['Player']._logic.belt.Pkmn
+            
+            for a in sorted(gm.entities.keys()):
+                print a,'\t',gm.entities[a]
             sys.exit()
-#        for a in sorted(gm.entities.keys()):
-#            print a,'\t',gm.entities[a]
         if down[pygame.K_p]:     raw_input()
         if (not gm.buttonUp[SP_ACTION]) and (not down[pygame.K_SPACE]):
             gm.buttonUp[SP_ACTION] = True 
@@ -337,6 +354,9 @@ class GameManager(object): # *
         if not new_image==None: gm.display.imgs[img_str]=new_image
         gm.update_queue.append(\
                 [sql_img_update, (img_str,agent_ref.uniq_id), 'img update'])
+
+    def notify_new_spawn(gm, a,b,c,**o):
+        gm.new_spawns_queue.append( (a,b,c, o.copy()) )
     
     def notify_update_agent(gm, agent_ref, **args):
         sql_upd = 'UPDATE agent_status SET '
@@ -383,7 +403,9 @@ class GameManager(object): # *
         gm.update_queue.append( [sql_ins, Vals, 'new effect'] ) 
 
 
-    def notify_tmove(gm, a_id, tloc): gm.notify_pmove(a_id, gm._t_to_p(tloc))
+    def notify_tmove(gm, a_id, tloc): 
+#        print gm.entities[a_id], tloc
+        gm.notify_pmove(a_id, multvec(gm.ts(), tloc))
     # Notify pmove: returns whether the move was successful @ making reservation:
     def notify_pmove(gm, agent_id, ploc):
         if not type(agent_id)==int: agent_id = agent_id.uniq_id

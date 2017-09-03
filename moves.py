@@ -88,6 +88,7 @@ class ProjectileMove(BasicMove):
     def _implement_landing(mv): raise Exception("Please fill me in.")
     def reset(mv): mv.viability=EVAL_U 
     def find_viability(mv): 
+        print '-'*50,'stage:',mv.get('stage'),'-'*50
         t = mv.get('t')
         mv.put('t', t + mv.gm.dt)
         if mv.get('stage')==STAGE_0 and mv.get('t')>mv.get('stage0->1 t fin'):
@@ -149,27 +150,50 @@ class ThrowPokeballMove(ProjectileMove):
         mv.storage_key = str(mv.uniq_id)+'::'+mv.move_name
         mv.put('stage0->1 t fin', int(CAST_POKEBALL_SPEED*mv.get('dist'))) 
         mv.put('stage1->2 t fin', PB_OPENFRAMES * POKEBALL_OPEN_SPEED) 
-        mv.gm.notify_new_effect(mv, tpos=mv.get('src'), img='pokeball', team=mv.team)
+        mv.gm.notify_new_effect(mv, tpos=mv.get('src'), img='pkmn sprite 1d', team=mv.team)
+        import sys;sys.exit()
 
     def _process_landing(mv): 
-        if mv.get('stage')==STAGE_1:
-            img_num = mv.get('t')//POKEBALL_OPEN_SPEED
-            if mv.logic.view_sensor('tile occ', tid=mv.get('dest')):
-                mv.logic.update_global('isPlayerActionable', True)
-                mv.put('stage', STAGE_2)
-                return mv.INVIABLE()
-            if mv.get('t')>=mv.get('stage1->2 t fin'):
-                mv.logic.update_global('isPlayerActionable', True)
-                mv.put('stage', STAGE_2)
-                mv.gm.send_message(\
-                        msg='throwing',  sender_team = mv.team, \
-                        source_logic = mv.source_logic, \
-                        at = floorvec(mv.get('dest')), \
-                        amount = mv.gm.dt * (PB_OPENFRAMES-img_num)//100 )
-                return mv.INVIABLE()
+        print '_process_landing'
+        if mv.get('stage')==STAGE_1 and mv.get('t')>=mv.get('stage1->2 t fin'):
+            mv.logic.update_global('isPlayerActionable', True)
+            mv.put('stage', STAGE_2)
+            return mv.VIABLE()
+        elif mv.get('stage')==STAGE_2: 
+            mv.put('stage', STAGE_3)
+            return mv.VIABLE()
+        elif mv.get('stage')==STAGE_3: return mv.INVIABLE()
+        else: raise Exception()
         return mv.VIABLE()
 
+        if (mv.get('stage')==STAGE_1 and mv.get('t')>=mv.get('stage1->2 t fin'))\
+                or mv.logic.view_sensor('tile occ', tid=mv.get('dest')):
+            mv.put('stage', STAGE_2)
+            mv.logic.update_global('isPlayerActionable', True)
+            return mv.INVIABLE()
+
     def _implement_landing(mv): 
+        print '_implement_landing'
         if mv.get('stage')==STAGE_1: 
             img_num = mv.get('t')//POKEBALL_OPEN_SPEED
             mv.gm.notify_image_update(mv, 'pokeball-fade-'+str(img_num))
+        if mv.get('stage')==STAGE_2: 
+            mv.gm.send_message(msg='create pokemon', sender_team = mv.team, \
+                    at = floorvec(mv.get('dest')) )
+
+#            mv.gm.send_message(\
+#                    msg='catching',  sender_team = mv.team, \
+#                    at = floorvec(mv.get('dest')), \
+#                    source_logic = mv.source_logic, \
+#                    amount = mv.gm.dt * (PB_OPENFRAMES-img_num)//100 )
+#            ''' amount can change depending on pokeball strength. '''
+            print 'STARTING SPAWN', mv.get('dest'), mv.logic.belt.Pkmn   #
+
+            optns = mv.logic.belt.Pkmn.keys()
+            if len(optns)>0:
+                print 'sending an option.'
+                mv.logic.deliver_message(msg='create pokemon', \
+                        which_slot=min(optns), init_tloc=mv.get('dest'))
+            raise Exception()
+#                mv.logic.spawn_new('create pokemon', 'move', \
+#                        which_slot=min(optns), init_tloc=mv.get('dest'))
