@@ -33,6 +33,8 @@ class Player(ae_module.VisualStepAgent):
         init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
                 range(1, min(gm.ts())), 2)))
         ae_module.VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
+
+        ego.isMasterAgent = True
         ego.uniq_name = ego.species='plyr'
         ego.team = '--plyr--'
         ego.primary_delay = PLYR_STEP_DELAY
@@ -78,12 +80,13 @@ class Player(ae_module.VisualStepAgent):
     def get_num_actions(ego): return len(ego._belt.Actions)
     def alias_sensor(ego, what_sensor): return ego._logic.get_sensor(what_sensor)
     def view_field(ego, what_field): return ego._logic.view(what_field)
-    def deliver_message(ego, **t): ego._logic.deliver_message(**t)
+    def receive_message(ego, m, **t): ego._logic.receive_message(m, **t)
 
 class AIAgent(ae_module.TileAgent):
     ''' AIAgent class: basic pokemon unit.'''
     def __init__(ai, gm, **options):
         ae_module.TileAgent.__init__(ai, gm, options['init_tloc'])
+        ai.isMasterAgent = True
         init_tloc = options['init_tloc']
         ai.primary_delay = PKMN_WANDER_DELAY 
         ai.species = 'pkmn'
@@ -107,7 +110,6 @@ class AIAgent(ae_module.TileAgent):
                 img_str='pkmn sprite '+str(ai.pokedex)+'d',\
                 tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
         ai.set_img('d')
-    def deliver_message(ai, **t): ai._logic.deliver_message(**t)
 
     def Reset(ai):         ai._logic.Update()
     def PrepareAction(ai): ai._logic.Decide()
@@ -130,3 +132,4 @@ class AIAgent(ae_module.TileAgent):
     def get_pstep(ai): return ai.gm.ts()
     def alias_sensor(ai, what_sensor): return ai._logic.get_sensor(what_sensor)
     def view_field(ai, what_field): return ai._logic.view(what_field)
+    def receive_message(ai, m, **t): ai._logic.receive_message(m, **t)

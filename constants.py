@@ -57,6 +57,8 @@ sql_get_tocc2 ='SELECT tx,ty FROM agent_status;'
 sql_get_tpos_of_who ='SELECT tx,ty FROM agent_status WHERE uniq_id=?;'
 sql_query_tile = '''SELECT species, uniq_id, team FROM agent_status \
                     WHERE tx=? AND ty=?;'''
+sql_query_tile_for_team = '''SELECT uniq_id FROM agent_status \
+                    WHERE tx=? AND ty=? AND team=?;'''
 sql_update_pos = '''UPDATE OR FAIL agent_status SET tx=?, ty=?, px=?, py=? 
                     WHERE uniq_id=?; '''
 sql_img_update = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'

@@ -15,6 +15,7 @@ from compositeActions import *
 import belt as belt_module
 import state as state_module
 import agents as agents_module
+import messagehandler as messagehandler_module
 
 
 #-------------#-------------#--------------#--------------#--------------
@@ -33,6 +34,7 @@ class Logic(Entity):
     def __init__(logic, gm, agent, **options):
         ''' Initializer '''
         Entity.__init__(logic, gm)
+
         print 'OPTIONS:', options
         agent.has_logic=True
         logic.IS_DEAD = False
@@ -41,7 +43,9 @@ class Logic(Entity):
         logic._state = state_module.State(gm, logic.belt)
         logic._state.setup_fields(agent.species, logic=logic, 
                             ppos=options['init_ppos'])
-        logic.message_queue = []
+
+        logic.message_handler = messagehandler_module.MessageHandler(logic)
+        
         if agent.species=='plyr': 
             logic.root_ap = BasicPlayerActionPicker(logic)
         elif agent.species=='target':
@@ -62,39 +66,10 @@ class Logic(Entity):
             print 'I am dead!'
             logic._kill(); return
 
+        logic.message_handler.handle_messages()
+
         # Wipe sensors and prime them
         logic.viability = EVAL_F
-        # Read and process messages:
-        while len(logic.message_queue)>0:
-            msg = logic.message_queue.pop(0)
-            print 'received message:',msg
-            if msg['msg']=='catching':
-                amt = msg['amount']
-                caughtbar = logic.belt.Dependents['caughtbar']
-                caughtbar.update_metric(-amt, 'delta')
-                logic.update_global('most recently caught by', \
-                                     msg['source_logic'].agent.uniq_id)
-                #print "amount CATCH left from dt =",amt,':', logic.belt.Dependents['caughtbar'].view_metric() ,'(should ==:)',logic.view('caught_counter'), ';  health:', logic.belt.health.view_metric()
-
-                logic.update_global('caugh_counter', caughtbar.view_metric()[0])
-            elif msg['msg']=='you caught me':
-                # vvvv No! This: needs to ~kill~ and the player needs this.
-                print msg, msg['recipient_id'], logic.gm.entities[msg['recipient_id']],\
-                        logic.agent.uniq_id
-
-                logic.belt.Pkmn[len(logic.belt.Pkmn)+1] = {\
-                    'pokedex' : msg['pkmn_id'], \
-                    'health_cur' : msg['health_cur_max'][0] ,\
-                    'health_max' : msg['health_cur_max'][1]\
-                    }
-            elif msg['msg']=='create pokemon':
-                print '\tMSG',msg, logic.belt.Pkmn
-                logic.spawn_new('create pokemon', 'move',\
-                                which_slot=msg['which_slot'], \
-                                init_tloc=floorvec(msg['init_tloc']))
-            else:
-                raise Exception(msg)
-
 
         # Rescan sensors:
         for snm,sensor in logic.belt.Sensors.items():
@@ -108,9 +83,9 @@ class Logic(Entity):
         put('delay',logic.view('delay')-logic.gm.dt) # check...
 
         # Reset Actions and ActionPickers:
-        logic.root_ap.reset()
         for dep in logic.belt.Dependents.values(): dep.Reset()
         for move in logic.belt.Spawns.values():  move.reset()
+        logic.root_ap.reset()
 
 #-- Interface method        __ Decide __        Call for ALL before implementing
     def Decide(logic):      
@@ -137,11 +112,16 @@ class Logic(Entity):
         for move in logic.belt.Spawns.values():  
             move.implement() # specific
 
-#    def notify(logic, whatCol, whatVal):
-#        logic.message_queue.append( (whatCol, whatVal) )
-    def deliver_message(logic, **args):
-        ''' deliver_message: primary inbox method! '''
-        logic.message_queue.append( args.copy() )
+    #Deliver and receive message: these simply hide message handler systems.
+    def deliver_message(logic, msg, **args):
+        ''' deliver_message: primary outbox method. Only I should call this, 
+            in order to compose outgoing messages.  '''
+        logic.message_handler._deliver_message( msg, **args )
+
+    def receive_message(logic, msg, **args):
+        ''' receive_message: primary inbox method. Let others call this to 
+            communicate something to This. '''
+        logic.message_handler._receive_message( msg, **args )
 
 
     ''' ----------  Private methods  ---------- '''
@@ -222,8 +202,8 @@ class Logic(Entity):
 
     def spawn_new(logic, what_to_spawn, kind, **options):
         optn = options.copy()
-        print '>>>>>>>>>>>> \n\n\n\n\nspawning logic:',what_to_spawn, kind, options
-        print '\n'*15
+        print '>>>>>>>>>>>> \nspawning logic:',what_to_spawn, kind, options
+#        print '\n'*15
         if what_to_spawn in ['cast pokeball', 'throw pokeball']:
             optn['logic'] = logic
             new_ent = logic.belt.spawn_new(what_to_spawn, kind, **optn)
@@ -232,21 +212,26 @@ class Logic(Entity):
             return new_ent
         elif what_to_spawn in ['create pokemon']:
             if not optn.get('which_slot',False): return 'signal XASDFUEN'
+            print logic.belt.Pkmn, '***'
             optn.update(logic.belt.Pkmn[optn['which_slot']]) # Add data from belt
             optn['name'] = name = 'PkmnPlyr_'+str(logic.belt.pkmn_counter)
             optn['team'] = logic.agent.team
-#            optn['team'] = logic.agent.team
             logic.belt.pkmn_counter += 1
-            ch,mh = optn.get('health_cur_max', (optn['health_cur'],optn['health_max']))
-            optn['cur_health'] = ch; optn['max_health'] = mh; 
-            if 'init_ppos' in optn.keys(): 
-                optn['init_tloc']=divvec(optn['init_ppos'], logic.gm.ts())
-            raise Exception( '*** About to pass on options:', optn)
-            logic.gm.notify_new_spawn('Agents', name, agents_module.AIAgent, \
-                                 sp_init='pkmn_basic_init', **optn)
+            try:
+                cur_health, max_health = optn['cur_health'], optn['max_health']
+            except:
+                cur_health, max_health = optn['health_cur'], optn['health_max']
+            logic.gm.addNew('Agents', name, agents_module.AIAgent, \
+                                 sp_init='pkmn_basic_init', 
+                                 init_tloc=optn['init_tloc'],
+                                 tloc=optn['init_tloc'],
+                                 pokedex=optn['pokedex'], 
+                                 team=optn['team'], 
+                                 cur_health=cur_health, 
+                                 max_health=max_health, 
+                                 )
         else:
             raise Exception('logic spawn_new', what_to_spawn, kind, optn)
-
 
     def kill(logic): logic.IS_DEAD = True
     def _kill(logic):

@@ -26,6 +26,7 @@ class Entity(object):
         ent.gm = gm
         ent.species = 'Stub None you must override!! : Entity'
         ent.has_logic=False
+        ent.isMasterAgent=False # For access for message delivery
 
 class VisualStepAgent(Entity):
     ''' VisualStepAgent: an abstract super class that structures the 

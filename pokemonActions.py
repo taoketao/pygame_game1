@@ -55,7 +55,8 @@ class PickRandMove(ActionPicker):
         return ap.Verify(ap.logic.belt.Actions['-'])
     def implement(ap):
         assert(ap.viability==EVAL_T)
-        ap.logic.update_global('delay', ap.logic.view('delay')+ap.logic.view('root delay'))
+        ap.logic.update_global('delay', ap.logic.view('delay') + \
+                            ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
         ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
@@ -91,10 +92,11 @@ class GetCaught(ActionPicker):
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
-        ap.gm.send_message(msg='you caught me', 
-                recipient_id = ap.logic.view('most recently caught by'), \
-                pkmn_id = ap.logic.view('pkmn_id'),\
-                health_cur_max = ap.logic.belt.health.view_metric())
+        ap.logic.deliver_message( msg='you caught me',\
+                recipient = {'_id':ap.logic.view('most recently caught by')}, \
+                data = { 'pkmn_id' : ap.logic.view('pkmn_id'),\
+                    'health_cur' : ap.logic.belt.health.view_metric()[0],\
+                    'health_max' : ap.logic.belt.health.view_metric()[1] } )
         ap.logic.kill()
     
 # wasCaught: query if the pokemon was caught; execute pkmn removal from scene.

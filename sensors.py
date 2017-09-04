@@ -114,6 +114,12 @@ class GetNextReservation(Sensor):
         if not res: 
             querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
             res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
+            if not res:
+                res =  sensor.gm.entities[agent_id].view_field('initial tpos')
+                print 'z',
+            print 'x',
+        else:
+            print 'y',
         sensor._store({agent_id:res})
         print '\t\t',sensor.sense(agent_id), agent_id
         return sensor.sense(agent_id)

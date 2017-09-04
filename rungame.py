@@ -206,13 +206,14 @@ class GameManager(object): # *
         d={key: init}
         {'Agents': gm.Agents, 'Effects':gm.Effects, 'AfterEffects':\
                     gm.AfterEffects}[store_where].update(d)
+        return init
 
     def active_entities(gm): return gm.Agents.values() + gm.Effects.values() \
                 + gm.AfterEffects.values()
 
     def BroadcastAll(gm, fn_name): 
-        print 3*fn_name+' ', gm.Agents.keys() + gm.Effects.keys() \
-                + gm.AfterEffects.keys()
+#        print 3*fn_name+' ', gm.Agents.keys() + gm.Effects.keys() \
+#                + gm.AfterEffects.keys()
         map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
@@ -230,11 +231,11 @@ class GameManager(object): # *
         while len(gm.new_spawns_queue)>0:
             tmp = gm.new_spawns_queue.pop(0)
             gm.addNew(tmp[0], tmp[1], tmp[2], **tmp[3])
-            print 'Success! added a new'
+#            print 'Success! added a new'
 
         gm.reserved_tiles = {} # bidirectional map
         for tx,ty,_,aid in gm.db.execute(sql_tile_locs):
-            print tx,ty,aid,'\t\t9999'
+#            print tx,ty,aid,'\t\t9999'
             if gm.entities[aid].species in BLOCKING_SPECIES:
                 gm.reserved_tiles.update({aid:(tx,ty), (tx,ty):aid})
         sql_get_tocc = 'SELECT tx,ty,species FROM agent_status;'
@@ -272,7 +273,7 @@ class GameManager(object): # *
         if down[pygame.K_d]:     gm.events[RDIR]=True
         if down[pygame.K_SPACE]: gm.events[SP_ACTION]=True
         if down[pygame.K_q]:     
-            print 'player belt pkmn:',gm.Agents['Player']._logic.belt.Pkmn
+#            print 'player belt pkmn:',gm.Agents['Player']._logic.belt.Pkmn
             
             for a in sorted(gm.entities.keys()):
                 print a,'\t',gm.entities[a]
@@ -472,7 +473,10 @@ class GameManager(object): # *
         print ''
         '''
 
-            
+    def query_tile_for_team(gm, tid, team):
+        return gm.db.execute(sql_query_tile_for_team, (tid[0], tid[1], \
+                            team)).fetchall()
+
     ''' Query a specific tile for occupants and tile info. Supply WHAT columns.'''
     def query_tile(gm, tid, what='*'): 
         if type(what)==list: what = ','.join(what)

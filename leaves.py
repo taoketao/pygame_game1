@@ -48,7 +48,7 @@ class StatusBar(ae_module.TileAgent):
     def __init__(sb, gm, owner, **options):
         ae_module.TileAgent.__init__(sb, gm, options.get('init_tloc',(0,0)))
         sb.species='bar'
-        sb.team = owner.team
+#        sb.team = owner.team
         sb.owner = owner
 
         # Set fields
@@ -76,7 +76,7 @@ class StatusBar(ae_module.TileAgent):
 #        else: raise Exception("Other statusbar format not implemented")
 
         # conduct essential initial interactions
-        sb.gm.notify_update_agent(sb, team=sb.team,   \
+        sb.gm.notify_update_agent(sb, team=sb.owner.team,   \
                 tx=options.get('init_tloc',(0,0))[X], \
                 ty=options.get('init_tloc',(0,0))[Y], \
                 species=sb.species, img_str='bar '+str(sb.color))
@@ -90,7 +90,7 @@ class StatusBar(ae_module.TileAgent):
 
     def update_position(sb): 
         p=sb.targeter.sense()
-        print p, sb.targeter
+#        print p, sb.targeter
 #        try:        assert( not p==None )
 #        except:     p = sensors_module.
         sb.gm.notify_tmove(sb.uniq_id, p)
@@ -142,8 +142,10 @@ class StatusBar(ae_module.TileAgent):
                 [sb.orientation]))
         return image
 
-    def Reset(sb): pass 
-    def PrepareAction(sb): sb.targeter.rescan() 
+    def Reset(sb): pass
+    def PrepareAction(sb): 
+        sb.targeter.rescan() 
+        print 'STATUS BAR RESET', sb.uniq_id; sb.targeter.sense()
     # ^ Careful! Rescans can be easily forgotten and omitted for fiendish bugs.
     # Consider instead making the targeter reference the agent's sensor, whose
     # updating is already in place.

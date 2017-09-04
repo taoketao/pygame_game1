@@ -150,29 +150,23 @@ class HandlePlayerActionRequests(ActionPicker):
                 blck=['block_'+s for s in BLOCKING_SPECIES])
         ap.logic.update_ap('dest', tid, ap.uniq_id)
         if tile_blocked==True: return ap.INVIABLE()
-        key = {True:'catch', False:'throw'}[ap.logic.view_sensor(\
-                    'tile occ', tid=tid)]
-        key = {True:'catch', False:'throw'}[len(ap.gm.get_tile_occupants(tid))>0]
+        key = {True:'catch', False:'throw'}\
+                [len(ap.gm.query_tile_for_team(tid, '--wild--'))>0]
+         
+#        occ = len(ap.gm.query_tile_for_blck(  tid))>0
+#        key = {True:'catch', False:'throw'}[]
 
         ap.logic.update_ap('selected', key, ap.uniq_id)
         via = ap.action_map[key].find_viability(tid)
-        print '!%'*80, WHICH_EVAL[via], key
+#        print '!%'*80, WHICH_EVAL[via], key
         return ap.COPYEVAL(via)
             
     def implement(ap): 
-#        ap.action_map[ap.logic.view_my('selected',ap.uniq_id)].implement()
         pass
-#        req_id = ap.logic.view_my('selected', ap.uniq_id) 
-#        ap.action_map[req_id].implement( dest = ap.logic.view_my('dest',ap.uniq_id) )
-#        return 
 
     def reset(ap): 
         ap.viability=EVAL_U
         for a in ap.action_map.values(): a.reset()
-#        if ap.viability==EVAL_T:
-#            for req_id, req_TF in ap.logic.view_my('requests',ap.uniq_id).items():
-#                if not req_TF: continue
-#                ap.action_map[req_id].reset()
 
 class PlayerAction(ActionPicker):
     def __init__(ap, logic):
