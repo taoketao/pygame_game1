@@ -167,16 +167,27 @@ class GameManager(object): # *
         gm.Agents, gm.Effects, gm.AfterEffects = {},{},{}
 
 #       Stub code:  <stub>
+
+
+
         gm.addNew('Agents', 'Player', agents_module.Player, team='plyr' )
-        gm.addNew('Agents', 'PkmnWild', agents_module.AIAgent, \
-                init_tloc=(1,2),
-                hbcolor='r', team='wild', \
-                pokedex=1, health=14)
-        gm.addNew('Agents', 'PkmnInitPlyr', agents_module.AIAgent, \
-                init_tloc=(2,2),
-                hbcolor='b', team='plyr', \
-                max_health=30, cur_health=20,
-                pokedex=1 )
+        locs = list(set([(np.random.choice(range(gm.tile_x_size)), np.random.choice(\
+                range(gm.tile_y_size))) for _ in range(20) ]))
+        locs= [(1,1),(1,3),(3,1),(3,3),(5,3),(5,1)]
+        locs = []
+        for x in [1,3,5,7]:
+            for y in [1,3,5,7]:
+                locs.append((x,y))
+        for l in locs:
+            s=str(l[0])+','+str(l[1])
+            if np.random.rand()<0.5:
+                gm.addNew('Agents', 'PkmnWild'+s, agents_module.AIAgent, \
+                init_tloc=l, hbcolor='r', team='wild', vizscale=3, \
+                pokedex=1, health=np.random.choice(range(20,60)))
+            else:
+                gm.addNew('Agents', 'PkmnPlyr'+s, agents_module.AIAgent, \
+                init_tloc=l, hbcolor='b', team='plyr', vizscale=3, \
+                health=np.random.choice(range(30,50)), pokedex=1)
         '''
         for (i,j) in [(1,1),(1,2),(2,1),(2,2),(3,2),(3,3)]:
             s=str(i)+','+str(j)

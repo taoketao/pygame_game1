@@ -53,6 +53,7 @@ class Belt(Entity):
             raise Exception(type(agent))
         belt.agent = agent
         belt.gm = gm
+        belt.spawn_itr=0
 
         for container_init in ['Dependents', 'Actions', 'Pkmn', 'Items', \
                 'Sensors', 'Spawns', 'Moves']:
@@ -106,12 +107,13 @@ class Belt(Entity):
 
     def _init_pkmn(belt, options):
         belt.Moves.update({'tackle':moves_module.Tackle})
+        options['offset']=0
+        hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
+                **options)
+        belt.Dependents.update({ 'healthbar':hb })
+        belt.health = belt.Dependents['healthbar']
         if belt.agent.team=='--wild--':
-            hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
-                    **options)
             hb.master=False
-            belt.Dependents.update({ 'healthbar':hb })
-            belt.health = belt.Dependents['healthbar']
             options['caughtness']=150
             options['vizscale']=5
             options['hbcolor']='w'
@@ -120,9 +122,9 @@ class Belt(Entity):
                     belt.gm, belt.agent, metric='caughtness', \
                     orientation='horiz', **options) })
         elif belt.agent.team=='--plyr--':
-            options['vizscale']=1
+            return
+#            options['vizscale']=1
 #            options['hbcolor']='b'
-            options['offset']=0
             belt.Dependents.update({ 'healthbar': leaves_module.StatusBar(\
                     belt.gm, belt.agent, metric='health', \
                     orientation='horiz', **options) })
@@ -136,7 +138,8 @@ class Belt(Entity):
 #            print '*^*^*^*^*', what_to_spawn, kind, belt.Moves, options
             prefab = belt.Moves[what_to_spawn]
             new_ent = prefab(belt.gm, **options)
-            belt.Spawns.update({what_to_spawn: new_ent})
+            belt.Spawns.update({what_to_spawn+':'+str(belt.spawn_itr): new_ent})
+            belt.spawn_itr+=1
             return new_ent
         # Take data from options and create a new Agent
         elif what_to_spawn in ['create pokemon']:

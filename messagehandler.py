@@ -41,7 +41,8 @@ class MessageHandler(ae_module.Entity):
 
     def MSG_direct_damage(mh, msg, amount, sender):
         assert(msg=='direct damage')
-        mh.logic.belt.Dependents['healthbar'].update_metric(-amount, 'delta')
+        h = mh.logic.belt.Dependents.get('healthbar',False)
+        if h: h.update_metric(-amount, 'delta')
 
     def handle_messages(mh):
         # Read and process messages:

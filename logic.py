@@ -245,6 +245,11 @@ class Logic(Entity):
         logic.gm.display.queue_reset_tile(logic.view_sensor('tpos'), 'tpos')
         logic.agent.delete_all()
         logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (logic.agent.uniq_id,))
+
+        print logic.belt.Spawns
+        for r in logic.belt.Spawns.keys(): 
+            logic.belt.Spawns[r].kill()
+            logic.belt.Spawns.pop(r)
         for entity in logic.belt.Sensors.values() + logic.belt.Moves.values() + \
                 logic.belt.Dependents.values() +[ logic.agent, logic]:
             try:

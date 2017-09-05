@@ -78,9 +78,11 @@ class Tackle(ActionPicker):
             dest = sub_aFb(cvec, curtpos)
             print '\t',ap.logic.agent.uniq_name,'at',curtpos,'querying',dest,';',\
                     ap.logic.view_sensor('get who at tile', tid=dest)
-            for t in ap.logic.view_sensor('get who at tile', tid=dest)['team']:
+            res = ap.logic.view_sensor('get who at tile', tid=dest)
+            for ti,t in enumerate(res['team']):
                 print t, ap.logic.agent.team
                 if t==ap.logic.agent.team: continue
+                if res['species'][ti]=='plyr': continue
                 if t not in ap.gm.pkmn_damage_teams: continue
                 print '***',t, ap.logic.agent.team
                 ap.logic.update_global('img choice', ap.dir_vecs[cvec])
@@ -148,17 +150,3 @@ class PickRandMove(ActionPicker):
         for c in ap.logic.belt.Actions.values(): c.reset()
         ap.logic.update_ap('mov choice', EVAL_U, ap.uniq_id) 
 
-    
-# wasCaught: query if the pokemon was caught; execute pkmn removal from scene.
-#class wasCaughtProcessing(ActionPicker):
-#    def __init__(ap, logic):
-#        ActionPicker.__init__(ap, logic)
-#        ap.write_state_access = False # no update; read-only @ State 
-#        ap.key = 'was catch completed'
-#    def find_viability(ap): 
-#        return { True: ap.VIABLE(), False: ap.INVIABLE() }\
-#                    [ap.logic.view(ap.key)]
-#    def implement(ap):
-#        assert(ap.viability==EVAL_T)
-#        pass # set image to white and kill self
-#    def reset(ap): ap.viability = EVAL_U;

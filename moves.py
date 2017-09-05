@@ -36,6 +36,7 @@ class BasicMove(aa.Action):
         mv.gm.display.queue_reset_tile(mv.get('dest'), 'tpos')
         mv.gm.db.execute(sql_del_partial+'uniq_id=?;', (mv.uniq_id,) )
         mv.gm.entities.pop(mv.uniq_id)
+        del mv
 
     # Aliases:
     def get(mv, x): return mv.logic.view_dep(x,mv)
@@ -125,6 +126,7 @@ class CustomProjectileMove(ProjectileMove):
     def _do_exit(mv): raise Exception("please implment")
     def _process_landing(mv):
         if mv.THROW_STAGE == mv.get('stage'): return mv.VIABLE()
+        if mv.get('stage')== mv.EXIT_STAGE: mv.kill()
         if mv.OPEN_STAGE == mv.get('stage'):
             if mv.get('t') >= mv.get('stage1->2 t fin'):
                 mv.put('stage', mv.RELEASE_STAGE)
@@ -134,6 +136,7 @@ class CustomProjectileMove(ProjectileMove):
             mv._do_exit()
             return mv.INVIABLE()
         elif mv.RELEASE_STAGE == mv.get('stage') :
+            mv.put('stage', mv.EXIT_STAGE)
             return mv.INVIABLE()
         else: 
             raise Exception("situation not handled:", mv.get('stage'))
@@ -162,7 +165,7 @@ class Tackle(CustomProjectileMove):
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
     def _do_open(mv):
-        damage=5
+        damage=40
         if mv.Ready: 
             mv.logic.deliver_message( msg='direct damage',\
                 recipient={'pkmn_at_tile':floorvec(mv.get('dest'))},\
@@ -171,6 +174,7 @@ class Tackle(CustomProjectileMove):
     def _do_exit(mv):
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
+        del mv
 
 
 class PokeballSuperMove(CustomProjectileMove):
