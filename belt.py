@@ -88,7 +88,7 @@ class Belt(Entity):
                 leaves_module.PlayerHighlighter(belt.gm, belt.agent.uniq_id)} )
         belt.pkmn_counter=0
         s='initialized_pkmn'
-        belt.Pkmn.update({s:{'init_tloc':(4,4), 'pokedex':1,\
+        belt.Pkmn.update({s:{ 'pokedex':1,\
                     'max_health':30, 'cur_health':25}})
 #        belt.Pkmn.update({s: belt.gm.addNew('Agents',s,\
 #                    agents_module.AIAgent, 
@@ -105,8 +105,8 @@ class Belt(Entity):
 
 
     def _init_pkmn(belt, options):
+        belt.Moves.update({'tackle':moves_module.Tackle})
         if belt.agent.team=='--wild--':
-            belt.Actions.update({'A':DoAttack})
             hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
                     **options)
             hb.master=False
@@ -131,11 +131,9 @@ class Belt(Entity):
 
     def spawn_new(belt, what_to_spawn, kind, **options):
         # Take a prefab activity from Moves and initialize it into Spawns.
-        belt.spawn_new
-
         assert(kind=='move') # stub
-#        print 'spawn logic.belt:',what_to_spawn,kind,options
-        if what_to_spawn in ['cast pokeball', 'throw pokeball']:
+        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle']:
+#            print '*^*^*^*^*', what_to_spawn, kind, belt.Moves, options
             prefab = belt.Moves[what_to_spawn]
             new_ent = prefab(belt.gm, **options)
             belt.Spawns.update({what_to_spawn: new_ent})
@@ -155,7 +153,6 @@ class Belt(Entity):
                     init_tloc=options['init_tloc'], pokedex=options['pokedex'],\
                     max_health=mhealth, cur_health=chealth, sp_init=\
                     'pkmn_basic_init')
-#            return belt.gm.Agents[name]
         else: raise Exception('unrecognozed', what_to_spawn)
  
 

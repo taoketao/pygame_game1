@@ -35,7 +35,7 @@ class Logic(Entity):
         ''' Initializer '''
         Entity.__init__(logic, gm)
 
-        print 'OPTIONS:', options
+        print 'Logic init OPTIONS:', options
         agent.has_logic=True
         logic.IS_DEAD = False
         logic.agent = agent
@@ -202,9 +202,7 @@ class Logic(Entity):
 
     def spawn_new(logic, what_to_spawn, kind, **options):
         optn = options.copy()
-        print '>>>>>>>>>>>> \nspawning logic:',what_to_spawn, kind, options
-#        print '\n'*15
-        if what_to_spawn in ['cast pokeball', 'throw pokeball']:
+        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle']:
             optn['logic'] = logic
             new_ent = logic.belt.spawn_new(what_to_spawn, kind, **optn)
             try:    new_ent.reset()
@@ -212,10 +210,17 @@ class Logic(Entity):
             return new_ent
         elif what_to_spawn in ['create pokemon']:
             if not optn.get('which_slot',False): return 'signal XASDFUEN'
-            print logic.belt.Pkmn, '***'
-            optn.update(logic.belt.Pkmn[optn['which_slot']]) # Add data from belt
+            if len(optn.keys())==0: return None
+            print 'pkmn in belt before',logic.belt.Pkmn, optn
+            cur_pkmn = logic.belt.Pkmn.copy()
+            logic.belt.Pkmn.pop(optn['which_slot'])
+            for k in optn.keys(): 
+                if k in cur_pkmn.keys(): cur_pkmn[k]=optn[k]
+            optn.update(cur_pkmn[optn['which_slot']]) # Add data from belt
+            print 'pkmn in belt after',logic.belt.Pkmn , optn
             optn['name'] = name = 'PkmnPlyr_'+str(logic.belt.pkmn_counter)
             optn['team'] = logic.agent.team
+            cur_pkmn['init_tloc'] = optn['init_tloc']
             logic.belt.pkmn_counter += 1
             try:
                 cur_health, max_health = optn['cur_health'], optn['max_health']
@@ -229,6 +234,7 @@ class Logic(Entity):
                                  team=optn['team'], 
                                  cur_health=cur_health, 
                                  max_health=max_health, 
+                                 hbcolor='b', 
                                  )
         else:
             raise Exception('logic spawn_new', what_to_spawn, kind, optn)
@@ -249,6 +255,9 @@ class Logic(Entity):
                 coll = {k:v for k,v in coll.items() if not \
                             v.uniq_id==logic.agent.uniq_id}
             except:pass
-            logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
-            logic.gm.entities.pop(entity.uniq_id)
+            try:
+                logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
+                logic.gm.entities.pop(entity.uniq_id)
+            except:
+                print entity, 'was unable to remove standardly.'
             

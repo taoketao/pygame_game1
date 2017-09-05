@@ -1,6 +1,6 @@
 ''' Game Options '''
 DEFAULT_FPS = 15 # should be a cap: lower than expected max FPS
-MAP_LEVEL_CONFIG = './config_collision.ini'#'./config7.ini'
+MAP_LEVEL_CONFIG = './config_collision.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);
 
@@ -161,18 +161,19 @@ class GameManager(object): # *
         gm.clock = pygame.time.Clock()  # clock object for frame smoothness
         gm.last_tick = 0            # clock counter field
         gm.update_queue = []
+        gm.pkmn_damage_teams = []
         gm.prev_agent_information = []
 
         gm.Agents, gm.Effects, gm.AfterEffects = {},{},{}
 
 #       Stub code:  <stub>
-        gm.addNew('Agents', 'Player', agents_module.Player )
+        gm.addNew('Agents', 'Player', agents_module.Player, team='plyr' )
         gm.addNew('Agents', 'PkmnWild', agents_module.AIAgent, \
-                init_tloc=(1,1),
+                init_tloc=(1,2),
                 hbcolor='r', team='wild', \
                 pokedex=1, health=14)
         gm.addNew('Agents', 'PkmnInitPlyr', agents_module.AIAgent, \
-                init_tloc=(1,2),
+                init_tloc=(2,2),
                 hbcolor='b', team='plyr', \
                 max_health=30, cur_health=20,
                 pokedex=1 )
@@ -192,7 +193,8 @@ class GameManager(object): # *
                         hbcolor='r', team='wild', \
                         pokedex=1, health=12+2*i+4*j)
 #       </stub>'''
-        gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget)
+        gm.addNew('AfterEffects', 'mouse highlighter', leaves_module.MouseTarget,\
+                    pkmn_damaging_team=False  )
 
         gm.process_update_queue() # after entities have been initialized...
         gm._reset_events()
@@ -206,6 +208,12 @@ class GameManager(object): # *
         d={key: init}
         {'Agents': gm.Agents, 'Effects':gm.Effects, 'AfterEffects':\
                     gm.AfterEffects}[store_where].update(d)
+        if options.get('pkmn_damaging_team',True):
+            _team = '--'+options['team']+'--'
+            tmp = set(gm.pkmn_damage_teams)
+            tmp |= { _team }
+            gm.pkmn_damage_teams = list(tmp)
+
         return init
 
     def active_entities(gm): return gm.Agents.values() + gm.Effects.values() \
@@ -459,22 +467,21 @@ class GameManager(object): # *
         else: raise Exception(arglist)
 
         return
-    '''
-        print "message to be routed:", arglist,
-        if arglist['message']=='redraw':
-            tid = arglist['tpos']
 
-            gm.db.execute("SELECT uniq_id FROM agent_status;").fetchall()
-            for _,ent_id,__ in gm.get_tile_occupants(tid):
-                ent = gm.entities[ent_id]
-                print '(sent to',ent.species,')',
-                if ent.has_logic:
-                    ent.logic.notify('redraw', tid)
-        print ''
-        '''
 
     def query_tile_for_team(gm, tid, team):
-        return gm.db.execute(sql_query_tile_for_team, (tid[0], tid[1], \
+        if not type(team)==str:
+            try:        team[0]=='not_my_team'
+            except:     raise Exception(tid, team)
+            teams = [t for t in gm.pkmn_damage_teams[:] if not t==team[1]]
+            ''' ^ Get not-team, restricted to client-side 'Game teams'. '''
+            ret = []
+            for Team in teams:
+                ret += gm.db.execute(sql_query_tile_for_team, \
+                        (tid[0], tid[1], Team)).fetchall()
+            return ret
+        else:
+            return gm.db.execute(sql_query_tile_for_team, (tid[0], tid[1], \
                             team)).fetchall()
 
     ''' Query a specific tile for occupants and tile info. Supply WHAT columns.'''
@@ -507,18 +514,6 @@ class GameManager(object): # *
         if tid==None:
             return gm.db.execute(sql_get_tocc).fetchall()
         return gm.db.execute(sql_query_tile, tid).fetchall()
-
-    def notify_catching(gm, tid, what_pokeball, catches):
-        return
-        '''
-        for agent in gm.ai_entities:
-            if agent.uniq_id in catches:
-                if gm._p_to_t(agent.get_center())==tid: 
-                    agent.send_message('getting caught', what_pokeball)
-                else:
-                    print "Argh, almost caught:", agent.get_center(), tid
-        '''
-
 
 
 

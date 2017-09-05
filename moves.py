@@ -49,6 +49,7 @@ class ProjectileMove(BasicMove):
         BasicMove.__init__(mv, gm, logic)
         mv.move_name = 'GENERIC PROJECTILE STUB'
         mv.source_logic = logic
+        mv.custom_reset_tiles = False
 
         if src_offset==None: src_offset = (0,0) # nice for player
         if dest_offset==None: dest_offset = (0,0) # aims for tile center?
@@ -88,7 +89,6 @@ class ProjectileMove(BasicMove):
     def _implement_landing(mv): raise Exception("Please fill me in.")
     def reset(mv): mv.viability=EVAL_U 
     def find_viability(mv): 
-#        print '-'*50,'stage:',mv.get('stage'),'-'*50
         t = mv.get('t')
         mv.put('t', t + mv.gm.dt)
         if mv.get('stage')==STAGE_0 and mv.get('t')>mv.get('stage0->1 t fin'):
@@ -105,21 +105,16 @@ class ProjectileMove(BasicMove):
                     multvec(mv.get('src'), 1-lin), multvec(mv.get('dest'), lin))
             mv.gm.notify_pmove(mv, multvec(next_fractional_tpos, mv.gm.ts()))
             for t in mv.get('trail tiles'):
-                mv.gm.display.queue_reset_tile(floorvec(addvec(t, \
-                        next_fractional_tpos)))
+                if not mv.custom_reset_tiles:
+                    mv.gm.display.queue_reset_tile(floorvec(addvec(t, \
+                                next_fractional_tpos)))
         mv._implement_landing()
 
-class PokeballSuperMove(ProjectileMove):
-    def __init__(mv, gm, dest, logic):
-        ProjectileMove.__init__(mv, gm, dest, logic, \
-                        dest_offset=(0.3,0.3), src_offset=(0,-0.5))
-        mv.move_name = 'Pokeball:'
-        mv.storage_key = str(mv.uniq_id)+':pokeball:'
-        mv.put('stage0->1 t fin', int(CAST_POKEBALL_SPEED*mv.get('dist'))) 
-        mv.put('stage1->2 t fin', PB_OPENFRAMES * POKEBALL_OPEN_SPEED) 
-        mv.gm.notify_new_effect(mv, tpos=mv.get('src'), img='pokeball', team=mv.team)
 
-        # think attack-decay-sustain-release:
+class CustomProjectileMove(ProjectileMove):
+    def __init__(mv, gm, dest, logic, dest_offset=(0,0), src_offset=(0,0)):
+        ProjectileMove.__init__(mv, gm, dest, logic, \
+                        dest_offset=dest_offset, src_offset=src_offset)
         mv.THROW_STAGE = STAGE_0
         mv.OPEN_STAGE = STAGE_1
         mv.RELEASE_STAGE = STAGE_2
@@ -127,31 +122,73 @@ class PokeballSuperMove(ProjectileMove):
 
     def _do_open(mv): raise Exception("please implment")
     def _do_release(mv): raise Exception("please implment")
+    def _do_exit(mv): raise Exception("please implment")
     def _process_landing(mv):
         if mv.THROW_STAGE == mv.get('stage'): return mv.VIABLE()
-        assert( not mv.get('stage') == mv.EXIT_STAGE )
         if mv.OPEN_STAGE == mv.get('stage'):
             if mv.get('t') >= mv.get('stage1->2 t fin'):
                 mv.put('stage', mv.RELEASE_STAGE)
             return mv.VIABLE()
-#                or mv.logic.view_sensor('tile occ', tid=mv.get('dest')):
         elif mv.RELEASE_STAGE == mv.get('stage') :
             mv.put('stage', mv.EXIT_STAGE)
-            mv.logic.update_global('isPlayerActionable', True)
+            mv._do_exit()
+            return mv.INVIABLE()
+        elif mv.RELEASE_STAGE == mv.get('stage') :
             return mv.INVIABLE()
         else: 
             raise Exception("situation not handled:", mv.get('stage'))
 
+    def _do_every_iter(mv):pass
     def _implement_landing(mv): 
+        mv._do_every_iter()
         if mv.OPEN_STAGE == mv.get('stage'): 
-            img_num = mv.get('t')//POKEBALL_OPEN_SPEED
-            mv.gm.notify_image_update(mv, 'pokeball-fade-'+str(img_num))
             mv._do_open()
         elif mv.RELEASE_STAGE == mv.get('stage'):
             mv._do_release()
 
-            ''' amount can change depending on pokeball strength. '''
+class Tackle(CustomProjectileMove):
+    def __init__(mv, gm, dest, logic):
+        CustomProjectileMove.__init__(mv, gm, dest, logic, \
+                        dest_offset=(0.15,0.1), src_offset=(0.15,0.1))
+        mv.move_name = 'Tackle:'
+        mv.storage_key = str(mv.uniq_id)+':tackle:'
+        mv.put('stage0->1 t fin', TACKLE_SPEED)# * mv.get('dist')) 
+        mv.put('stage1->2 t fin', TACKLE_LINGER) 
+        mv.gm.notify_new_effect(mv, tpos=floorvec(mv.get('src')), img='tackle',\
+                team=mv.team)
+        mv.Ready = True
+        mv.custom_reset_tiles = True
+    def _do_every_iter(mv): 
+        mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
+        mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
+    def _do_open(mv):
+        damage=5
+        if mv.Ready: 
+            mv.logic.deliver_message( msg='direct damage',\
+                recipient={'pkmn_at_tile':floorvec(mv.get('dest'))},\
+                data={'amount': damage} )
+    def _do_release(mv): pass
+    def _do_exit(mv):
+        mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
+        mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
 
+
+class PokeballSuperMove(CustomProjectileMove):
+    def __init__(mv, gm, dest, logic):
+        CustomProjectileMove.__init__(mv, gm, dest, logic, \
+                        dest_offset=(0.3,0.3), src_offset=(0,-0.5))
+        mv.move_name = 'Pokeball:'
+        mv.storage_key = str(mv.uniq_id)+':pokeball:'
+        mv.put('stage0->1 t fin', int(CAST_POKEBALL_SPEED*mv.get('dist'))) 
+        mv.put('stage1->2 t fin', PB_OPENFRAMES * POKEBALL_OPEN_SPEED) 
+        mv.gm.notify_new_effect(mv, tpos=mv.get('src'), img='pokeball', team=mv.team)
+    
+    def _do_open(mv):
+        img_num = mv.get('t')//POKEBALL_OPEN_SPEED
+        mv.gm.notify_image_update(mv, 'pokeball-fade-'+str(img_num))
+        mv._do_open_()
+    def _do_exit(mv):
+        mv.logic.update_global('isPlayerActionable', True)
 
 # When commonalities occur, please abstract these away.
 class CatchPokeballMove(PokeballSuperMove):
@@ -159,7 +196,7 @@ class CatchPokeballMove(PokeballSuperMove):
         PokeballSuperMove.__init__(mv, gm, dest, logic)
         mv.move_name += 'catch'
         mv.storage_key += 'catch'
-    def _do_open(mv):
+    def _do_open_(mv):
         img_num = mv.get('t')//POKEBALL_OPEN_SPEED
         catchdamage_algorithm = mv.gm.dt * (PB_OPENFRAMES-img_num)//100 
         mv.logic.deliver_message( msg='catching',\
@@ -172,7 +209,7 @@ class ThrowPokeballMove(PokeballSuperMove):
         PokeballSuperMove.__init__(mv, gm, dest, logic)
         mv.move_name += 'throw_my'
         mv.storage_key += 'throw_my'
-    def _do_open(mv): pass
+    def _do_open_(mv): pass
     def _do_release(mv):
         k = mv.logic.belt.Pkmn.keys()
         if len(k)==0: return

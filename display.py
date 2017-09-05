@@ -19,9 +19,13 @@ class Display(Entity):
         disp.draw_background(disp.map_background)
         disp._wipe_queues()
 
+        disp.mouse_prev_loc = NULL_POSITION # For reloading HUD tiles.
+
     def _init_display(disp):
         disp.screen = pygame.display.set_mode(disp.gm.screen_size)
         disp.screen.convert()
+        disp._reset_hud()
+    def _reset_hud(disp):
         hud_color = (220,220,20)
         disp.screen.fill(hud_color, rect = \
                 pygame.Rect((0,disp.gm.map_y), disp.gm.hud_size))
@@ -51,13 +55,19 @@ class Display(Entity):
         pball = pygame.image.load(join(IMGS_LOC, 'moves',\
                             'pokeball.png')).convert_alpha()
         pball_size = multvec(disp.gm.ts(), POKEBALL_SCALE, 'int')
-
-#        pball_size = disp.gm.ts()
         pbimg = pygame.transform.scale(pball, pball_size)
         disp.imgs['pokeball'] = pbimg
         for i in range(PB_OPENFRAMES): # see moves.py
             pb_i = disp._get_whitened_img(pbimg, float(i)/PB_OPENFRAMES, pball_size)
             disp.imgs['pokeball-fade-'+str(i)] = pb_i
+
+        ''' >>> static-image Pokemon attacks: '''
+        burst = pygame.image.load(join(IMGS_LOC, 'moves',\
+                            'burst.png')).convert_alpha()
+        tackle_burst_size = multvec(disp.gm.ts(), TACKLE_SCALE, 'int')
+        tackle_burst_img = pygame.transform.scale(burst, tackle_burst_size)
+        disp.imgs['tackle'] = tackle_burst_img
+
 
 
     def _init_process_images(disp):
@@ -123,16 +133,21 @@ class Display(Entity):
                     else: print '.',
                 print ''
             print ''
+        disp._reset_hud()
 
         query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         for tile in disp._tiles_to_reset+[(0,0)]:
-            tmp = disp.gm.db.execute(query, tile).fetchone()
-            if tmp==None: continue
-            base,obstr = tmp
-            ploc = multvec(tile, disp.gm.ts())
-            disp.screen.blit(disp.imgs[base], ploc)
-            if not obstr=='-':
-                disp.screen.blit(disp.imgs[obstr], ploc)
+            if andvec(tile, '<', disp.gm.map_num_tiles):
+                tmp = disp.gm.db.execute(query, tile).fetchone()
+                if tmp==None: continue
+                base,obstr = tmp
+                ploc = multvec(tile, disp.gm.ts())
+                disp.screen.blit(disp.imgs[base], ploc)
+                if not obstr=='-':
+                    disp.screen.blit(disp.imgs[obstr], ploc)
+            else:
+                continue
+#                disp.screen.blit(;, ploc)
 
         upd_ents = disp._effect_update_tups+disp._agent_update_tups
         upd_ents.sort(key=lambda x: x[1][1])

@@ -41,6 +41,13 @@ class MouseTarget(ae_module.Highlighter):
         h.color= MOUSE_GRAD
         h.gm.notify_image_update(h, 'targ '+str(h.color), h.draw_highlight((0,0)))
         h.gm.notify_update_agent(h, img_str = 'targ '+str(h.color))
+        h.past_position=NULL_POSITION
+    def update_position(h): # updated to reset HUD tiles
+        if not h.past_position == h.targeter.sense():
+            h.gm.display.queue_reset_tile(h.past_position, 'tpos')
+            print 'Reset mouseover tile:', h.targeter.sense(), h.past_position
+        h.gm.notify_tmove(h.uniq_id, h.past_position)
+        h.past_position = h.targeter.sense()
 
 class StatusBar(ae_module.TileAgent):
     ''' An abstract status bar class that pokemon can take on.
@@ -48,7 +55,6 @@ class StatusBar(ae_module.TileAgent):
     def __init__(sb, gm, owner, **options):
         ae_module.TileAgent.__init__(sb, gm, options.get('init_tloc',(0,0)))
         sb.species='bar'
-#        sb.team = owner.team
         sb.owner = owner
 
         # Set fields
@@ -69,11 +75,6 @@ class StatusBar(ae_module.TileAgent):
         sb.bar_shape = [BAR_WIDTH];
         sb.bar_shape.insert({'horiz':0, 'vertic':1}[sb.orientation], \
                     sb.init_metric/options.get('vizscale',1))
-#        if sb.orientation=='vertic':
-#            sb.bar_shape = (BAR_WIDTH, options[sb.metric]/options.get('vizscale',1))
-#        elif sb.orientation=='horiz':
-#            sb.bar_shape = (options[sb.metric]/options.get('vizscale',1), BAR_WIDTH)
-#        else: raise Exception("Other statusbar format not implemented")
 
         # conduct essential initial interactions
         sb.gm.notify_update_agent(sb, team=sb.owner.team,   \
@@ -89,11 +90,7 @@ class StatusBar(ae_module.TileAgent):
         sb.relative_scaling = gm.tile_size[{'horiz':0,'vertic':1}[sb.orientation]]
 
     def update_position(sb): 
-        p=sb.targeter.sense()
-#        print p, sb.targeter
-#        try:        assert( not p==None )
-#        except:     p = sensors_module.
-        sb.gm.notify_tmove(sb.uniq_id, p)
+        sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
 
     # Public access method: TODO: turn this into a sensor/etc
     def update_metric(sb, amount, delta_or_absolute='delta'):
@@ -145,7 +142,7 @@ class StatusBar(ae_module.TileAgent):
     def Reset(sb): pass
     def PrepareAction(sb): 
         sb.targeter.rescan() 
-        print 'STATUS BAR RESET', sb.uniq_id; sb.targeter.sense()
+#        print 'STATUS BAR RESET', sb.uniq_id; sb.targeter.sense()
     # ^ Careful! Rescans can be easily forgotten and omitted for fiendish bugs.
     # Consider instead making the targeter reference the agent's sensor, whose
     # updating is already in place.
