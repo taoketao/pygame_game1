@@ -18,7 +18,6 @@ class WildPkmnBehavior(ActionPicker):
                     GetCaught(ap.logic), \
                     Delay(ap.logic), \
                     Tackle(ap.logic), \
-                    # use attack move (a big AP itself),
                     Wander(ap.logic) ] )
     def find_viability(ap): 
         return ap.GETVIA(ap.root)
@@ -76,31 +75,19 @@ class Tackle(ActionPicker):
         curtpos = ap.logic.view_sensor('tpos')
         for cvec in dirs:
             dest = sub_aFb(cvec, curtpos)
-            print '\t',ap.logic.agent.uniq_name,'at',curtpos,'querying',dest,';',\
-                    ap.logic.view_sensor('get who at tile', tid=dest)
             res = ap.logic.view_sensor('get who at tile', tid=dest)
             for ti,t in enumerate(res['team']):
-                print t, ap.logic.agent.team
                 if t==ap.logic.agent.team: continue
                 if res['species'][ti]=='plyr': continue
                 if t not in ap.gm.pkmn_damage_teams: continue
-                print '***',t, ap.logic.agent.team
                 ap.logic.update_global('img choice', ap.dir_vecs[cvec])
                 ap.logic.update_global('delay', ap.logic.view('delay') + \
                             ap.logic.view('root delay'))
                 return ap.GETVIA(ap.logic.spawn_new('tackle','move',dest=dest))
-#                return ap.VIABLE()
-#        ap.logic.update_ap('attack dir choice', (0,0), ap.uniq_id)
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
-#        print '[][][]',ap.logic.view('motions')
         ap.logic.agent.set_img(ap.logic.view('img choice'))
-#        targ_pos = addvec(  ap.logic.view_sensor('tpos'), \
-#                            ap.logic.view_my('attack dir choice', ap.uniq_id) )
-#        ap._tackle_move
-        
-                # GetWhoAtTIDSensor
 
 class Wander(ActionPicker):
     ''' Wander: pick a random valid direction and move there. Does not attempt

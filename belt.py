@@ -5,7 +5,6 @@ from sensors import *
 from playerActions import *
 from pokemonActions import *
 from motionActions import *
-from attackActions import *
 import agents as agents_module
 import leaves as leaves_module
 import moves as moves_module
@@ -55,8 +54,15 @@ class Belt(Entity):
         belt.gm = gm
         belt.spawn_itr=0
 
-        for container_init in ['Dependents', 'Actions', 'Pkmn', 'Items', \
-                'Sensors', 'Spawns', 'Moves']:
+        for container_init in [\
+                'Actions',      #   Initialized Action(Picker) objects
+                'Dependents',   #   Objects who depend completely on this
+                'Items',        #   user-facing; currently ununsed
+                'Moves',        #   Prefab init functions of various spawnables
+                'Pkmn',         #   Player only so far: stored pokemon info
+                'Sensors',      #   internal sensors for the environment
+                'Spawns',       #   a container for any temp spawned instances
+                ]:
             setattr(belt, container_init, {}) # init as empty
 
         belt.Sensors.update({True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
@@ -90,19 +96,8 @@ class Belt(Entity):
         belt.pkmn_counter=0
         s='initialized_pkmn'
         belt.Pkmn.update({s:{ 'pokedex':1,\
-                    'max_health':30, 'cur_health':25}})
-#        belt.Pkmn.update({s: belt.gm.addNew('Agents',s,\
-#                    agents_module.AIAgent, 
-#                    team=belt.agent.team, \
-#                    init_tloc=(4,4), pokedex=1,\
-#                    max_health=30, cur_health=25, sp_init=\
-#                    'pkmn_basic_init') })
-#        belt.gm.notify_new_spawn('Agents', name, agents_module.AIAgent, \
-#                    uniq_name=name, team=belt.agent.team, \
-#                    init_tloc=options['init_tloc'], pokedex=options['pokedex'],\
-#                    max_health=mhealth, cur_health=chealth, sp_init=\
-#                    'pkmn_basic_init')
-##            return belt.gm.Agents[name]
+                    'max_health':30, 'cur_health':25,\
+                    'health_max':30, 'health_cur':25}})
 
 
     def _init_pkmn(belt, options):
@@ -122,20 +117,14 @@ class Belt(Entity):
                     belt.gm, belt.agent, metric='caughtness', \
                     orientation='horiz', **options) })
         elif belt.agent.team=='--plyr--':
-            return
-#            options['vizscale']=1
-#            options['hbcolor']='b'
-            belt.Dependents.update({ 'healthbar': leaves_module.StatusBar(\
-                    belt.gm, belt.agent, metric='health', \
-                    orientation='horiz', **options) })
-        else: raise Exception(belt.agent.team)
+            pass
+        else: raise Exception(belt.agent.team,'team for pkmn is not recognized/')
 
 
     def spawn_new(belt, what_to_spawn, kind, **options):
         # Take a prefab activity from Moves and initialize it into Spawns.
         assert(kind=='move') # stub
         if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle']:
-#            print '*^*^*^*^*', what_to_spawn, kind, belt.Moves, options
             prefab = belt.Moves[what_to_spawn]
             new_ent = prefab(belt.gm, **options)
             belt.Spawns.update({what_to_spawn+':'+str(belt.spawn_itr): new_ent})

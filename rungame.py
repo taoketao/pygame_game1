@@ -182,12 +182,12 @@ class GameManager(object): # *
             s=str(l[0])+','+str(l[1])
             if np.random.rand()<0.5:
                 gm.addNew('Agents', 'PkmnWild'+s, agents_module.AIAgent, \
-                init_tloc=l, hbcolor='r', team='wild', vizscale=3, \
-                pokedex=1, health=np.random.choice(range(20,60)))
+                init_tloc=l, hbcolor='r', team='wild', vizscale=1, \
+                pokedex=1, health=np.random.choice(range(40,50)))
             else:
                 gm.addNew('Agents', 'PkmnPlyr'+s, agents_module.AIAgent, \
-                init_tloc=l, hbcolor='b', team='plyr', vizscale=3, \
-                health=np.random.choice(range(30,50)), pokedex=1)
+                init_tloc=l, hbcolor='b', team='plyr', vizscale=1, \
+                health=np.random.choice(range(40,50)), pokedex=1)
         '''
         for (i,j) in [(1,1),(1,2),(2,1),(2,2),(3,2),(3,3)]:
             s=str(i)+','+str(j)
@@ -236,6 +236,7 @@ class GameManager(object): # *
         map(operator.methodcaller(fn_name), gm.active_entities())
 
     def _run_frame(gm):
+#        print 'Active Entities:', gm.active_entities()
         gm.frame_iter += 1
         gm._prepare_new_frame()
         gm._punch_clock()
@@ -294,8 +295,9 @@ class GameManager(object): # *
         if down[pygame.K_q]:     
 #            print 'player belt pkmn:',gm.Agents['Player']._logic.belt.Pkmn
             
-            for a in sorted(gm.entities.keys()):
-                print a,'\t',gm.entities[a]
+#            for a in sorted(gm.entities.keys()):
+#                print a,'\t',gm.entities[a]
+            print 'Exiting.'
             sys.exit()
         if down[pygame.K_p]:     raw_input()
         if (not gm.buttonUp[SP_ACTION]) and (not down[pygame.K_SPACE]):

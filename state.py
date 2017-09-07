@@ -2,7 +2,6 @@ import  sys
 import  numpy as np
 from abstractEntities import Entity
 from motionActions import *
-from attackActions import *
 import random
 
 '''             State               '''
@@ -118,8 +117,7 @@ class State(Entity): # i do not write, so no need to have logic
         except:
             st.s_env['caught_counter'] = 'not catchable'
 
-#        st.s_env['delay'] = np.random.uniform(1.0,2.0)*logic.agent.primary_delay
-        st.s_env['delay'] = np.random.uniform(1.0,1.1)*logic.agent.primary_delay
+        st.s_env['delay'] = np.random.uniform(1.0,2.0)*logic.agent.primary_delay
         st.s_env['most recently reserved'] = NULL_POSITION # for all blocking agents
         st.s_env['unit step'] = logic.gm.ts()
         st.s_env['is being caught'] = False

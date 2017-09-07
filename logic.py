@@ -35,7 +35,7 @@ class Logic(Entity):
         ''' Initializer '''
         Entity.__init__(logic, gm)
 
-        print 'Logic init OPTIONS:', options
+#        print 'Logic init OPTIONS:', options
         agent.has_logic=True
         logic.IS_DEAD = False
         logic.agent = agent
@@ -80,7 +80,7 @@ class Logic(Entity):
         # Update interlocking global fields:
         put = logic._state.update_env
         put('next reserved', logic.view_sensor('tpos'))
-        put('delay',logic.view('delay')-logic.gm.dt) # check...
+        put('delay',logic.view('delay')-logic.gm.dt*np.random.uniform(0.7,1.3))
 
         # Reset Actions and ActionPickers:
         for dep in logic.belt.Dependents.values(): dep.Reset()
@@ -211,13 +211,13 @@ class Logic(Entity):
         elif what_to_spawn in ['create pokemon']:
             if not optn.get('which_slot',False): return 'signal XASDFUEN'
             if len(optn.keys())==0: return None
-            print 'pkmn in belt before',logic.belt.Pkmn, optn
+#            print 'pkmn in belt before',logic.belt.Pkmn, optn
             cur_pkmn = logic.belt.Pkmn.copy()
             logic.belt.Pkmn.pop(optn['which_slot'])
             for k in optn.keys(): 
                 if k in cur_pkmn.keys(): cur_pkmn[k]=optn[k]
             optn.update(cur_pkmn[optn['which_slot']]) # Add data from belt
-            print 'pkmn in belt after',logic.belt.Pkmn , optn
+#            print 'pkmn in belt after',logic.belt.Pkmn , optn
             optn['name'] = name = 'PkmnPlyr_'+str(logic.belt.pkmn_counter)
             optn['team'] = logic.agent.team
             cur_pkmn['init_tloc'] = optn['init_tloc']
@@ -246,23 +246,26 @@ class Logic(Entity):
         logic.agent.delete_all()
         logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (logic.agent.uniq_id,))
 
-        print logic.belt.Spawns
+#        print logic.belt.Spawns
         for r in logic.belt.Spawns.keys(): 
             logic.belt.Spawns[r].kill()
             logic.belt.Spawns.pop(r)
-        for entity in logic.belt.Sensors.values() + logic.belt.Moves.values() + \
+        for entity in logic.belt.Sensors.values() + \
                 logic.belt.Dependents.values() +[ logic.agent, logic]:
-            try:
-              for coll in (logic.gm.Agents, logic.gm.Effects, logic.gm.AfterEffects):
+            for coll in (logic.gm.Agents, logic.gm.Effects, logic.gm.AfterEffects):
+                print '--',coll
                 for k,v in coll.items():
-                    if v.uniq_id==entity.uniq_id:
+                    if  v.uniq_id==entity.uniq_id:
                         coll.pop(k)
                 coll = {k:v for k,v in coll.items() if not \
-                            v.uniq_id==logic.agent.uniq_id}
-            except:pass
-            try:
-                logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
-                logic.gm.entities.pop(entity.uniq_id)
-            except:
-                print entity, 'was unable to remove standardly.'
+                                v.uniq_id==logic.agent.uniq_id}
+            logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
+            logic.gm.entities.pop(entity.uniq_id)
+            del entity
+#            try:
+#                logic.gm.db.execute(sql_del_partial+'uniq_id=?;', (entity.uniq_id,))
+#                logic.gm.entities.pop(entity.uniq_id)
+#            except:
+#                print entity, 'was unable to remove standardly.'
+#                del entity
             

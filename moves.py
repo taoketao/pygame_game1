@@ -165,7 +165,7 @@ class Tackle(CustomProjectileMove):
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
     def _do_open(mv):
-        damage=40
+        damage=np.random.choice(range(10,20))
         if mv.Ready: 
             mv.logic.deliver_message( msg='direct damage',\
                 recipient={'pkmn_at_tile':floorvec(mv.get('dest'))},\

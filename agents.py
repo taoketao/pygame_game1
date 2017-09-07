@@ -22,8 +22,6 @@ DEFAULT_STEPSIZE = 3.7 # a prime?
 PLYR_CATCH_DIST = 0.5
 PLYR_STEP_DELAY = 41
 
-# Latencies for Pkmn:
-PKMN_WANDER_DELAY = 1600
 
 
 class Player(ae_module.VisualStepAgent):
@@ -80,6 +78,12 @@ class Player(ae_module.VisualStepAgent):
     def get_num_actions(ego): return len(ego._belt.Actions)
     def alias_sensor(ego, what_sensor): return ego._logic.get_sensor(what_sensor)
     def view_field(ego, what_field): return ego._logic.view(what_field)
+    def view_in_belt(ego, category, what): 
+        if what=='any' and category=='Pkmn': 
+            return ego._belt.Pkmn[ego._belt.Pkmn.keys()[0]].copy()
+        elif what=='all values' and category=='Pkmn': 
+            return ego._belt.Pkmn.values()
+        else: raise Exception(category, what)
     def receive_message(ego, m, **t): ego._logic.receive_message(m, **t)
 
 class AIAgent(ae_module.TileAgent):
@@ -92,16 +96,12 @@ class AIAgent(ae_module.TileAgent):
         ai.species = 'pkmn'
         ai.team = options.get('team')
         if not '--' in ai.team: ai.team= '--'+ai.team+'--'
-        #ai.team = '--'+options.get('team')+'--'
         ai.store_reservations=True
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         px,py = gm._t_to_p(init_tloc)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
         ai._logic.update_global('curtid',init_tloc)
         ai.uniq_name = options.get('uniq_name', '-uniqname not provided-')
-#        ai._logic.update_global('uniq_name',options['uniq_name'])
-#        ai._logic.update_global('max health',options['health'])
-#        ai._logic.update_global('cur health',options['health']) # default
         ai._belt = ai._logic.belt
         ai.initialized = True
         ai.pokedex = options['pokedex']

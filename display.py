@@ -24,11 +24,37 @@ class Display(Entity):
     def _init_display(disp):
         disp.screen = pygame.display.set_mode(disp.gm.screen_size)
         disp.screen.convert()
-        disp._reset_hud()
-    def _reset_hud(disp):
+        disp._reset_hud('initial')
+
+    def _reset_hud(disp, initial_flag=None):
         hud_color = (220,220,20)
         disp.screen.fill(hud_color, rect = \
-                pygame.Rect((0,disp.gm.map_y), disp.gm.hud_size))
+                    pygame.Rect((0,disp.gm.map_y), disp.gm.hud_size))
+        if initial_flag=='initial': return # disp.imgs non existant
+
+        hud_color2 = (202,255,255)
+        ts = disp.gm.ts()
+        vals=disp.gm.Agents['Player'].view_in_belt('Pkmn', 'all values')
+        for ind, hold_v in enumerate(disp.gm.Agents['Player'].\
+                    view_in_belt('Pkmn', 'all values')):
+            img = disp.imgs['pkmn sprite '+str(hold_v['pokedex'])+'_sprite']
+            ploc=(ind*ts[X],disp.gm.map_y)
+            offset = 3
+            disp.screen.fill(hud_color2, rect=pygame.Rect( \
+                    addvec(ploc, offset), addvec(ts, -2*offset)))
+            disp.screen.blit(img,ploc)
+            pct = hold_v['health_cur'] / float(hold_v['health_max'])
+            disp.screen.fill((0,0,0),rect=pygame.Rect( \
+                    addvec(ploc, offset), \
+                    (ts[X]-4*offset, offset+2) ) )
+            disp.screen.fill((255,0,0),rect=pygame.Rect( \
+                    addvec(addvec(ploc, offset), (1,1)), \
+                    (((ts[X]-4*offset)*pct)//1-2, offset) ) )
+            disp._tiles_to_reset.append(ploc)
+
+
+
+
 
     def _init_load_tilesize_images(disp):
         disp.imgs = {}
@@ -43,8 +69,8 @@ class Display(Entity):
             disp.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
 
         ''' >>> PKMN:  '''
-        for i in range(1):
-            for d in ['u','d','r','l']:
+        for i in range(1): # only bulbasaur
+            for d in ['u','d','r','l','_sprite']:
                 save_spnm = 'pkmn sprite '+str(i+1)+d
                 load_spnm = join(IMGS_LOC, 'pkmn', str(i+1)+d+'.png')
                 disp.imgs[save_spnm] = pygame.image.load(load_spnm).convert_alpha()
@@ -126,7 +152,7 @@ class Display(Entity):
 
     def std_render(disp):
         if False:
-            _='This chunk prints a map of what tile are updated.'
+            _='This chunk prints to console a map of what tile are updated.'
             for y in range(disp.gm.num_y_tiles):
                 for x in range(disp.gm.num_x_tiles):
                     if (x,y) in disp._tiles_to_reset: print '0',

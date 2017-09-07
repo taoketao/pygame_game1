@@ -15,12 +15,62 @@ import abstractEntities as ae_module
 import sensors as sensors_module
 import belt as belt_module
 import logic as logic_module
+import abstractEntities as ae_module
 
 ''' Magic Numbers '''
 # (color) options for Mouse:
 MOUSE_GRAD = (180,180,180,255)
 MOUSE_GRAD = (60,180,255,230)
 
+
+class Highlighter(ae_module.TileAgent):
+    ''' An abstract highlighter class. Provide the <targeter> a sensor that
+        returns a TPOS to put this highlighter on. '''
+    def __init__(h, gm):
+        TileAgent.__init__(h, gm, (0,0))
+        h.default_color = (0,0,0,255)
+        h.species='target'
+        h.team = '--targets--'
+        h.prev_position = (0,0)
+        h.targeter = None;
+        h.image_offset = (-2,-2)
+        h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
+                    team=h.team, species=h.species)
+
+    def update_position(h): 
+        ''' update_position: call every frame to update. '''
+        #print 'Sense my tpos by highlighter',h,':',h.targeter.sense()
+        h.gm.notify_tmove(h.uniq_id, h.targeter.sense())
+
+    def draw_highlight(h, tile_location):
+        '''  Draw a target on specified tile. '''
+        try:      r,g,b,a = h.color
+        except:   r,g,b,a = h.default_color
+        image = pygame.Surface(h.gm.ts()).convert_alpha()
+        image.fill((0,0,0,0))
+        tx,ty = h.gm.tile_size
+        tx = tx-2; ty=ty-2
+        M = MOUSE_CURSOR_DISPL = 2; # stub!
+        for i in [1,3,6,5]:
+            for d in DIRECTIONS:
+                rect_size = { UDIR: (tx-2*(i+1)*M, M),  
+                              DDIR: (tx-2*(i+1)*M, M),
+                              LDIR: (M, ty-2*(i+1)*M), 
+                              RDIR: (M, ty-2*(i+1)*M) }[d]
+                location = {
+                    UDIR: ((i+1)*M, i*M),    DDIR: ((i+1)*M, ty-(i+1)*M), 
+                    LDIR: (i*M, (i+1)*M),    RDIR: (tx-(i+1)*M, (i+1)*M), }[d]
+                if rect_size[X]<=0 or rect_size[Y]<=0: continue
+                s = pygame.Surface( rect_size ).convert_alpha()
+                s.fill( h.color )
+                image.blit( s, addvec(location,1) )
+        h.display_parameters = (-1, image, addvec((1,1),\
+                        multvec(tile_location,h.gm.ts())))
+        return image
+
+    def Reset(h): pass
+    def PrepareAction(h): h.targeter.rescan(); return EVAL_T
+    def DoAction(h): h.update_position()
 
 class PlayerHighlighter(ae_module.Highlighter):
     ''' Follow the player & indicate current tile. '''
@@ -45,7 +95,7 @@ class MouseTarget(ae_module.Highlighter):
     def update_position(h): # updated to reset HUD tiles
         if not h.past_position == h.targeter.sense():
             h.gm.display.queue_reset_tile(h.past_position, 'tpos')
-            print 'Reset mouseover tile:', h.targeter.sense(), h.past_position
+#            print 'Reset mouseover tile:', h.targeter.sense(), h.past_position
         h.gm.notify_tmove(h.uniq_id, h.past_position)
         h.past_position = h.targeter.sense()
 
@@ -92,9 +142,7 @@ class StatusBar(ae_module.TileAgent):
     def update_position(sb): 
         sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
 
-    # Public access method: TODO: turn this into a sensor/etc
     def update_metric(sb, amount, delta_or_absolute='delta'):
-#        raise Exception( amount, delta_or_absolute)
         if delta_or_absolute=='delta' or amt<0: amount = sb.cur_metric+amount
         elif not delta_or_absolute=='absolute': raise Exception()
         sb.cur_metric = min(sb.init_metric, max(0, amount)) # CAPPED!
@@ -107,7 +155,7 @@ class StatusBar(ae_module.TileAgent):
 
     def draw_statusbar(sb):
         scaling_amount = float(0.5*sb.cur_metric)/sb.init_metric # for debugging
-        scaling_amount = float(sb.cur_metric)/sb.init_metric # for debugging
+#        scaling_amount = float(sb.cur_metric)/sb.init_metric # for debugging
         if sb.orientation=='horiz':
             scaling = (scaling_amount, 1)
             loc = (sb.shift, sb.offset)

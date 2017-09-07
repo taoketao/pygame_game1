@@ -68,7 +68,7 @@ sql_ins = 'INSERT INTO agent_status VALUES (?,?,?,?,?,?,?,?);'
 sql_del_partial = 'DELETE FROM agent_status WHERE '
 
 BAR_SCALING_FACTOR = 0.4
-BAR_WIDTH = 2
+BAR_WIDTH = 4
 
 STAGE_0, STAGE_1, STAGE_2, STAGE_3, STAGE_4, STAGE_5 = 990,991,992,993,994,995
 def next_stage(s): 
@@ -84,3 +84,5 @@ POKEBALL_SCALE = (0.35, 0.4) # looks solid when tile_size = (40,35)
 TACKLE_SCALE = (0.7, 0.8)
 TACKLE_SPEED = 300
 TACKLE_LINGER = 100
+
+PKMN_WANDER_DELAY = 1600
