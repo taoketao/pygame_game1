@@ -32,15 +32,17 @@ class VisualStepAgent(Entity):
     ''' VisualStepAgent: an abstract super class that structures the 
     fundamentals of entities that move and give imagery in the game world 
     environment. '''
-    def __init__(ta, gm, init_ppos=None, init_tpos=None):
+    def __init__(ta, gm):
         Entity.__init__(ta, gm)
-        if not init_tpos: init_tpos = divvec(init_ppos, ta.gm.ts())
+#        if not init_ppos: init_ppos = multvec(init_tpos, ta.gm.ts())
         ta.species += '> Stub: VisualStepAgent'
         ta.initialized=False
         ta.master=True
         ta.store_reservations=False
         ta.image_offset = DEFAULT_IMAGE_OFFSET # change manually per subclass.
-        gm.notify_new_agent(ta, tpos=init_tpos)
+        gm.notify_new_entity(ta)
+        #gm.notify_update(tt, 'entities', px=init_ppos[X], py=init_ppos[Y])
+#        gm.notify_put_ppos(ta, px=init_ppos[X], py=init_ppos[Y])
 
     ''' set_img and get_pstep: these are the two core functionalities that 
         VisualStepAgents must have. You must implement them. '''
@@ -62,9 +64,11 @@ class VisualStepAgent(Entity):
         if not (ta.initialized or sp=='initializing'): 
             raise Exception("Not initialized")
         if not andvec(ta.get_pstep(),'>=',0): raise Exception("Factor not set.")
-        if ta.store_reservations and ta.gm.notify_pmove(ta.uniq_id, ppos): 
-            ta._logic.update_global('most recently reserved', \
-                                    divvec(ppos,ta.gm.ts()))
+        ta.gm.notify_ppos(ta.uniq_id, new=ppos, prev=ta._logic.view_sensor\
+                ("ppos",agent_id=ta.uniq_id)) # naive
+#        if ta.store_reservations and ta.gm.notify_pmove(ta.uniq_id, ppos): 
+#            ta._logic.update_global('most recently reserved', \
+#                                    divvec(ppos,ta.gm.ts()))
         
     
     def move_in_direction(ta, delta_xy):
@@ -93,18 +97,19 @@ class VisualStepAgent(Entity):
         
 
 class PixelAgent(VisualStepAgent):
-    def __init__(ta, gm, init_ppos):
-        VisualStepAgent.__init__(ta, gm, init_tpos=divvec(init_tpos, gm.ts()), \
-                init_ppos = init_ppos)
+    def __init__(ta, gm):
+#        VisualStepAgent.__init__(ta, gm, init_tpos=divvec(init_tpos, gm.ts()), \
+#                init_ppos = init_ppos)
+        VisualStepAgent.__init__(ta, gm)
         ta.species += '[Stub: PixelAgent]'
     def get_pstep(ta): return (1,1)
 
 
 class TileAgent(VisualStepAgent): 
     # Standard agent that operates in increments of TILES.
-    def __init__(ta, gm, init_tpos):
-        VisualStepAgent.__init__(ta, gm, init_tpos=(0,0))
-        ta._set_new_ppos(multvec(init_tpos, ta.gm.ts()), sp="initializing")
+    def __init__(ta, gm):
+        VisualStepAgent.__init__(ta, gm)
+        #ta._set_new_ppos(multvec(init_tpos, ta.gm.ts()), sp="initializing")
         ta.species += '[Stub: TileAgent]'
     def get_pstep(ta): return ta.gm.ts()
       
@@ -113,20 +118,24 @@ class Highlighter(TileAgent):
     ''' An abstract highlighter class. Provide the <targeter> a sensor that
         returns a TPOS to put this highlighter on. '''
     def __init__(h, gm):
-        TileAgent.__init__(h, gm, (0,0))
+        TileAgent.__init__(h, gm)
         h.default_color = (0,0,0,255)
         h.species='target'
         h.team = '--targets--'
-        h.prev_position = (0,0)
+        h.past_tposition = NULL_POSITION
         h.targeter = None;
         h.image_offset = (-2,-2)
-        h.gm.notify_update_agent(h, tx=0,ty=0,px=0,py=0,\
+        h.gm.notify_update_ent(h, px=0,py=0,\
                     team=h.team, species=h.species)
 
     def update_position(h): 
         ''' update_position: call every frame to update. '''
         #print 'Sense my tpos by highlighter',h,':',h.targeter.sense()
-        h.gm.notify_tmove(h.uniq_id, h.targeter.sense())
+        if not h.past_tposition==h.targeter.sense():
+            h.gm.display.queue_reset_tile(h.past_tposition, 'tpos')
+#            h.gm.notify_drop_tpos(h.prev_position) # No! only for occupiers.
+        h.gm.notify_tpos(h.uniq_id, new=h.targeter.sense(), prev=h.past_tposition)
+        h.past_tposition = h.targeter.sense()
 
     def draw_highlight(h, tile_location):
         '''  Draw a target on specified tile. '''

@@ -30,7 +30,7 @@ class Player(ae_module.VisualStepAgent):
         init_tpos = divvec(gm.map_num_tiles,1.5) 
         init_ppos = addvec(multvec(init_tpos,gm.ts()), list(np.random.choice(\
                 range(1, min(gm.ts())), 2)))
-        ae_module.VisualStepAgent.__init__(ego, gm, init_tpos=init_tpos)
+        ae_module.VisualStepAgent.__init__(ego, gm)
 
         ego.isMasterAgent = True
         ego.uniq_name = ego.species='plyr'
@@ -38,28 +38,20 @@ class Player(ae_module.VisualStepAgent):
         ego.primary_delay = PLYR_STEP_DELAY
         ego.store_reservations=True
         ego.image_offset = multvec(gm.ts(), (0.4,0.9))
-        ego.stepsize_x, ego.stepsize_y = \
-                ego.stepsize = multvec(gm.ts(), DEFAULT_STEPSIZE/(10+gm.fps**0.5),int)
+        ego.stepsize_x, ego.stepsize_y = ego.stepsize =  \
+                multvec(gm.ts(), DEFAULT_STEPSIZE/(10+gm.fps**0.5),int)
         ego._logic = logic_module.Logic(gm, ego, init_ppos=init_ppos)
         ego._belt = ego._logic.belt
-        ego.gm.notify_update_agent(ego, img_str='player sprite 7', team=ego.team,\
-                            species=ego.species)
-        ego.gm.notify_update_agent(ego, tx=init_tpos[X], ty=init_tpos[Y],\
-                            px=init_ppos[X], py=init_ppos[Y])
+        ego.gm.notify_update_ent(ego, img_str='player sprite 7', \
+                                team=ego.team, species=ego.species, \
+                                px=init_ppos[X], py=init_ppos[Y])
+        ego.gm.notify_put_ppos(ego.uniq_id, init_ppos)
         ego.initialized = True
 
     ''' Methods: Game Manager to PlayerAgent '''
     def Reset(ego):         ego._logic.Update()
     def PrepareAction(ego): ego._logic.Decide()
     def DoAction(ego):      ego._logic.Implement()
-
-    def message(ego, header, msg):
-        ''' Method: other Agents to PlayerAgent '''
-        if header=="Someone has caught me":
-            ego._belt.add_pkmn(msg)
-        etc
-        ego.logic.notify('isPlayerActionable', True)
-        ego.logic.notify(header, msg)
 
     def set_img(ego, which_img): 
         ''' Methods: fulfill inheritance. '''
@@ -89,7 +81,7 @@ class Player(ae_module.VisualStepAgent):
 class AIAgent(ae_module.TileAgent):
     ''' AIAgent class: basic pokemon unit.'''
     def __init__(ai, gm, **options):
-        ae_module.TileAgent.__init__(ai, gm, options['init_tloc'])
+        ae_module.TileAgent.__init__(ai, gm)#, options['init_tloc'])
         ai.isMasterAgent = True
         init_tloc = options['init_tloc']
         ai.primary_delay = PKMN_WANDER_DELAY 
@@ -106,9 +98,9 @@ class AIAgent(ae_module.TileAgent):
         ai.initialized = True
         ai.pokedex = options['pokedex']
         ai._logic.update_global('pkmn_id', ai.pokedex)
-        ai.gm.notify_update_agent(ai, team=ai.team, species=ai.species, \
-                img_str='pkmn sprite '+str(ai.pokedex)+'d',\
-                tx=init_tloc[X], ty=init_tloc[Y], px=px, py=py)
+        ai.gm.notify_update_ent(ai, team=ai.team, species=ai.species, \
+                img_str='pkmn sprite '+str(ai.pokedex)+'d',  px=px, py=py)
+        ai.gm.notify_put_ppos(ai.uniq_id, (px,py))
         ai.set_img('d')
 
     def Reset(ai):         ai._logic.Update()

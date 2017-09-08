@@ -43,6 +43,7 @@ DEFAULT_IMAGE_OFFSET = (0.0,0.0)
 
 NULL_RESERVATION=-2342
 RESERVABLE_SPECIES = [u'pkmn', u'plyr'] # What can reserve a tile?
+NULL_UNIQ_ID=-2302
 
 # These macros: for rendering, queries, etc.
 BLOCKING_SPECIES = (u'plyr', u'pkmn') 
@@ -67,6 +68,33 @@ sql_img_update = 'UPDATE OR FAIL agent_status SET img_str=? WHERE uniq_id=?;'
 sql_ins = 'INSERT INTO agent_status VALUES (?,?,?,?,?,?,?,?);'
 sql_del_partial = 'DELETE FROM agent_status WHERE '
 
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*
+SQL_get_tile_img_info = '''SELECT base_tile_img, obst_tile_img FROM map_info 
+                            WHERE tx=? AND ty=? '''
+SQL_map_settings = '''SELECT tx,ty,base_tile_img, obst_tile_img FROM map_info'''
+SQL_get_all_occs ='SELECT tx,ty FROM map_occs;'
+SQL_get_ent_ppos ='SELECT px,py FROM entities WHERE uniq_id=?;'
+SQL_get_ent_spec_team ='SELECT species, team FROM entities WHERE uniq_id=?;'
+SQL_is_blocking = 'SELECT tile_occupying FROM entities WHERE uniq_id=?;'
+SQL_tile_occupied = 'SELECT COUNT(*) FROM map_occs WHERE tx=? AND ty=? ;'
+SQL_get_pposes='SELECT px,py,species,img_str,uniq_id FROM entities;' # etc
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
+SQL_set_ent_ppos = 'UPDATE OR FAIL entities SET px=?, py=? WHERE uniq_id=?;'
+SQL_img_update = 'UPDATE OR FAIL entities SET img_str=? WHERE uniq_id=?;'
+SQL_map_set_occ_standing_loc = \
+        'UPDATE OR FAIL map_occs SET standing_occupant=? WHERE tx=? AND ty=?;'
+SQL_map_set_occ_moveto_loc = \
+        'UPDATE OR FAIL map_occs SET movingto_occupant=? WHERE tx=? AND ty=?;'
+SQL_map_set_occ_movefrom_loc = \
+        'UPDATE OR FAIL map_occs SET movingfrom_occupant=? WHERE tx=? AND ty=?;'
+#SQL_map_set_standing_occ = \
+#        'UPDATE OR FAIL map_occs SET standing_occupant WHERE tx=?, ty=?;'
+
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
+#*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_*()_
 BAR_SCALING_FACTOR = 0.4
 BAR_WIDTH = 4
 

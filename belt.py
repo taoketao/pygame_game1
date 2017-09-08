@@ -69,8 +69,10 @@ class Belt(Entity):
                                 'smoothing':GetFrameSmoothingSensor ,\
                                 'next reserved':GetFrameSmoothingSensor ,\
                                 'tile obstr':TileObstrSensor, \
-                                'tile occ':TileOccupSensor, \
-                                'get who at tile':GetWhoAtTIDSensor ,\
+#                                'tile occ':TileOccupSensor, \
+                                'tile occs':TileOccsSensor, \
+#                                'get who at tile':GetWhoAtTIDSensor ,\
+                                'get agents at tile':GetAgentsAtTileSensor ,\
                                 'unit step':GetCurUnitStepSensor }, \
                             False: {} }[options.get('std_sensors',True)] )
         belt.Actions.update({True: {'u':MotionUp,       'd':MotionDown,   \

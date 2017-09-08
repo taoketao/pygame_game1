@@ -27,8 +27,12 @@ class MotionAction(Action):
         if query_tpos==action.logic.view_sensor('tpos'): return action.VIABLE()
         if action.logic.agent.species in BLOCKING_SPECIES:
             query_tpos = action.logic.pTOt(query_ppos)
-            return action.GETTRUTH(action.logic.view_sensor('tile obstr', \
-                    tid=query_tpos, blck=action.logic.agent.species)==False)
+#            print action.logic.view_sensor('tile occs', tid=query_tpos)
+            print action.logic.view_sensor('get agents at tile', tid=query_tpos)
+            return action.GETTRUTH(action.logic.view_sensor('tile occs', \
+                    tid=query_tpos)==0)#, blck=action.logic.agent.species)==False)
+#            return action.GETTRUTH(action.logic.view_sensor('tile obstr', \
+#                    tid=query_tpos, blck=action.logic.agent.species)==False)
         raise Exception(action.logic.agent.species, 'not impl yet')
 
     def implement(action):

@@ -79,8 +79,7 @@ class GetTPosSensor(Sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
-        querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
-        sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
+        sensor._store({agent_id: sensor.gm.query_ent_tpos(agent_id)})
         return sensor.sense(agent_id)
 
 ''' PPOS pixel position of a target entity '''
@@ -94,8 +93,7 @@ class GetPPosSensor(Sensor):
         if sensor.get_priming()==EVAL_T:
             return sensor._retrieve(agent_id)
         sensor.prime()
-        querystr = 'SELECT px,py FROM agent_status WHERE uniq_id==?;'
-        sensor._store({agent_id: sensor.gm.db.execute(querystr, (agent_id,)).fetchone()})
+        sensor._store({agent_id: sensor.gm.query_ent_ppos(agent_id)})
         return sensor.sense(agent_id)
 
 
@@ -117,6 +115,29 @@ class GetNextReservation(Sensor):
             if not res:
                 res =  sensor.gm.entities[agent_id].view_field('initial tpos')
         sensor._store({agent_id:res})
+        return sensor.sense(agent_id)
+
+class GetAdvance(Sensor): 
+    def __init__(sensor, gm, agent_id=None):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'get advance'
+        if agent_id: sensor.agent_id = agent_id
+    def sense(sensor, agent_id=None):
+        if agent_id==None: agent_id = sensor.agent_id
+        if sensor.get_priming()==EVAL_T:
+            return sensor._retrieve(agent_id)
+        sensor.prime()
+        kind, tx, ty = sensor.gm.query_occupancy_status(agent_id)
+        if kind==None: sensor._store({agent_id:NULL_POSITION})
+        if kind=='static': sensor._store({agent_id:(tx,ty)})
+        if kind=='moveto': sensor._store({agent_id:(tx,ty)})
+        if kind=='movefrom': pass # ?
+#        if not res: 
+#            querystr = 'SELECT tx,ty FROM agent_status WHERE uniq_id==?;'
+#            res =  sensor.gm.db.execute(querystr, (agent_id,)).fetchone() 
+#            if not res:
+#                res =  sensor.gm.entities[agent_id].view_field('initial tpos')
+#        sensor._store({agent_id:res})
         return sensor.sense(agent_id)
 
 ''' Mouse position '''
@@ -227,6 +248,12 @@ class TileObstrSensor(MultiSensor):
                  blck[bi] = 'block_'+b
         return sensor.gm.query_tile_for_blck(tid, blck)
 
+class TileOccsSensor(MultiSensor):
+    def __init__(sensor, gm): 
+        MultiSensor.__init__(sensor, gm)
+        sensor.access_name = "tile occs"
+    def sense(sensor, tid):  # return a count of the number of tile occupants
+        return sensor.gm.query_tile_occupied(tid)
 
 class GetWhoAtTIDSensor(MultiSensor):
     ''' GetWhoAtTIDSensor: sense who, what, and what team is an entity 
@@ -246,6 +273,16 @@ class GetWhoAtTIDSensor(MultiSensor):
 #        print sensor._storage, res
         return sensor._retrieve(tid)
 
+class GetAgentsAtTileSensor(MultiSensor):
+    def __init__(sensor, gm):
+        MultiSensor.__init__(sensor, gm)
+        sensor.access_name = "get agents at tile"
+
+    def sense(sensor, tid): 
+        if sensor.query_priming(tid)==EVAL_T:
+            return sensor._retrieve(tid)
+        sensor._store({tid: sensor.gm.query_all_tile_occs(tid)})
+        return sensor._retrieve(tid)
 
 
 

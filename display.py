@@ -123,11 +123,13 @@ class Display(Entity):
     def draw_background(disp, targ_surface=None, update_me=True):
         if not targ_surface: targ_surface = disp.screen
         query = "SELECT px,py,base_tid,ent_tid FROM tilemap"
-        for px,py,base,ent in disp.gm.db.execute(query).fetchall():
-            base, ent = str(base), str(ent)
+        #for px,py,base,ent in disp.gm.db.execute(query).fetchall():
+        for tx,ty,base_img,obst_img in disp.gm.query_db(SQL_map_settings):
+            base, obst = str(base_img), str(obst_img)
+            px,py = multvec((tx,ty), disp.gm.ts())
             targ_surface.blit(disp.imgs[base], (px,py))
-            if not ent=='-':
-                targ_surface.blit(disp.imgs[ent], (px,py))
+            if not obst=='-':
+                targ_surface.blit(disp.imgs[obst], (px,py))
         if update_me: pygame.display.update()
 
 #-----------#-----------#-----------#-----------#-----------#-----------
@@ -161,10 +163,10 @@ class Display(Entity):
             print ''
         disp._reset_hud()
 
-        query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
+#        query = "SELECT base_tid,ent_tid FROM tilemap WHERE tx=? AND ty=?;"
         for tile in disp._tiles_to_reset+[(0,0)]:
             if andvec(tile, '<', disp.gm.map_num_tiles):
-                tmp = disp.gm.db.execute(query, tile).fetchone()
+                tmp = disp.gm.db.execute(SQL_get_tile_img_info, tile).fetchone()
                 if tmp==None: continue
                 base,obstr = tmp
                 ploc = multvec(tile, disp.gm.ts())

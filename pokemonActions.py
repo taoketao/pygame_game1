@@ -17,7 +17,7 @@ class WildPkmnBehavior(ActionPicker):
                     GetKO(ap.logic), 
                     GetCaught(ap.logic), \
                     Delay(ap.logic), \
-                    Tackle(ap.logic), \
+#                    Tackle(ap.logic), \
                     Wander(ap.logic) ] )
     def find_viability(ap): 
         return ap.GETVIA(ap.root)
@@ -75,15 +75,29 @@ class Tackle(ActionPicker):
         curtpos = ap.logic.view_sensor('tpos')
         for cvec in dirs:
             dest = sub_aFb(cvec, curtpos)
-            res = ap.logic.view_sensor('get who at tile', tid=dest)
-            for ti,t in enumerate(res['team']):
-                if t==ap.logic.agent.team: continue
-                if res['species'][ti]=='plyr': continue
-                if t not in ap.gm.pkmn_damage_teams: continue
+            res = ap.logic.view_sensor('get agents at tile', tid=dest)
+            print res, dest
+            if not res: continue
+            for u_id in res:
+                team, species = gm.db.execute(SQL_get_ent_spec_team, \
+                                (u_id,)).fetchone()
+                if team==ap.logic.agent.team: continue
+                if species=='plyr': continue
+                if not team in ap.gm.pkmn_damage_teams: continue
+
                 ap.logic.update_global('img choice', ap.dir_vecs[cvec])
                 ap.logic.update_global('delay', ap.logic.view('delay') + \
                             ap.logic.view('root delay'))
                 return ap.GETVIA(ap.logic.spawn_new('tackle','move',dest=dest))
+
+#            for ti,t in enumerate(res['team']):
+#                if t==ap.logic.agent.team: continue
+#                if res['species'][ti]=='plyr': continue
+#                if t not in ap.gm.pkmn_damage_teams: continue
+#                ap.logic.update_global('img choice', ap.dir_vecs[cvec])
+#                ap.logic.update_global('delay', ap.logic.view('delay') + \
+#                            ap.logic.view('root delay'))
+#                return ap.GETVIA(ap.logic.spawn_new('tackle','move',dest=dest))
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
