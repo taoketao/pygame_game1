@@ -91,6 +91,7 @@ class ActionPicker(Action):
     def __init__(ap, logic):
         Action.__init__(ap, logic.gm)
         ap.logic=logic
+        ap.agent=logic.agent
         ap.components = []
         ap.key = 'stub key'
         ap.write_state_access = False # by default
@@ -143,5 +144,25 @@ class Delay(ActionPicker):
         ActionPicker.__init__(ap, logic)
     def find_viability(ap):
         return (ap.VIABLE() if ap.logic.view('delay')>=0 else ap.INVIABLE())
-    def implement(ap): assert(ap.viability==EVAL_T)
+    def implement(ap): 
+        print '\t',ap.agent.uniq_name,'delaying...'
+        assert(ap.viability==EVAL_T)
     def reset(ap): ap.viability=EVAL_U
+
+class RespectLock(ActionPicker):
+    # If a lock is held by an action, forbid other actions and jmp to it.
+    def __init__(ap, logic):
+        ActionPicker.__init__(ap, logic)
+    def find_viability(ap):
+        return (ap.Verify(ap.gm.entities[ap.logic.ViewActionLock()]) \
+                if ap.logic.ViewActionLock()>=0 else ap.INVIABLE())
+    def implement(ap): 
+        print '\t',ap.agent.uniq_name,'holding on lock...',ap.gm.entities[ap.logic.ViewActionLock()].name
+        assert(ap.viability==EVAL_T)
+        ap.gm.entities[ap.logic.ViewActionLock()].implement()
+    def reset(ap): 
+        ap.viability=EVAL_U
+        for c in ap.logic.belt.Actions.values(): c.reset()
+#        if ap.logic.ViewActionLock()>=0:
+#            ap.gm.entities[ap.logic.ViewActionLock()].reset()
+

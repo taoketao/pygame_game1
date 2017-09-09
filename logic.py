@@ -43,6 +43,7 @@ class Logic(Entity):
         logic._state = state_module.State(gm, logic.belt)
         logic._state.setup_fields(agent.species, logic=logic, 
                             ppos=options['init_ppos'])
+        logic.__action_lock = -1 # Not state: lock mechanism.
 
         logic.message_handler = messagehandler_module.MessageHandler(logic)
         
@@ -80,7 +81,8 @@ class Logic(Entity):
         # Update interlocking global fields:
         put = logic._state.update_env
         put('next reserved', logic.view_sensor('tpos'))
-        put('delay',logic.view('delay')-logic.gm.dt*np.random.uniform(0.7,1.3))
+        if logic.ViewActionLock()<0: # don't internally delay while animating
+            put('delay',logic.view('delay')-logic.gm.dt*np.random.uniform(0.7,1.3))
 
         # Reset Actions and ActionPickers:
         for dep in logic.belt.Dependents.values(): dep.Reset()
@@ -192,6 +194,15 @@ class Logic(Entity):
 #
     def do_default(logic): return EVAL_T # semi-stub
 
+    def UnLockAction(logic, uid): # try to lock
+        if logic.__action_lock==uid: logic.__action_lock=-1
+        else: raise Exception('uid does not have lock:',uid,logic.__action_lock)
+    def ViewActionLock(logic): return logic.__action_lock
+    def LockAction(logic, uid): # try to lock
+        if logic.__action_lock<0: 
+            logic.__action_lock = uid
+            return True
+        return False
 
     def tTOp(logic, X): 
         try: return multvec(X, logic.gm.tile_size, int)

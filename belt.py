@@ -75,12 +75,9 @@ class Belt(Entity):
                                 'get agents at tile':GetAgentsAtTileSensor ,\
                                 'unit step':GetCurUnitStepSensor }, \
                             False: {} }[options.get('std_sensors',True)] )
-        belt.Actions.update({True: {'u':MotionUp,       'd':MotionDown,   \
-                                    'l':MotionLeft,     'r':MotionRight,  \
-                                    '-':MotionStatic }, False:{}  \
-                            } [options.get('std_motions',True)])
         which_init = options.get('sp_init', agent.team+' '+agent.species)
-        if   which_init=='--plyr-- plyr': belt._init_basic_player()
+        if   which_init=='--plyr-- plyr': \
+                belt._init_basic_player(options.get('std_motions',True))
         elif which_init=='target': pass
         elif which_init=='--wild-- pkmn': belt._init_pkmn(options);
         elif which_init=='--plyr-- pkmn': belt._init_pkmn(options);
@@ -88,7 +85,11 @@ class Belt(Entity):
         else: raise Exception("an easy exception: please implement.",options)
         belt.which_init=which_init
 
-    def _init_basic_player(belt):
+    def _init_basic_player(belt, std_motions=True):
+        belt.Actions.update({True: {'u':MotionUp,       'd':MotionDown,   \
+                                    'l':MotionLeft,     'r':MotionRight,  \
+                                    '-':MotionStatic }, False:{}  \
+                            } [std_motions])
         belt.Items.update({i:'pokeball-lvl-1' for i in range(4)})
         belt.Sensors.update({'mousepos':GetMouseTIDSensor})
         belt.Moves.update({'cast pokeball': moves_module.CatchPokeballMove})
@@ -103,6 +104,13 @@ class Belt(Entity):
 
 
     def _init_pkmn(belt, options):
+        speed = options.get('speed', 1000)
+        belt.Actions.update({True: \
+            {'u':lambda logic: AnimMotion(logic, MotionUp, speed),\
+             'd':lambda logic: AnimMotion(logic, MotionDown, speed),\
+             'l':lambda logic: AnimMotion(logic, MotionLeft, speed),\
+             'r':lambda logic: AnimMotion(logic, MotionRight, speed),\
+             '-': MotionStatic }, False:{} }[options.get('std_motions',True)])
         belt.Moves.update({'tackle':moves_module.Tackle})
         options['offset']=0
         hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 

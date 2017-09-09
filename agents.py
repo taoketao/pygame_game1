@@ -88,12 +88,12 @@ class AIAgent(ae_module.TileAgent):
         ai.species = 'pkmn'
         ai.team = options.get('team')
         if not '--' in ai.team: ai.team= '--'+ai.team+'--'
+        ai.uniq_name = options.get('uniq_name', '-uniqname not provided-')
         ai.store_reservations=True
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         px,py = gm._t_to_p(init_tloc)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
         ai._logic.update_global('curtid',init_tloc)
-        ai.uniq_name = options.get('uniq_name', '-uniqname not provided-')
         ai._belt = ai._logic.belt
         ai.initialized = True
         ai.pokedex = options['pokedex']

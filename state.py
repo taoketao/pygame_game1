@@ -85,6 +85,7 @@ class State(Entity): # i do not write, so no need to have logic
 
     def _init_actions(st, logic, genus):
         st.belt.Actions = {k:v(logic) for k,v in st.belt.Actions.items()}
+        print 'State::Initialized actions:', st.belt.Actions, logic.agent.uniq_name
 
     def setup_plyr_fields(st, logic):
         st.s_env['delay'] = 0.001

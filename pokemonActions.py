@@ -14,6 +14,7 @@ class WildPkmnBehavior(ActionPicker):
         ap.agent = logic.agent
         ap.write_state_access = True
         ap.root = Priority(ap.logic, [ \
+                    RespectLock(ap.logic),\
                     GetKO(ap.logic), 
                     GetCaught(ap.logic), \
                     Delay(ap.logic), \
@@ -76,7 +77,7 @@ class Tackle(ActionPicker):
         for cvec in dirs:
             dest = sub_aFb(cvec, curtpos)
             res = ap.logic.view_sensor('get agents at tile', tid=dest)
-            print res, dest
+            print 'tackle:',res, dest
             if not res: continue
             for u_id in res:
                 team, species = gm.db.execute(SQL_get_ent_spec_team, \
@@ -101,6 +102,7 @@ class Tackle(ActionPicker):
         return ap.INVIABLE()
     def implement(ap):
         assert(ap.viability==EVAL_T)
+        print '\t',ap.agent.uniq_name,'tackling...'
         ap.logic.agent.set_img(ap.logic.view('img choice'))
 
 class Wander(ActionPicker):
@@ -135,11 +137,13 @@ class PickRandMove(ActionPicker):
             if EVAL_T==a.find_viability(): 
                 ap.logic.update_ap('mov choice', a.name, ap.uniq_id)
                 ap.logic.update_global('img choice', a.name)
+                print ap.logic.agent.uniq_name,'identified valid action:', a.name
                 return ap.VIABLE()
         ap.logic.update_ap('mov choice', '-', ap.uniq_id)
         return ap.Verify(ap.logic.belt.Actions['-'])
     def implement(ap):
         assert(ap.viability==EVAL_T)
+        print '\t',ap.agent.uniq_name,'wandering...'
         ap.logic.update_global('delay', ap.logic.view('delay') + \
                             ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')

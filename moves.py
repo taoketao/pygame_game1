@@ -149,6 +149,13 @@ class CustomProjectileMove(ProjectileMove):
         elif mv.RELEASE_STAGE == mv.get('stage'):
             mv._do_release()
 
+class AnimPokemon(CustomProjectileMove):
+    def __init__(mv, gm, logic, motionAction, image):
+        CustomProjectileMove.__init__(mv, gm, logic, motionAction)
+        mv.move_name = 'Tackle:'
+        mv.storage_key = str(mv.uniq_id)+':tackle:'
+        mv.put('stage0->1 t fin', TACKLE_SPEED)# * mv.get('dist')) 
+
 class Tackle(CustomProjectileMove):
     def __init__(mv, gm, dest, logic):
         CustomProjectileMove.__init__(mv, gm, dest, logic, \

@@ -1,5 +1,5 @@
 ''' Game Options '''
-DEFAULT_FPS = 1 # should be a cap: lower than expected max FPS
+DEFAULT_FPS = 10 # should be a cap: lower than expected max FPS
 MAP_LEVEL_CONFIG = './config_collision.ini'
 MAP_LEVEL_CONFIG = './config7.ini'
 TILE_SIZE = (40,36);
@@ -324,8 +324,8 @@ class GameManager(object): # *
 #        print 'Active Entities:', gm.active_entities()
         gm.frame_iter += 1
         print 'DATABASES at frame ', gm.frame_iter,':\n\t',\
-                gm.db.execute('SELECT * FROM entities').fetchall(), '\n\t',\
                 gm.db.execute('SELECT * FROM map_occs').fetchall(), '\n'
+#                gm.db.execute('SELECT * FROM entities').fetchall(), '\n\t',\
 #                gm.db.execute('SELECT * FROM map_info').fetchall(), '\n\t',\
         gm._prepare_new_frame()
         gm._punch_clock()
@@ -437,7 +437,7 @@ class GameManager(object): # *
         _debug_store = gm.update_queue[:]
         while(len(gm.update_queue)>0):
             cmd, values, what_kind = gm.update_queue.pop(0)
-            print '----processing update:<',cmd, '>,\n\t\t', values, ',\n\t\t', what_kind
+#            print '----processing update:<',cmd, '>,\n\t\t', values, ',\n\t\t', what_kind
                     
             #print '\n',cmd,values,what_kind; 
             #print '\n',cmd,values,what_kind; import sys; sys.exit()
@@ -566,7 +566,7 @@ class GameManager(object): # *
     # Note: new function does not handle *releasing* previous tiles 
     # or tile motions: this works by changing TX and TY given an ID
     def _notify_change_ppos(gm, u_id, ppos, put_or_drop='put', mode='stand'):
-        # TAG CHECKED FOR DATABASE UPDATE
+        # internal method for changing the map occupancy & entity tiletag
         if not type(u_id)==int: u_id = u_id.uniq_id
         if ppos==NULL_POSITION: return
         blocking_flag = gm.db.execute(SQL_is_blocking,(u_id,)).fetchone()
@@ -588,6 +588,7 @@ class GameManager(object): # *
                         [u_id, tx, ty], 'drop map occ' ])
             else: raise Exception('!')
 
+    # Helpers for setting and releasing tiles
     def notify_put_ppos(gm, u_id, ppos, mode='stand'): 
         gm._notify_change_ppos(u_id, ppos, 'put', mode)
     def notify_drop_ppos(gm, u_id, ppos, mode='stand'): 
@@ -600,6 +601,7 @@ class GameManager(object): # *
         gm._notify_change_ppos(u_id, multvec(tpos, gm.ts()), 'drop', mode)
 
 
+    # Convenience functions
     def notify_ppos(gm, u_id, new, prev, mode='stand'):
         if mode=='stand':
             gm.notify_drop_ppos(u_id, prev, 'stand')
@@ -609,8 +611,16 @@ class GameManager(object): # *
         gm.notify_ppos(u_id, multvec(new,gm.ts()), \
                              multvec(prev,gm.ts()), mode)
 
+    # These methods do not error check:
+    def notify_new_motion(gm, uid, prev, new):
+        gm.notify_drop_tpos(uid, prev, 'stand')
+        gm.notify_put_tpos(uid, prev, 'movefrom')
+        gm.notify_put_tpos(uid, new, 'moveto')
 
-
+    def notify_stopping(gm, uid, prev, new):
+        gm.notify_drop_tpos(uid, prev, 'movefrom')
+        gm.notify_drop_tpos(uid, new, 'moveto')
+        gm.notify_put_tpos(uid, new, 'stand')
 
 
     def query_ent_ppos(gm, uid):
