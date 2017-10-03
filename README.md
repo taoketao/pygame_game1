@@ -23,24 +23,27 @@ Play Instructions:
   - You'll need Python 2.7 (due to print statements, python3 will likely 
     not work). Type this:         
     >  python -c "print 'Hello world!'" 
-    ⋅⋅⋅If that fails, go download Python 2.7. Then, for each of the 
-    ⋅⋅⋅dependencies below, try this command: 
+
+    If that fails, go download Python 2.7. Then, for each of the 
+    dependencies below, try this command: 
     >    python -c "import DEP"     where you replace DEP with the dependency.
-    ⋅⋅⋅If it fails, do this command: pip install DEP
-    ⋅⋅⋅If that fails also, go install pip. 
+
+    If it fails, do this command: pip install DEP
+    If that fails also, go install pip. 
     
-    ⋅⋅⋅Dependencies, many of which are standard:
+    Dependencies, many of which are standard:
     >    pygame      abc       numpy       sqlite3       ConfigParser
     >    PIL python imaging library: Image, ImageOps     operator
     >    random      os (os.path)       sys
-    ⋅⋅⋅(The ones of note are pygame, which is indispensable, and sqlite3. With
-    ⋅⋅⋅light modification you may be able to do without sys, abc, random )
 
-    ⋅⋅⋅Finally, you're ready to go. To play a game, do command:
+    (The ones of note are pygame, which is indispensable, and sqlite3. With
+    light modification you may be able to do without sys, abc, random )
+
+    Finally, you're ready to go. To play a game, do command:
     >   python rungame.py
 
-    ⋅⋅⋅And if you want to quit to restart, press (don't tap) the   q   key, or
-    ⋅⋅⋅hit CTRL+c while in the terminal.
+    And if you want to quit to restart, press (don't tap) the   q   key, or
+    hit CTRL+c while in the terminal.
     
 
 Why did I do this:
