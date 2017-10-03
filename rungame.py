@@ -10,8 +10,11 @@ TILE_SIZE = (40,36);
 '''#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ''' ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
 
-import sys
-sys.path.append('/Users/morganbryant/Desktop/Codes/miniconda2/lib/python2.7/site-packages')
+import sys, os
+try:
+    assert(os.uname()[0]=='Darwin')
+    sys.path.append('./site-packages')
+except: pass
 import pygame, operator
 import sqlite3 as sql
 import ConfigParser
