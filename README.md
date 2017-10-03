@@ -32,10 +32,9 @@ Play Instructions:
     If that fails also, go install pip. 
     
     Dependencies, many of which are standard:
-    >    pygame      abc       numpy       sqlite3       ConfigParser
-    >    PIL python imaging library: Image, ImageOps     operator
-    >    random      os (os.path)       sys
-
+        pygame ,    abc ,     numpy,      sqlite3,      ConfigParser,
+        PIL python imaging library: Image, ImageOps,    operator,
+        random,     os (os.path) ,     sys.
     (The ones of note are pygame, which is indispensable, and sqlite3. With
     light modification you may be able to do without sys, abc, random )
 
@@ -46,10 +45,11 @@ Play Instructions:
     hit CTRL+c while in the terminal.
     
 
-Why did I do this:
-  - I have the dream of doing this for a while, but only recently found the 
+Why did I make this?
+  - I've had the dream of making this game for a while, but only recently found the 
     motivation, time, and means. I personally treated it like a challenge of
-    writing massively scalable code.
+    writing massively scalable code. It is inspired primarily by the Pokemon 
+    Gameboy Advance games, modern MOBAs, and tactical RTS games.
   - Partway through dev, I got very excited about a backend mechanic I needed.
     In the way that Tensorflow creates a "language" of operations on which 
     a user can build a network and let Tensorflow handle all behind-the-interface 
