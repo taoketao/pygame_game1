@@ -46,7 +46,7 @@ class ProjectileMove(BasicMove):
     ''' A class that FIRST launches an object to a location via linear 
         interpolation, THEN does something else custom if desired. '''
     def __init__(mv, gm, dest, logic, src_offset=None, dest_offset=None,\
-            fragile=False):
+            fragile=False, src_ppos=None):
         BasicMove.__init__(mv, gm, logic)
         mv.move_name = 'GENERIC PROJECTILE STUB'
         mv.source_logic = logic
@@ -55,7 +55,10 @@ class ProjectileMove(BasicMove):
         if src_offset==None: src_offset = (0,0) # nice for player
         if dest_offset==None: dest_offset = (0,0) # aims for tile center?
 
-        src = addvec(divvec(logic.view_sensor('ppos'), gm.ts(), float), src_offset)
+        if src_ppos==None:
+            src = addvec(divvec(logic.view_sensor('ppos'), gm.ts(), float), \
+                    src_offset)
+        else: src=src_ppos
         dest = addvec(dest, dest_offset)
         mv.fragile=fragile
         mv.put('dest', dest) # in TPOS
@@ -100,21 +103,27 @@ class ProjectileMove(BasicMove):
 
     def implement(mv):
         assert(mv.viability==EVAL_T)
+        print 'proj:',mv, mv.move_name, mv.get('stage'), mv.get('t')
         if mv.get('stage')==STAGE_0: 
             lin = float(mv.get('t'))/mv.get('stage0->1 t fin')
             next_fractional_tpos = addvec( \
                     multvec(mv.get('src'), 1-lin), multvec(mv.get('dest'), lin))
-            mv.gm.notify_pmove(mv, multvec(next_fractional_tpos, mv.gm.ts()))
+            #mv.gm.notify_pmove(mv, multvec(next_fractional_tpos, mv.gm.ts()))
+            mv.gm.notify_put_ppos(mv, multvec(next_fractional_tpos, mv.gm.ts()))
             for t in mv.get('trail tiles'):
                 if not mv.custom_reset_tiles:
                     mv.gm.display.queue_reset_tile(floorvec(addvec(t, \
                                 next_fractional_tpos)))
+            mv._do_en_route(next_fractional_tpos)
         mv._implement_landing()
+
+    def _do_en_route(mv, fractpos): pass
 
 
 class CustomProjectileMove(ProjectileMove):
-    def __init__(mv, gm, dest, logic, dest_offset=(0,0), src_offset=(0,0)):
-        ProjectileMove.__init__(mv, gm, dest, logic, \
+    def __init__(mv, gm, dest, logic, dest_offset=(0,0), src_offset=(0,0),\
+                        src_ppos = None):
+        ProjectileMove.__init__(mv, gm, dest, logic, src_ppos=src_ppos, \
                         dest_offset=dest_offset, src_offset=src_offset)
         mv.THROW_STAGE = STAGE_0
         mv.OPEN_STAGE = STAGE_1
@@ -149,13 +158,6 @@ class CustomProjectileMove(ProjectileMove):
         elif mv.RELEASE_STAGE == mv.get('stage'):
             mv._do_release()
 
-class AnimPokemon(CustomProjectileMove):
-    def __init__(mv, gm, logic, motionAction, image):
-        CustomProjectileMove.__init__(mv, gm, logic, motionAction)
-        mv.move_name = 'Tackle:'
-        mv.storage_key = str(mv.uniq_id)+':tackle:'
-        mv.put('stage0->1 t fin', TACKLE_SPEED)# * mv.get('dist')) 
-
 class Tackle(CustomProjectileMove):
     def __init__(mv, gm, dest, logic):
         CustomProjectileMove.__init__(mv, gm, dest, logic, \
@@ -179,9 +181,60 @@ class Tackle(CustomProjectileMove):
                 data={'amount': damage} )
     def _do_release(mv): pass
     def _do_exit(mv):
+        mv._do_every_iter()
+        mv.gm.notify_del(mv.uniq_id)
+        del mv
+
+
+class AnimPokemonMove(CustomProjectileMove):
+    def __init__(mv, gm, logic, posvec, image, speed):
+        # A visual animation: displays the pokemon walking to another
+        # tile smoothly (and blocking other activity). Locks on spawn,
+        # unlocks on kill.
+        CustomProjectileMove.__init__(mv, gm, dest = \
+                addvec(logic.view_sensor('tpos'), posvec), logic=logic)
+        mv.move_name = 'AnimPokemonMove_spawnable:'
+        mv.storage_key = str(mv.uniq_id)+':anim_pokemon_move:'
+        mv.put('stage0->1 t fin', speed) 
+        mv.put('stage1->2 t fin', 1)
+        mv.put('pdest', addvec(logic.view_sensor('tpos'), posvec))
+        mv.gm.notify_new_entity(mv)
+        px,py=multvec(mv.get('src'), gm.ts())
+        mv.gm.notify_update_ent(mv, px=px, py=py, team=mv.team, \
+                species=mv.species, tile_occupying=False)
+        mv.gm.notify_image_update(mv, image)
+
+        mv.gm.notify_new_motion(\
+                logic.agent.uniq_id, mv.get('src'), mv.get('dest'))
+        assert(mv.logic.LockAction(mv.uniq_id)) 
+#        mv.logic.agent.set_img('blank')
+        mv.logic.update_global('img choice', 'blank')
+        mv.logic.update_global('virtual ppos', multvec(mv.gm.ts(), \
+                mv.logic.view_sensor('tpos')))
+        print "!!!!"
+
+    def _do_en_route(mv, fractpos):
+        mv.logic.update_global('virtual ppos', multvec(mv.gm.ts(), \
+                mv.logic.view_sensor('tpos')))
+
+    def _do_open(mv): 
+        mv.gm.notify_stopping(\
+                mv.logic.agent.uniq_id, mv.get('src'), mv.get('dest'))
+        mv.logic.UnlockAction(mv.uniq_id)
+        mv.logic.agent.set_img(mv.logic.view('img choice'))
+
+    def _do_release(mv): 
+        return
+        raise Exception("intuition: release shouldn't happen?",\
+                mv, mv.move_name, mv.get('stage'), mv.get('t'))
+    def _do_exit(mv): 
+        mv.logic.update_global('virtual ppos', mv.get('pdest'))
+        mv._do_every_iter()
+        mv.gm.notify_del(mv.uniq_id)
+        del mv
+    def _do_every_iter(mv): 
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('src'),0.5)))
         mv.gm.display.queue_reset_tile(floorvec(addvec(mv.get('dest'),0.5)))
-        del mv
 
 
 class PokeballSuperMove(CustomProjectileMove):
@@ -192,7 +245,7 @@ class PokeballSuperMove(CustomProjectileMove):
         mv.storage_key = str(mv.uniq_id)+':pokeball:'
         mv.put('stage0->1 t fin', int(CAST_POKEBALL_SPEED*mv.get('dist'))) 
         mv.put('stage1->2 t fin', PB_OPENFRAMES * POKEBALL_OPEN_SPEED) 
-        mv.gm.notify_new_effect(mv, tpos=mv.get('src'), img='pokeball', team=mv.team)
+        mv.gm.notify_new_entity(mv, tpos=mv.get('src'), img='pokeball', team=mv.team) # unchecked
     
     def _do_open(mv):
         img_num = mv.get('t')//POKEBALL_OPEN_SPEED

@@ -90,13 +90,13 @@ class AIAgent(ae_module.TileAgent):
         if not '--' in ai.team: ai.team= '--'+ai.team+'--'
         ai.uniq_name = options.get('uniq_name', '-uniqname not provided-')
         ai.store_reservations=True
+        ai.pokedex = options['pokedex']
         ai.stepsize_x, ai.stepsize_y = ai.stepsize = gm.ts()
         px,py = gm._t_to_p(init_tloc)
         ai._logic = logic_module.Logic(gm, ai, init_ppos=(px,py), **options)
         ai._logic.update_global('curtid',init_tloc)
         ai._belt = ai._logic.belt
         ai.initialized = True
-        ai.pokedex = options['pokedex']
         ai._logic.update_global('pkmn_id', ai.pokedex)
         ai.gm.notify_update_ent(ai, team=ai.team, species=ai.species, \
                 img_str='pkmn sprite '+str(ai.pokedex)+'d',  px=px, py=py)
@@ -109,17 +109,9 @@ class AIAgent(ae_module.TileAgent):
 
     def set_img(ai, which_img, reset=None): 
         ''' Change image (frame-timed) according to the image signal which_img.'''
-        ai.gm.notify_image_update(ai, 'pkmn sprite '+str(ai.pokedex)+which_img)
-        return
-        if (not type(which_img)==str) or not which_img in MTNKEYS: \
-                raise Exception(which_img, type(which_img))
-        s = 'pkmn sprite '+str(ai.pokedex)+which_img
-        if ai._logic.view('prevtid')==ai._logic.view('curtid') and not reset:
-            ai.gm.notify_imgChange(ai, s)
-        elif not reset:
-            ai.gm.notify_imgChange(ai, s, prior=(ai._logic.view("prevtid"), 'tpos'))
+        if which_img=='blank':  ai.gm.notify_image_update(ai, 'blank')
         else:
-            ai.gm.notify_imgChange(ai, s, prior=(reset, 'tpos'))
+            ai.gm.notify_image_update(ai, 'pkmn sprite '+str(ai.pokedex)+which_img)
 
     def get_pstep(ai): return ai.gm.ts()
     def alias_sensor(ai, what_sensor): return ai._logic.get_sensor(what_sensor)

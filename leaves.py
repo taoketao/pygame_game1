@@ -88,7 +88,9 @@ class StatusBar(ae_module.TileAgent):
                                       sb.draw_statusbar())
 #        sb.targeter = sensors_module.GetNextReservation(gm, owner.uniq_id)
 #        sb.targeter = sensors_module.GetAdvance(gm, owner.uniq_id)
-        sb.targeter = sensors_module.GetPPosSensor(gm, owner.uniq_id)
+        #sb.targeter = sensors_module.GetPPosSensor(gm, owner.uniq_id)
+        sb.targeter = sensors_module.GetVirtualPPosSensor(gm, owner)
+#        sb.targeter = lambda x: owner.view_field(x)
         sb.targeter.set_state('stateless')
         sb.targeter.rescan()
 
@@ -98,7 +100,9 @@ class StatusBar(ae_module.TileAgent):
 #        sb.gm.notify_drop_ppos(sb.prev_position)
 #        sb.gm.notify_put_ppos(sb.uniq_id, sb.targeter.sense())
         sb.gm.notify_ppos(sb.uniq_id, new=sb.targeter.sense(), prev=sb.prev_position)
+#        sb.gm.notify_ppos(sb.uniq_id, new=sb.targeter('virtualppos'), prev=sb.prev_position)
         sb.prev_position = sb.targeter.sense()
+        #sb.prev_position = sb.targeter.sense()
 #        sb.gm.notify_tmove(sb.uniq_id, sb.targeter.sense())
 
     def update_metric(sb, amount, delta_or_absolute='delta'):
@@ -148,6 +152,7 @@ class StatusBar(ae_module.TileAgent):
 
     def Reset(sb): pass
     def PrepareAction(sb): 
+        pass
         sb.targeter.rescan() 
 #        print 'STATUS BAR RESET', sb.uniq_id; sb.targeter.sense()
     # ^ Careful! Rescans can be easily forgotten and omitted for fiendish bugs.

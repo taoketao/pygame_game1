@@ -96,6 +96,24 @@ class GetPPosSensor(Sensor):
         sensor._store({agent_id: sensor.gm.query_ent_ppos(agent_id)})
         return sensor.sense(agent_id)
 
+class GetVirtualPPosSensor(Sensor):
+    def __init__(sensor, gm, agent_ref=None):
+        Sensor.__init__(sensor, gm)
+        sensor.access_name = 'virtual ppos'
+        if agent_ref: sensor.agent_ref = agent_ref
+    def sense(sensor):
+        agent_id=sensor.agent_ref.uniq_id # alias
+        if sensor.get_priming()==EVAL_T:
+            return sensor._retrieve(agent_id)
+        sensor.prime()
+        try:
+            val = sensor.agent_ref.view_field('virtual ppos')
+        except:
+            val = sensor.gm.query_ent_ppos(agent_id)
+        sensor._store({agent_id: val})
+        return sensor.sense()
+
+
 
 ''' Like TPOS sensor but first queries reservations for next tile. For frame lag.'''
 class GetNextReservation(Sensor):

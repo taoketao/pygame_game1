@@ -103,7 +103,7 @@ class Tackle(ActionPicker):
     def implement(ap):
         assert(ap.viability==EVAL_T)
         print '\t',ap.agent.uniq_name,'tackling...'
-        ap.logic.agent.set_img(ap.logic.view('img choice'))
+#        ap.logic.agent.set_img(ap.logic.view('img choice'))
 
 class Wander(ActionPicker):
     ''' Wander: pick a random valid direction and move there. Does not attempt
@@ -148,7 +148,7 @@ class PickRandMove(ActionPicker):
                             ap.logic.view('root delay'))
         prevtloc = ap.logic.view_sensor('tpos')
         ap.logic.belt.Actions[ap.logic.view_my('mov choice', ap.uniq_id)].implement()
-        ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
+#        ap.logic.agent.set_img(ap.logic.view('img choice'), prevtloc)
 
     def reset(ap): 
         ap.viability = EVAL_U; 

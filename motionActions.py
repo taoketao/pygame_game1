@@ -17,18 +17,8 @@ class AnimMotion(moves_module.BasicMove):
         moves_module.BasicMove.__init__(action, logic.gm, logic)
         action.logic = logic
         action.agent = logic.agent
-
-        action.put('active', False)  # aka running
         action.put('end time', speed) # an int number of ticks till complete
-        ma = motionAction(logic)
-        action.put('motion_object', ma) # eg, a MotionUp instance
-        action.dvec=ma.dvec
-        action.posvec=ma.posvec
-        action.name=ma.name
-        action.index=ma.index
-        action.null=ma.null
-        print 'Initialized animaction:', action.name, action.agent.uniq_name
-        action.put('t',0 )
+        action.put('motion_object', motionAction(logic)) # eg, a MotionUp instance
         
     def find_viability(action):
         print 'finding via animmotion:', action.name, action.agent.uniq_name
@@ -127,6 +117,23 @@ class MotionAction(Action):
     def same(action, targ): return action.index==targ.index # etc
     def reset(action): action.viability = EVAL_U 
 
+class AnimMotionAction( MotionAction ):
+    def __init__(action, logic, motionAction, speed):
+        MotionAction.__init__(action, logic)
+        action.dvec     = motionAction.dvec
+        action.posvec   = motionAction.posvec
+        action.name     = motionAction.name
+        action.index    = motionAction.index
+        action.null     = False # Non null animation
+#        action.image    = str(logic.view('pkmn_id'))+action.name
+        action.image    = 'pkmn sprite '+str(logic.agent.pokedex)+action.name
+        action.speed    = speed
+    def implement(action): # this is what is overwritten
+        assert(action.viability==EVAL_T and action.index>=0)
+        action.agent.move_in_direction(action.posvec, 'blank')
+        res=action.logic.spawn_new('pokemon animation','move',\
+            posvec=action.posvec, image=action.image, speed=action.speed)
+        assert(EVAL_T ==res.find_viability())
 
 class MotionUp(MotionAction):
     def __init__(action, logic):

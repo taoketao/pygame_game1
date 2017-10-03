@@ -154,12 +154,19 @@ class RespectLock(ActionPicker):
     def __init__(ap, logic):
         ActionPicker.__init__(ap, logic)
     def find_viability(ap):
-        return (ap.Verify(ap.gm.entities[ap.logic.ViewActionLock()]) \
-                if ap.logic.ViewActionLock()>=0 else ap.INVIABLE())
+        print 'Agent img:', ap.logic.view('img choice')
+        if ap.logic.ViewActionLock()>=0:
+#            print ap.gm.entities[ap.logic.ViewActionLock()]
+#            x= ap.gm.entities[ap.logic.ViewActionLock()].find_viability()
+#            print ap.logic.ViewActionLock(), x
+            ap.logic.update_global('img choice', 'blank')
+            return ap.VIABLE()
+        return ap.INVIABLE()
     def implement(ap): 
-        print '\t',ap.agent.uniq_name,'holding on lock...',ap.gm.entities[ap.logic.ViewActionLock()].name
+#        print '\t',ap.gm.entities[ap.agent.uniq_id],'holding on lock...',ap.gm.entities[ap.logic.ViewActionLock()]
         assert(ap.viability==EVAL_T)
-        ap.gm.entities[ap.logic.ViewActionLock()].implement()
+        ap.logic.agent.set_img(ap.logic.view('img choice'))
+#        ap.gm.entities[ap.logic.ViewActionLock()].implement()
     def reset(ap): 
         ap.viability=EVAL_U
         for c in ap.logic.belt.Actions.values(): c.reset()

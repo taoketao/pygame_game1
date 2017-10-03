@@ -259,7 +259,8 @@ class GameManager(object): # *
             for y in [1,3,5,7]:
                 locs.append((x,y))
         locs=[]
-        for x in [1,3]:
+        #for x in [1,3]:
+        for x in [3]:
             for y in [3]:
                 locs.append((x,y))
 
@@ -323,7 +324,7 @@ class GameManager(object): # *
     def _run_frame(gm):
 #        print 'Active Entities:', gm.active_entities()
         gm.frame_iter += 1
-        print 'DATABASES at frame ', gm.frame_iter,':\n\t',\
+        print '\n\nDATABASES at frame ', gm.frame_iter,':\n\t',\
                 gm.db.execute('SELECT * FROM map_occs').fetchall(), '\n'
 #                gm.db.execute('SELECT * FROM entities').fetchall(), '\n\t',\
 #                gm.db.execute('SELECT * FROM map_info').fetchall(), '\n\t',\
@@ -458,7 +459,7 @@ class GameManager(object): # *
             elif ent_type in EFFECT_SPECIES:
                 gm.display.queue_E_img(img_str, (px,py))
             else: raise Exception(ent_type, AFTEREFFECT_SPECIES, BLOCKING_SPECIES,\
-                    EFFECT_SPECIES, uniq_id, gm.entities[uniq_id], _debug_store)
+                    EFFECT_SPECIES, uniq_id, gm.entities[uniq_id], px,py,ent_type, img_str, uniq_id, gm.db.execute("SELECT * FROM map_occs;").fetchall(), gm.db.execute("SELECT * FROM entities;").fetchall())
 
             # Todo: has this incidentally become redundant?
             tx,ty = divvec( (px,py), gm.ts() )
@@ -474,6 +475,9 @@ class GameManager(object): # *
 #                [sql_img_update, (img_str,agent_ref.uniq_id), 'img update'])
         gm.update_queue.append(\
                 [SQL_img_update, (img_str,agent_ref.uniq_id), 'img update'])
+        print [SQL_img_update, (img_str,agent_ref.uniq_id), 'img update']
+        if img_str=='pkmn sprite 1l':
+            raise Exception("[Not a real exception]")
 
     def notify_new_spawn(gm, a,b,c,**o):
         gm.new_spawns_queue.append( (a,b,c, o.copy()) )
@@ -541,6 +545,14 @@ class GameManager(object): # *
         # TAG CHECKED FOR DATABASE UPDATE
         gm.update_queue.append([ 'INSERT INTO entities (uniq_id) VALUES ('+\
                 str(ent_ref.uniq_id)+');', [], 'new agent entities'])
+
+    def notify_del(gm, ent_id): 
+        for db in ['entities', 'map_occs']:
+            gm.update_queue.append(['DELETE FROM '+db+' WHERE uniq_id=?;',\
+                    (ent_id,), 'delete entity'])
+
+
+
 
 #    def notify_new_effect(gm, effect_ref, **args):
 #        if 'tpos' in args.keys(): init_tpos = args['tpos']

@@ -194,7 +194,7 @@ class Logic(Entity):
 #
     def do_default(logic): return EVAL_T # semi-stub
 
-    def UnLockAction(logic, uid): # try to lock
+    def UnlockAction(logic, uid): # try to lock
         if logic.__action_lock==uid: logic.__action_lock=-1
         else: raise Exception('uid does not have lock:',uid,logic.__action_lock)
     def ViewActionLock(logic): return logic.__action_lock
@@ -213,7 +213,10 @@ class Logic(Entity):
 
     def spawn_new(logic, what_to_spawn, kind, **options):
         optn = options.copy()
-        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle']:
+        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle',\
+#                            'pokemon animation u', 'pokemon animation r', 
+#                            'pokemon animation d',
+                            'pokemon animation']:
             optn['logic'] = logic
             new_ent = logic.belt.spawn_new(what_to_spawn, kind, **optn)
             try:    new_ent.reset()

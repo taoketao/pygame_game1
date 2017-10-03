@@ -71,13 +71,14 @@ class VisualStepAgent(Entity):
 #                                    divvec(ppos,ta.gm.ts()))
         
     
-    def move_in_direction(ta, delta_xy):
+    def move_in_direction(ta, delta_xy, new_img=None):
         ''' move_in_direction: user-facing function meant to take, 
             specifically, Motion Actions. The type of agent (Pixel~, 
             Tile~, Step~) converts unit vectors into appropriate 
             pixel-conforming motions. Call via Logic if applicable.'''
         p= addvec(multvec(ta.get_pstep(), delta_xy), 
                 ta._logic.view_sensor("ppos", agent_id=ta.uniq_id))
+        if new_img: ta.set_img(new_img)
         ta._set_new_ppos(p)
 
     

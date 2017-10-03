@@ -67,6 +67,7 @@ class Belt(Entity):
 
         belt.Sensors.update({True: { 'ppos':GetPPosSensor, 'tpos':GetTPosSensor, \
                                 'smoothing':GetFrameSmoothingSensor ,\
+                                'virtual ppos':GetVirtualPPosSensor ,\
                                 'next reserved':GetFrameSmoothingSensor ,\
                                 'tile obstr':TileObstrSensor, \
 #                                'tile occ':TileOccupSensor, \
@@ -105,13 +106,20 @@ class Belt(Entity):
 
     def _init_pkmn(belt, options):
         speed = options.get('speed', 1000)
+#        belt.Actions.update({True: \
+#            {'u':lambda logic: AnimMotion(logic, MotionUp, speed),\
+#             'd':lambda logic: AnimMotion(logic, MotionDown, speed),\
+#             'l':lambda logic: AnimMotion(logic, MotionLeft, speed),\
+#             'r':lambda logic: AnimMotion(logic, MotionRight, speed),\
+#             '-': MotionStatic }, False:{} }[options.get('std_motions',True)])
         belt.Actions.update({True: \
-            {'u':lambda logic: AnimMotion(logic, MotionUp, speed),\
-             'd':lambda logic: AnimMotion(logic, MotionDown, speed),\
-             'l':lambda logic: AnimMotion(logic, MotionLeft, speed),\
-             'r':lambda logic: AnimMotion(logic, MotionRight, speed),\
+            {'u':lambda l: AnimMotionAction(l, MotionUp(l), speed),\
+             'd':lambda l: AnimMotionAction(l, MotionDown(l), speed),\
+             'l':lambda l: AnimMotionAction(l, MotionLeft(l), speed),\
+             'r':lambda l: AnimMotionAction(l, MotionRight(l), speed),\
              '-': MotionStatic }, False:{} }[options.get('std_motions',True)])
-        belt.Moves.update({'tackle':moves_module.Tackle})
+        belt.Moves.update({'tackle':moves_module.Tackle,\
+                           'pokemon animation':moves_module.AnimPokemonMove})
         options['offset']=0
         hb = leaves_module.StatusBar(belt.gm, belt.agent, metric='health', 
                 **options)
@@ -134,7 +142,10 @@ class Belt(Entity):
     def spawn_new(belt, what_to_spawn, kind, **options):
         # Take a prefab activity from Moves and initialize it into Spawns.
         assert(kind=='move') # stub
-        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle']:
+#, 'pokemon animation r',\
+#'pokemon animation d', 'pokemon animation l', ]:
+        if what_to_spawn in ['cast pokeball', 'throw pokeball', 'tackle',\
+                'pokemon animation']:
             prefab = belt.Moves[what_to_spawn]
             new_ent = prefab(belt.gm, **options)
             belt.Spawns.update({what_to_spawn+':'+str(belt.spawn_itr): new_ent})

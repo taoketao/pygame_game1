@@ -77,6 +77,10 @@ class Display(Entity):
 
     def _init_load_free_images(disp):
         ''' >>> Pokeballs:  '''
+
+        disp.imgs['blank'] = pygame.Surface(disp.gm.ts()).convert_alpha()
+        disp.imgs['blank'].fill((255,255,255,0), None, pygame.BLEND_RGBA_MULT)
+
         # Pokeball sizes: see moves.py.
         pball = pygame.image.load(join(IMGS_LOC, 'moves',\
                             'pokeball.png')).convert_alpha()
@@ -93,6 +97,7 @@ class Display(Entity):
         tackle_burst_size = multvec(disp.gm.ts(), TACKLE_SCALE, 'int')
         tackle_burst_img = pygame.transform.scale(burst, tackle_burst_size)
         disp.imgs['tackle'] = tackle_burst_img
+
 
 
 
@@ -180,6 +185,8 @@ class Display(Entity):
         upd_ents = disp._effect_update_tups+disp._agent_update_tups
         upd_ents.sort(key=lambda x: x[1][1])
         upd_ents = disp._aftereffect_update_tups+upd_ents#+disp._effect_update_tups
+        print 'disp ents to update:', upd_ents
+#        print 'disp.imgs:',disp.imgs
         for img_str,ploc in upd_ents:
             img = disp.imgs[img_str]
             disp.screen.blit(img, ploc)
