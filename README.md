@@ -9,9 +9,9 @@ Overview:
     
 Game Instructions:
 
-    Walk around with WASD or arrow keys.
-    Use your mouse to select tiles.
-    Press space to send out a Pokemon from your belt or attempt to catch
+  - Walk around with WASD or arrow keys.
+  - Use your mouse to select tiles.
+  - Press space to send out a Pokemon from your belt or attempt to catch
         an wild enemy Pokemon!
 
 Play Instructions:
@@ -42,10 +42,10 @@ Play Instructions:
     
 
 Why did I do this:
-      - I have the dream of doing this for a while, but only recently found the 
+  - I have the dream of doing this for a while, but only recently found the 
     motivation, time, and means. I personally treated it like a challenge of
     writing massively scalable code.
-      - Partway through dev, I got very excited about a backend mechanic I needed.
+  - Partway through dev, I got very excited about a backend mechanic I needed.
     In the way that Tensorflow creates a "language" of operations on which 
     a user can build a network and let Tensorflow handle all behind-the-interface 
     operations (due to its unified structure), I needed a synchronous engine
@@ -53,11 +53,11 @@ Why did I do this:
     also follows a similar paradigm of providing interfaces. Especially if I
     were to implement a feature I hope to add one day, that the player can
     train individual pokemon to have fully customizable behaviors. 
-      - For examples of what I'm talking about, see abstractActions.py or 
+  - For examples of what I'm talking about, see abstractActions.py or 
     compositeActions.py for the "behind-the-interface" synchronous languaging,
     and any of the other *Actions.py classes for examples of the game mechanic
     engine idea.
-      - While it's far from fleshed out, (and actually provides no compute
+  - While the idea's far from fleshed out, (and actually provides no compute
     improvement when single-threaded), I'm glad to have laid out such a
     paradigm that indicates what may be a Behavior / Game Mechanic Engine.
 
