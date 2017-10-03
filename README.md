@@ -27,8 +27,10 @@ Play Instructions:
     If that fails, go download Python 2.7. Then, for each of the 
     dependencies below, try this command: 
     >    python -c "import DEP"     where you replace DEP with the dependency.
+
     If it fails, do this command: 
-    >pip install DEP
+    > pip install DEP
+
     If that fails also, go install pip. The dependencies are:
         pygame ,    abc ,     numpy,      sqlite3,      ConfigParser,
         PIL python imaging library: Image, ImageOps,    operator,
