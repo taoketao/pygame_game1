@@ -1,9 +1,10 @@
 Overview:  
 
-    Welcome to Pokemon Battle Arena!
+  - Welcome to Pokemon Battle Arena!
     (.... err, at least the bit I got done before school started again )
 
-    In this **immersive** experience, take the role of a Pokemon Trainer
+  - In this **extremely highly lifelike immersive** experience, take the 
+    role of a Pokemon Trainer
     striving to defeat an army of wild red Bulbasaur with your own blue
     Bulbasaur! 
     
